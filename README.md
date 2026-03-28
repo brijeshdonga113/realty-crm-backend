@@ -1,1 +1,0 @@
-CRM Django backend scaffold
