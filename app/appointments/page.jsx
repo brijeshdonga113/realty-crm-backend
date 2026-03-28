@@ -105,8 +105,8 @@ export default function AppointmentsPage() {
   const [view, setView]             = useState('list')  // 'list' | 'calendar'
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [filterStatus, setFilterStatus] = useState('all')
-  const [changeStatusId, setChangeStatusId] = useState(null)
-  const [newStatus, setNewStatus] = useState('')
+  const [editAppt, setEditAppt] = useState(null)   // { id, status, date, time }
+  const [editForm, setEditForm] = useState({ status: '', date: '', time: '' })
 
   const filtered = appointments.filter(a => {
     if (filterStatus !== 'all' && a.status !== filterStatus) return false
@@ -114,10 +114,10 @@ export default function AppointmentsPage() {
     return true
   })
 
-  const handleStatusChange = async () => {
-    if (!changeStatusId || !newStatus) return
-    await update(changeStatusId, { status: newStatus })
-    setChangeStatusId(null)
+  const handleApptUpdate = async () => {
+    if (!editAppt) return
+    await update(editAppt.id, { status: editForm.status, date: editForm.date, time: editForm.time })
+    setEditAppt(null)
   }
 
   return (
@@ -210,7 +210,7 @@ export default function AppointmentsPage() {
                       </td>
                       <td className="px-4 py-3.5 pr-6">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => { setChangeStatusId(appt.id); setNewStatus(appt.status) }}
+                          <button onClick={() => { setEditAppt(appt); setEditForm({ status: appt.status, date: appt.date, time: appt.time }) }}
                             className="text-xs text-blue-600 hover:underline font-medium">
                             Change
                           </button>
@@ -232,19 +232,32 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Change status modal */}
-      <Modal open={!!changeStatusId} onClose={() => setChangeStatusId(null)} title="Update Status" size="sm">
-        <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="input-field mb-5">
-          {APPOINTMENT_STATUSES.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
+      {/* Update appointment modal */}
+      <Modal open={!!editAppt} onClose={() => setEditAppt(null)} title="Update Appointment" size="sm">
+        <div className="space-y-4 mb-5">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Time</label>
+            <input type="time" value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Status</label>
+            <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} className="input-field">
+              {APPOINTMENT_STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="flex gap-3 justify-end">
-          <button onClick={() => setChangeStatusId(null)}
+          <button onClick={() => setEditAppt(null)}
             className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button onClick={handleStatusChange}
+          <button onClick={handleApptUpdate}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
             Update
           </button>

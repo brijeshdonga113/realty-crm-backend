@@ -48,6 +48,28 @@ function TagInput({ label, items, onChange, suggestions }) {
 
 const TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
 
+function Field({ name, label, type = 'text', placeholder, required, nested, options, form, errors, set, setNested }) {
+  const value = nested ? form[nested][name] : form[name]
+  const onChange = nested
+    ? (e) => setNested(nested, name, e.target.value)
+    : (e) => set(name, e.target.value)
+  return (
+    <div>
+      <label className="form-label">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+      {options ? (
+        <select value={value} onChange={onChange} className={`input-field ${errors[name] ? 'border-red-400' : ''}`}>
+          <option value="">Select…</option>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+          className={`input-field ${errors[name] ? 'border-red-400' : ''}`}/>
+      )}
+      {errors[name] && <p className="error-text">{errors[name]}</p>}
+    </div>
+  )
+}
+
 export default function NewPatientPage() {
   const router = useRouter()
   const { add } = usePatients()
@@ -95,27 +117,7 @@ export default function NewPatientPage() {
     }
   }
 
-  const Field = ({ name, label, type = 'text', placeholder, required, nested, options }) => {
-    const value = nested ? form[nested][name] : form[name]
-    const onChange = nested
-      ? (e) => setNested(nested, name, e.target.value)
-      : (e) => set(name, e.target.value)
-    return (
-      <div>
-        <label className="form-label">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
-        {options ? (
-          <select value={value} onChange={onChange} className={`input-field ${errors[name] ? 'border-red-400' : ''}`}>
-            <option value="">Select…</option>
-            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        ) : (
-          <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-            className={`input-field ${errors[name] ? 'border-red-400' : ''}`}/>
-        )}
-        {errors[name] && <p className="error-text">{errors[name]}</p>}
-      </div>
-    )
-  }
+  const fieldProps = { form, errors, set, setNested }
 
   return (
     <AppLayout title="Add New Patient"
@@ -144,24 +146,24 @@ export default function NewPatientPage() {
             {tab === 0 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field name="firstName" label="First Name" placeholder="John" required />
-                  <Field name="lastName" label="Last Name" placeholder="Smith" required />
+                  <Field name="firstName" label="First Name" placeholder="John" required {...fieldProps} />
+                  <Field name="lastName" label="Last Name" placeholder="Smith" required {...fieldProps} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <Field name="dateOfBirth" label="Date of Birth" type="date" />
+                  <Field name="dateOfBirth" label="Date of Birth" type="date" {...fieldProps} />
                   <Field name="gender" label="Gender" required options={[
                     { value: 'male', label: 'Male' },
                     { value: 'female', label: 'Female' },
                     { value: 'other', label: 'Other' },
-                  ]} />
-                  <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} />
+                  ]} {...fieldProps} />
+                  <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} {...fieldProps} />
                 </div>
-                <Field name="nationalId" label="National ID / Patient ID" placeholder="e.g. PAN, Aadhaar, Passport" />
+                <Field name="nationalId" label="National ID / Patient ID" placeholder="e.g. PAN, Aadhaar, Passport" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
-                  <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" required />
-                  <Field name="alternatePhone" label="Alternate Phone" placeholder="+1 234 567 8901" />
+                  <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" required {...fieldProps} />
+                  <Field name="alternatePhone" label="Alternate Phone" placeholder="+1 234 567 8901" {...fieldProps} />
                 </div>
-                <Field name="email" label="Email Address" type="email" placeholder="patient@email.com" />
+                <Field name="email" label="Email Address" type="email" placeholder="patient@email.com" {...fieldProps} />
                 <div>
                   <label className="form-label">Address</label>
                   <textarea value={form.address} onChange={e => set('address', e.target.value)}
@@ -171,7 +173,7 @@ export default function NewPatientPage() {
                 <Field name="status" label="Patient Status" options={[
                   { value: 'active', label: 'Active' },
                   { value: 'inactive', label: 'Inactive' },
-                ]} />
+                ]} {...fieldProps} />
               </>
             )}
 
@@ -205,12 +207,12 @@ export default function NewPatientPage() {
             {/* Tab 2: Insurance */}
             {tab === 2 && (
               <>
-                <Field name="insuranceProvider" label="Insurance Provider" placeholder="e.g. BlueCross, Aetna" />
+                <Field name="insuranceProvider" label="Insurance Provider" placeholder="e.g. BlueCross, Aetna" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
-                  <Field name="insurancePolicyNumber" label="Policy Number" placeholder="POL-123456" />
-                  <Field name="insuranceGroupNumber" label="Group Number" placeholder="GRP-789" />
+                  <Field name="insurancePolicyNumber" label="Policy Number" placeholder="POL-123456" {...fieldProps} />
+                  <Field name="insuranceGroupNumber" label="Group Number" placeholder="GRP-789" {...fieldProps} />
                 </div>
-                <Field name="insuranceExpiry" label="Policy Expiry Date" type="date" />
+                <Field name="insuranceExpiry" label="Policy Expiry Date" type="date" {...fieldProps} />
               </>
             )}
 
@@ -218,10 +220,10 @@ export default function NewPatientPage() {
             {tab === 3 && (
               <>
                 <p className="text-sm text-gray-500">Emergency contact details for this patient.</p>
-                <Field name="name" label="Contact Name" placeholder="Jane Smith" nested="emergencyContact" />
+                <Field name="name" label="Contact Name" placeholder="Jane Smith" nested="emergencyContact" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
-                  <Field name="phone" label="Contact Phone" placeholder="+1 234 567 8900" nested="emergencyContact" />
-                  <Field name="relationship" label="Relationship" placeholder="e.g. Spouse, Parent" nested="emergencyContact" />
+                  <Field name="phone" label="Contact Phone" placeholder="+1 234 567 8900" nested="emergencyContact" {...fieldProps} />
+                  <Field name="relationship" label="Relationship" placeholder="e.g. Spouse, Parent" nested="emergencyContact" {...fieldProps} />
                 </div>
               </>
             )}
