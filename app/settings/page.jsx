@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { isFirebaseConfigured } from '@/lib/firebase'
+import { auth } from '@/lib/firebase'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -108,20 +108,11 @@ export default function SettingsPage() {
     }
     setPwSaving(true)
     try {
-      if (isFirebaseConfigured) {
+      {
         const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth')
-        const { auth } = await import('@/lib/firebase')
         const cred = EmailAuthProvider.credential(doctor.email, pwForm.current)
         await reauthenticateWithCredential(auth.currentUser, cred)
         await updatePassword(auth.currentUser, pwForm.next)
-      } else {
-        const doctors = JSON.parse(localStorage.getItem('clinic_crm_doctors') || '{}')
-        const found   = doctors[doctor.email]
-        if (!found || found.passwordHash !== btoa(pwForm.current)) {
-          throw new Error('Current password is incorrect.')
-        }
-        doctors[doctor.email].passwordHash = btoa(pwForm.next)
-        localStorage.setItem('clinic_crm_doctors', JSON.stringify(doctors))
       }
       setPwForm({ current: '', next: '', confirm: '' })
       setPwSaved(true)
