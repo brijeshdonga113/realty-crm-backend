@@ -4,7 +4,7 @@ import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
 
 // Visits are stored as a subcollection: patients/{patientId}/visits
-// This matches the Firestore structure: clinics/{doctorId}/patients/{patientId}/visits/{visitId}
+// This matches the Firestore structure: users/{doctorId}/patients/{patientId}/visits/{visitId}
 
 function visitPath(patientId) {
   return `patients/${patientId}/visits`

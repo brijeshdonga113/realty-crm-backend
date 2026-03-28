@@ -46,7 +46,7 @@ async function firebaseSignup(doctorData) {
   const profile = buildDoctorProfile(uid, doctorData)
 
   // Store doctor profile in Firestore: clinics/{uid}/profile
-  await setDoc(doc(db, 'clinics', uid, 'profile', 'doctor'), profile)
+  await setDoc(doc(db, 'users', uid, 'profile', 'doctor'), profile)
 
   await updateProfile(cred.user, {
     displayName: `${doctorData.firstName} ${doctorData.lastName}`,
@@ -63,7 +63,7 @@ async function firebaseLogin(email, password) {
   const cred = await signInWithEmailAndPassword(auth, email, password)
   const uid  = cred.user.uid
 
-  const snap = await getDoc(doc(db, 'clinics', uid, 'profile', 'doctor'))
+  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
   const profile = snap.exists()
     ? buildDoctorProfile(uid, snap.data())
     : buildDoctorProfile(uid, { email })
@@ -80,7 +80,7 @@ async function firebaseLogout() {
 
 async function loadFirebaseProfile(uid) {
   const { doc, getDoc } = await import('firebase/firestore')
-  const snap = await getDoc(doc(db, 'clinics', uid, 'profile', 'doctor'))
+  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
   return snap.exists() ? buildDoctorProfile(uid, snap.data()) : null
 }
 
@@ -181,7 +181,7 @@ export function AuthProvider({ children }) {
     const updated = { ...doctor, ...patch }
     if (isFirebaseConfigured) {
       const { doc, setDoc } = await import('firebase/firestore')
-      await setDoc(doc(db, 'clinics', doctor.id, 'profile', 'doctor'), updated)
+      await setDoc(doc(db, 'users', doctor.id, 'profile', 'doctor'), updated)
       const { updateProfile: fbUpdateProfile } = await import('firebase/auth')
       if (auth.currentUser) {
         await fbUpdateProfile(auth.currentUser, {
