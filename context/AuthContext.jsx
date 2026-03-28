@@ -177,6 +177,29 @@ export function AuthProvider({ children }) {
     return profile
   }
 
+  const updateProfile = async (patch) => {
+    const updated = { ...doctor, ...patch }
+    if (isFirebaseConfigured) {
+      const { doc, setDoc } = await import('firebase/firestore')
+      await setDoc(doc(db, 'clinics', doctor.id, 'profile', 'doctor'), updated)
+      const { updateProfile: fbUpdateProfile } = await import('firebase/auth')
+      if (auth.currentUser) {
+        await fbUpdateProfile(auth.currentUser, {
+          displayName: `${updated.firstName} ${updated.lastName}`,
+        })
+      }
+    } else {
+      const doctors = JSON.parse(localStorage.getItem('clinic_crm_doctors') || '{}')
+      if (doctors[doctor.email]) {
+        doctors[doctor.email] = { ...doctors[doctor.email], ...patch }
+        localStorage.setItem('clinic_crm_doctors', JSON.stringify(doctors))
+      }
+    }
+    saveSessionLocally(updated)
+    setDoctor(updated)
+    return updated
+  }
+
   const logout = async () => {
     if (isFirebaseConfigured) {
       await firebaseLogout()
@@ -187,7 +210,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, login, logout }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, login, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

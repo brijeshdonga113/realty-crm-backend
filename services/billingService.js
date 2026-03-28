@@ -82,9 +82,13 @@ export const billingService = {
     const paid    = all.filter(inv => inv.status === 'paid')
     const pending = all.filter(inv => ['draft', 'sent'].includes(inv.status))
     const overdue = all.filter(inv => inv.status === 'overdue')
-    const totalRevenue = paid.reduce((s, inv) => s + inv.total, 0)
+    const totalRevenue  = paid.reduce((s, inv) => s + inv.total, 0)
     const pendingAmount = pending.reduce((s, inv) => s + inv.total, 0)
-    return { total: all.length, paid: paid.length, pending: pending.length, overdue: overdue.length, totalRevenue, pendingAmount }
+    const today = new Date().toISOString().slice(0, 10)
+    const todayRevenue = paid
+      .filter(inv => inv.paymentDate === today)
+      .reduce((s, inv) => s + inv.total, 0)
+    return { total: all.length, paid: paid.length, pending: pending.length, overdue: overdue.length, totalRevenue, pendingAmount, todayRevenue }
   },
 
   async getMonthlyRevenue(months = 6) {

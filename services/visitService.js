@@ -60,4 +60,18 @@ export const visitService = {
     if (!existing) return false
     return dataStore.remove(visitPath(existing.patientId), id)
   },
+
+  async getDashboardStats() {
+    const today    = new Date().toISOString().slice(0, 10)
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    const all = await dataStore.getAllGroup('visits')
+    return {
+      todayCount:       all.filter(v => v.visitDate === today).length,
+      followupToday:    all.filter(v => v.followUpDate === today).length,
+      followupTomorrow: all.filter(v => v.followUpDate === tomorrow).length,
+      recent: all
+        .sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
+        .slice(0, 5),
+    }
+  },
 }
