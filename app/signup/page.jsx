@@ -32,6 +32,28 @@ const initialForm = {
   confirmPassword: '',
 }
 
+function Field({ name, label, type = 'text', placeholder, optional = false, form, errors, onChange, children }) {
+  return (
+    <div>
+      <label className="form-label">
+        {label}
+        {optional && <span className="text-gray-400 font-normal ml-1">(optional)</span>}
+      </label>
+      {children || (
+        <input
+          type={type}
+          name={name}
+          value={form[name]}
+          onChange={onChange}
+          placeholder={placeholder}
+          className={`input-field ${errors[name] ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10' : ''}`}
+        />
+      )}
+      {errors[name] && <p className="error-text">{errors[name]}</p>}
+    </div>
+  )
+}
+
 export default function SignupPage() {
   const { signup } = useAuth()
   const router = useRouter()
@@ -82,26 +104,6 @@ export default function SignupPage() {
       setLoading(false)
     }
   }
-
-  const Field = ({ name, label, type = 'text', placeholder, optional = false, children }) => (
-    <div>
-      <label className="form-label">
-        {label}
-        {optional && <span className="text-gray-400 font-normal ml-1">(optional)</span>}
-      </label>
-      {children || (
-        <input
-          type={type}
-          name={name}
-          value={form[name]}
-          onChange={handleChange}
-          placeholder={placeholder}
-          className={`input-field ${errors[name] ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10' : ''}`}
-        />
-      )}
-      {errors[name] && <p className="error-text">{errors[name]}</p>}
-    </div>
-  )
 
   return (
     <div className="min-h-screen flex">
@@ -184,15 +186,15 @@ export default function SignupPage() {
 
             {/* Name row */}
             <div className="grid grid-cols-2 gap-4">
-              <Field name="firstName" label="First Name" placeholder="John" />
-              <Field name="lastName" label="Last Name" placeholder="Smith" />
+              <Field name="firstName" label="First Name" placeholder="John" form={form} errors={errors} onChange={handleChange} />
+              <Field name="lastName" label="Last Name" placeholder="Smith" form={form} errors={errors} onChange={handleChange} />
             </div>
 
             {/* Email */}
-            <Field name="email" label="Email Address" type="email" placeholder="doctor@clinic.com" />
+            <Field name="email" label="Email Address" type="email" placeholder="doctor@clinic.com" form={form} errors={errors} onChange={handleChange} />
 
             {/* Specialization */}
-            <Field name="specialization" label="Specialization">
+            <Field name="specialization" label="Specialization" form={form} errors={errors} onChange={handleChange}>
               <div className="relative">
                 <select
                   name="specialization"
@@ -216,12 +218,12 @@ export default function SignupPage() {
 
             {/* License + Phone */}
             <div className="grid grid-cols-2 gap-4">
-              <Field name="licenseNumber" label="License Number" placeholder="MED-123456" />
-              <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" />
+              <Field name="licenseNumber" label="License Number" placeholder="MED-123456" form={form} errors={errors} onChange={handleChange} />
+              <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" form={form} errors={errors} onChange={handleChange} />
             </div>
 
             {/* Clinic name */}
-            <Field name="clinicName" label="Clinic / Hospital Name" placeholder="City Medical Center" optional />
+            <Field name="clinicName" label="Clinic / Hospital Name" placeholder="City Medical Center" optional form={form} errors={errors} onChange={handleChange} />
 
             {/* Password row */}
             <div className="grid grid-cols-2 gap-4">
