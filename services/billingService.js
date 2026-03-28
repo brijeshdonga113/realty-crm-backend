@@ -86,7 +86,7 @@ export const billingService = {
     const pendingAmount = pending.reduce((s, inv) => s + inv.total, 0)
     const today = new Date().toISOString().slice(0, 10)
     const todayRevenue = paid
-      .filter(inv => inv.paymentDate === today)
+      .filter(inv => inv.issueDate === today)
       .reduce((s, inv) => s + inv.total, 0)
     return { total: all.length, paid: paid.length, pending: pending.length, overdue: overdue.length, totalRevenue, pendingAmount, todayRevenue }
   },

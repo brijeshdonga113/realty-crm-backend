@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect } from 'react'
-import { isFirebaseConfigured, auth, db } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 
 const AuthContext = createContext(null)
 
@@ -120,59 +120,44 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (isFirebaseConfigured) {
-      // Listen to Firebase Auth state changes
-      let unsubscribe
-      import('firebase/auth').then(({ onAuthStateChanged }) => {
-        unsubscribe = onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            try {
-              const profile = await loadFirebaseProfile(user.uid)
-              if (profile) {
-                saveSessionLocally(profile)
-                setDoctor(profile)
-              } else {
-                // Profile not in Firestore yet (edge case) — use basic info
-                const fallback = buildDoctorProfile(user.uid, {
-                  email: user.email,
-                  firstName: user.displayName?.split(' ')[0] ?? '',
-                  lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
-                })
-                setDoctor(fallback)
-              }
-            } catch {
-              setDoctor(null)
+    let unsubscribe
+    import('firebase/auth').then(({ onAuthStateChanged }) => {
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try {
+            const profile = await loadFirebaseProfile(user.uid)
+            if (profile) {
+              saveSessionLocally(profile)
+              setDoctor(profile)
+            } else {
+              const fallback = buildDoctorProfile(user.uid, {
+                email: user.email,
+                firstName: user.displayName?.split(' ')[0] ?? '',
+                lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
+              })
+              setDoctor(fallback)
             }
-          } else {
-            clearSessionLocally()
+          } catch {
             setDoctor(null)
           }
-          setLoading(false)
-        })
+        } else {
+          clearSessionLocally()
+          setDoctor(null)
+        }
+        setLoading(false)
       })
-      return () => unsubscribe?.()
-    } else {
-      // localStorage mode
-      try {
-        const saved = localStorage.getItem('clinic_crm_doctor')
-        if (saved) setDoctor(JSON.parse(saved))
-      } catch {}
-      setLoading(false)
-    }
+    })
+    return () => unsubscribe?.()
   }, [])
 
   const signup = async (doctorData) => {
-    const profile = isFirebaseConfigured
-      ? await firebaseSignup(doctorData)
-      : localSignup(doctorData)
+    const profile = await firebaseSignup(doctorData)
     setDoctor(profile)
     return profile
   }
 
   const login = async (email, password) => {
-    const profile = isFirebaseConfigured
-      ? await firebaseLogin(email, password)
-      : localLogin(email, password)
+    const profile = await firebaseLogin(email, password)
     setDoctor(profile)
     return profile
   }
@@ -201,11 +186,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    if (isFirebaseConfigured) {
-      await firebaseLogout()
-    } else {
-      localLogout()
-    }
+    await firebaseLogout()
     setDoctor(null)
   }
 

@@ -62,7 +62,7 @@ export function createInvoice(data = {}) {
     taxAmount,
     discount:  data.discount ?? 0,
     total,
-    currency:  data.currency ?? 'USD',
+    currency:  data.currency ?? 'INR',
 
     status:        data.status ?? 'draft',
     paymentMethod: data.paymentMethod ?? null,
@@ -78,6 +78,6 @@ export function getInvoiceStatusMeta(status) {
   return INVOICE_STATUSES.find(s => s.value === status) ?? INVOICE_STATUSES[0]
 }
 
-export function formatCurrency(amount, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+export function formatCurrency(amount, currency = 'INR') {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(amount)
 }
