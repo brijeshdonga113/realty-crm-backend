@@ -74,7 +74,7 @@ export default function SignupPage() {
     }
     setLoading(true)
     try {
-      signup(form)
+      await signup(form)
       router.push('/dashboard')
     } catch (err) {
       setGlobalError(err.message)

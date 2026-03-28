@@ -27,7 +27,7 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      login(form.email, form.password)
+      await login(form.email, form.password)
       router.push('/dashboard')
     } catch (err) {
       setError(err.message)
