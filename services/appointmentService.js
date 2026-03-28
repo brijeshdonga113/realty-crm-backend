@@ -2,8 +2,23 @@ import { dataStore } from '@/lib/dataStore'
 import { createAppointment } from '@/models/Appointment'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
+import {
+  isGoogleCalendarConnected,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from '@/lib/googleCalendar'
 
 const COLLECTION = 'appointments'
+
+// Fire-and-forget Google Calendar sync — never blocks the main action
+async function gcalSync(fn) {
+  try {
+    if (typeof window !== 'undefined' && isGoogleCalendarConnected()) await fn()
+  } catch (e) {
+    console.warn('Google Calendar sync failed:', e.message)
+  }
+}
 
 export const appointmentService = {
   async getAll() {
@@ -59,6 +74,12 @@ export const appointmentService = {
       relatedEntity: { type: 'appointment', id: saved.id },
     })
 
+    // Sync to Google Calendar
+    gcalSync(async () => {
+      const googleEventId = await createCalendarEvent(saved)
+      if (googleEventId) await dataStore.update(COLLECTION, saved.id, { googleEventId })
+    })
+
     return saved
   },
 
@@ -74,10 +95,19 @@ export const appointmentService = {
       })
     }
 
+    // Sync update to Google Calendar
+    gcalSync(async () => {
+      if (updated.googleEventId) await updateCalendarEvent(updated.googleEventId, updated)
+    })
+
     return updated
   },
 
   async remove(id) {
+    const appt = await dataStore.getById(COLLECTION, id)
+    gcalSync(async () => {
+      if (appt?.googleEventId) await deleteCalendarEvent(appt.googleEventId)
+    })
     return dataStore.remove(COLLECTION, id)
   },
 

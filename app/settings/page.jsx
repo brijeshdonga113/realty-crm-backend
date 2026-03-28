@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { isFirebaseConfigured } from '@/lib/firebase'
+import {
+  isGoogleCalendarEnabled,
+  isGoogleCalendarConnected,
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+} from '@/lib/googleCalendar'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -31,6 +37,30 @@ export default function SettingsPage() {
     specialization: doctor?.specialization ?? '',
     licenseNumber:  doctor?.licenseNumber  ?? '',
   })
+
+  const [gcalConnected, setGcalConnected] = useState(false)
+  const [gcalLoading, setGcalLoading]     = useState(false)
+  const [gcalError, setGcalError]         = useState('')
+
+  useEffect(() => { setGcalConnected(isGoogleCalendarConnected()) }, [])
+
+  const handleGcalConnect = async () => {
+    setGcalLoading(true)
+    setGcalError('')
+    try {
+      await connectGoogleCalendar()
+      setGcalConnected(true)
+    } catch (err) {
+      setGcalError(err.message)
+    } finally {
+      setGcalLoading(false)
+    }
+  }
+
+  const handleGcalDisconnect = () => {
+    disconnectGoogleCalendar()
+    setGcalConnected(false)
+  }
 
   const [pwForm, setPwForm]   = useState({ current: '', next: '', confirm: '' })
   const [saving, setSaving]   = useState(false)
@@ -221,6 +251,92 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
+
+        {/* Google Calendar integration */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+            {/* Google Calendar icon */}
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 48 48" fill="none">
+              <path d="M34 8H14a6 6 0 00-6 6v20a6 6 0 006 6h20a6 6 0 006-6V14a6 6 0 00-6-6z" fill="#fff" stroke="#dadce0" strokeWidth="2"/>
+              <path d="M34 8H14a6 6 0 00-6 6v4h32v-4a6 6 0 00-6-6z" fill="#1A73E8"/>
+              <rect x="8" y="18" width="32" height="2" fill="#dadce0"/>
+              <circle cx="17" cy="8" r="2" fill="#1A73E8"/>
+              <circle cx="31" cy="8" r="2" fill="#1A73E8"/>
+              <text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1A73E8">G</text>
+            </svg>
+            <div>
+              <h2 className="font-semibold text-gray-900">Google Calendar</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Auto-sync appointments to your Google Calendar.</p>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {!isGoogleCalendarEnabled ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-800 font-medium mb-1">Configuration required</p>
+                <p className="text-xs text-amber-700">
+                  Set <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your <code className="bg-amber-100 px-1 rounded">.env.local</code> to enable Google Calendar sync.
+                </p>
+                <p className="text-xs text-amber-600 mt-2">
+                  Go to Google Cloud Console → Credentials → Create OAuth 2.0 Client ID (Web application).
+                </p>
+              </div>
+            ) : gcalConnected ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 bg-green-500 rounded-full"/>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Connected</p>
+                    <p className="text-xs text-gray-400">New appointments will sync automatically.</p>
+                  </div>
+                </div>
+                <button onClick={handleGcalDisconnect}
+                  className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Not connected</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Connect to sync appointments both ways.</p>
+                </div>
+                <button onClick={handleGcalConnect} disabled={gcalLoading}
+                  className="flex items-center gap-2 bg-white border border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                  {gcalLoading ? (
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 48 48">
+                      <path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107"/>
+                      <path d="M6.3 14.7l7.1 5.2C15.2 16.5 19.3 14 24 14c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 16.3 2 9.6 7.3 6.3 14.7z" fill="#FF3D00"/>
+                      <path d="M24 46c5.5 0 10.5-1.9 14.3-5.1l-6.6-5.5C29.7 37 27 38 24 38c-6.1 0-10.7-3.1-11.8-8.5H4.1C7.3 40.7 14.9 46 24 46z" fill="#4CAF50"/>
+                      <path d="M44.5 20H24v8.5h11.8c-1 3-3.3 5.5-6.2 7l6.6 5.5C40.7 37.3 45 31.3 45 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2"/>
+                    </svg>
+                  )}
+                  {gcalLoading ? 'Connecting…' : 'Connect Google Calendar'}
+                </button>
+              </div>
+            )}
+
+            {gcalError && (
+              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{gcalError}</p>
+            )}
+
+            {gcalConnected && (
+              <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                <p className="text-xs font-semibold text-blue-800 mb-1">What syncs automatically</p>
+                <ul className="text-xs text-blue-700 space-y-0.5">
+                  <li>✓ New appointment → creates event in Google Calendar</li>
+                  <li>✓ Status/time change → updates the event</li>
+                  <li>✓ Appointment deleted → removes from Google Calendar</li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Change password section */}
         <form onSubmit={handlePasswordChange} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
