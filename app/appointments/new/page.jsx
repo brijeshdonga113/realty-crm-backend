@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { APPOINTMENT_TYPES } from '@/models/Appointment'
 
-export default function NewAppointmentPage() {
+function NewAppointmentForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { add }      = useAppointments()
@@ -136,5 +136,13 @@ export default function NewAppointmentPage() {
         </form>
       </div>
     </AppLayout>
+  )
+}
+
+export default function NewAppointmentPage() {
+  return (
+    <Suspense>
+      <NewAppointmentForm />
+    </Suspense>
   )
 }

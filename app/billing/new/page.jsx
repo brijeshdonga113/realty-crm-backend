@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
@@ -17,7 +17,7 @@ const COMMON_ITEMS = [
   { description: 'Urine Test', unitPrice: 100 },
 ]
 
-export default function NewInvoicePage() {
+function NewInvoiceForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { add }      = useBilling()
@@ -221,5 +221,13 @@ export default function NewInvoicePage() {
         </form>
       </div>
     </AppLayout>
+  )
+}
+
+export default function NewInvoicePage() {
+  return (
+    <Suspense>
+      <NewInvoiceForm />
+    </Suspense>
   )
 }
