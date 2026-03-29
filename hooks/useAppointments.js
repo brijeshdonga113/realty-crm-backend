@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { appointmentService } from '@/services/appointmentService'
+import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
 
 export function useAppointments() {
@@ -9,39 +10,34 @@ export function useAppointments() {
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!doctor) return
     setLoading(true)
-    try {
-      setAppointments(await appointmentService.getAll())
-      setError(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
+    const unsub = dataStore.subscribe('appointments', (data) => {
+      setAppointments(data.sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time || '00:00'}`)
+        const db = new Date(`${b.date}T${b.time || '00:00'}`)
+        return db - da
+      }))
       setLoading(false)
-    }
+      setError(null)
+    })
+    return () => unsub()
   }, [doctor])
 
-  useEffect(() => { load() }, [load])
-
   const add = useCallback(async (data) => {
-    const saved = await appointmentService.create({ ...data, doctorId: doctor?.id })
-    setAppointments(prev => [saved, ...prev])
-    return saved
+    return appointmentService.create({ ...data, doctorId: doctor?.id })
   }, [doctor])
 
   const update = useCallback(async (id, patch) => {
-    const updated = await appointmentService.update(id, patch)
-    setAppointments(prev => prev.map(a => a.id === id ? updated : a))
-    return updated
+    return appointmentService.update(id, patch)
   }, [])
 
   const remove = useCallback(async (id) => {
-    await appointmentService.remove(id)
-    setAppointments(prev => prev.filter(a => a.id !== id))
+    return appointmentService.remove(id)
   }, [])
 
-  return { appointments, loading, error, add, update, remove, reload: load }
+  return { appointments, loading, error, add, update, remove }
 }
 
 export function usePatientAppointments(patientId) {

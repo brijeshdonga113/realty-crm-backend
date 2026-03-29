@@ -29,5 +29,11 @@ export function useReports() {
 
   useEffect(() => { load() }, [load])
 
+  // Reload when user navigates back to the tab/window
+  useEffect(() => {
+    window.addEventListener('focus', load)
+    return () => window.removeEventListener('focus', load)
+  }, [load])
+
   return { stats, monthlyRevenue, patientGrowth, loading, reload: load }
 }
