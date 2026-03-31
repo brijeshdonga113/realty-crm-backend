@@ -3,16 +3,18 @@ import { billingService } from './billingService'
 import { patientService } from './patientService'
 import { appointmentService } from './appointmentService'
 import { visitService } from './visitService'
+import { followupService } from './followupService'
 
 export const reportService = {
   async getDashboardStats() {
-    const [patients, appointments, billing, visits] = await Promise.all([
+    const [patients, appointments, billing, visits, followups] = await Promise.all([
       patientService.getStats(),
       appointmentService.getStats(),
       billingService.getStats(),
       visitService.getDashboardStats(),
+      followupService.getStats(),
     ])
-    return { patients, appointments, billing, visits }
+    return { patients, appointments, billing, visits, followups }
   },
 
   async getMonthlyRevenue(months = 6) {

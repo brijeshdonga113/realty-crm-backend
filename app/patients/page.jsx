@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import { usePatients } from '@/hooks/usePatients'
 import { useBilling } from '@/hooks/useBilling'
+import { useFollowUps } from '@/hooks/useFollowUps'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 
 const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'teal', 'B-': 'teal', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
@@ -16,9 +17,13 @@ export default function PatientsPage() {
   const router = useRouter()
   const { patients, loading, remove, search } = usePatients()
   const { invoices } = useBilling()
-  const [query, setQuery]             = useState('')
-  const [deleteId, setDeleteId]       = useState(null)
+  const { add: addFollowUp } = useFollowUps()
+  const [query, setQuery]               = useState('')
+  const [deleteId, setDeleteId]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [followUpPatient, setFollowUpPatient] = useState(null)
+  const [followUpForm, setFollowUpForm]       = useState({ dueDate: '', note: '' })
+  const [followUpSaving, setFollowUpSaving]   = useState(false)
 
   // Build a map of patientId → total bill count
   const billCountByPatient = useMemo(() => {
@@ -30,6 +35,30 @@ export default function PatientsPage() {
   }, [invoices])
 
   const handleSearch = (q) => { setQuery(q); search(q) }
+
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+
+  const openFollowUp = (e, patient) => {
+    e.stopPropagation()
+    setFollowUpPatient(patient)
+    setFollowUpForm({ dueDate: tomorrow, note: '' })
+  }
+
+  const handleFollowUpSave = async () => {
+    if (!followUpPatient || !followUpForm.dueDate) return
+    setFollowUpSaving(true)
+    try {
+      await addFollowUp({
+        patientId:   followUpPatient.id,
+        patientName: `${followUpPatient.firstName} ${followUpPatient.lastName}`,
+        dueDate:     followUpForm.dueDate,
+        note:        followUpForm.note,
+      })
+      setFollowUpPatient(null)
+    } finally {
+      setFollowUpSaving(false)
+    }
+  }
 
   const filtered = filterStatus === 'all'
     ? patients
@@ -94,8 +123,8 @@ export default function PatientsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                  {['Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits'].map(h => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6 last:pr-6 last:text-center">{h}</th>
+                  {['Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits', ''].map(h => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -141,7 +170,7 @@ export default function PatientsPage() {
                       <td className="px-4 py-3.5">
                         <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
                       </td>
-                      <td className="px-4 py-3.5 pr-6 text-center">
+                      <td className="px-4 py-3.5 text-center">
                         {visitCount > 0 ? (
                           <span className="inline-flex items-center gap-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-bold px-2.5 py-1 rounded-full">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,6 +182,18 @@ export default function PatientsPage() {
                           <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3.5 pr-5">
+                        <button
+                          onClick={e => openFollowUp(e, patient)}
+                          title="Set follow-up reminder"
+                          className="flex items-center gap-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                          Follow Up
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -161,6 +202,68 @@ export default function PatientsPage() {
           </div>
         </>
       )}
+
+      {/* Follow Up modal */}
+      <Modal open={!!followUpPatient} onClose={() => setFollowUpPatient(null)} title="Schedule Follow-up Reminder" size="sm">
+        {followUpPatient && (
+          <div className="space-y-4 mb-5">
+            <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
+              <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-primary-700 dark:text-primary-300 font-bold text-xs">
+                  {getPatientInitials(followUpPatient)}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {followUpPatient.firstName} {followUpPatient.lastName}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{followUpPatient.phone || 'No phone on record'}</p>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Follow-up Due Date</label>
+              <input
+                type="date"
+                value={followUpForm.dueDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setFollowUpForm(f => ({ ...f, dueDate: e.target.value }))}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="form-label">Reminder Note <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input
+                type="text"
+                value={followUpForm.note}
+                onChange={e => setFollowUpForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="e.g. Check blood pressure, review medication…"
+                className="input-field"
+              />
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              A notification will be created and shown on the dashboard when this date arrives.
+            </p>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end">
+          <button onClick={() => setFollowUpPatient(null)}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleFollowUpSave}
+            disabled={!followUpForm.dueDate || followUpSaving}
+            className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center gap-2">
+            {followUpSaving && (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            Set Reminder
+          </button>
+        </div>
+      </Modal>
 
       {/* Delete confirm modal — accessible from patient profile page */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Remove Patient" size="sm">
