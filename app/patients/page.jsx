@@ -1,22 +1,33 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import { usePatients } from '@/hooks/usePatients'
+import { useBilling } from '@/hooks/useBilling'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 
-const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'blue', 'B-': 'blue', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
+const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'teal', 'B-': 'teal', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 
 export default function PatientsPage() {
   const router = useRouter()
   const { patients, loading, remove, search } = usePatients()
-  const [query, setQuery] = useState('')
-  const [deleteId, setDeleteId] = useState(null)
+  const { invoices } = useBilling()
+  const [query, setQuery]             = useState('')
+  const [deleteId, setDeleteId]       = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
+
+  // Build a map of patientId → total bill count
+  const billCountByPatient = useMemo(() => {
+    const map = {}
+    invoices.forEach(inv => {
+      if (inv.patientId) map[inv.patientId] = (map[inv.patientId] ?? 0) + 1
+    })
+    return map
+  }, [invoices])
 
   const handleSearch = (q) => { setQuery(q); search(q) }
 
@@ -76,78 +87,84 @@ export default function PatientsPage() {
         />
       ) : (
         <>
-          <p className="text-sm text-gray-500 mb-4">{filtered.length} patient{filtered.length !== 1 ? 's' : ''}</p>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {filtered.length} patient{filtered.length !== 1 ? 's' : ''}
+          </p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {['Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-left first:pl-6 last:pr-6">{h}</th>
+                <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                  {['Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits'].map(h => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6 last:pr-6 last:text-center">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(patient => (
-                  <tr key={patient.id}
-                    className="hover:bg-gray-50/50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/patients/${patient.id}`)}
-                  >
-                    <td className="px-4 py-3.5 pl-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-primary-700 font-semibold text-sm">{getPatientInitials(patient)}</span>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {filtered.map(patient => {
+                  const visitCount = billCountByPatient[patient.id] ?? 0
+                  return (
+                    <tr key={patient.id}
+                      className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/patients/${patient.id}`)}
+                    >
+                      <td className="px-4 py-3.5 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary-700 dark:text-primary-300 font-semibold text-sm">{getPatientInitials(patient)}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{patient.firstName} {patient.lastName}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">{patient.email || patient.nationalId || '—'}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{patient.firstName} {patient.lastName}</p>
-                          <p className="text-xs text-gray-400">{patient.email || patient.nationalId || '—'}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
+                        {getPatientAge(patient) ? `${getPatientAge(patient)} yrs` : '—'} / {patient.gender}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {patient.bloodType
+                          ? <Badge label={patient.bloodType} color={BLOOD_COLORS[patient.bloodType] ?? 'gray'} />
+                          : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">{patient.phone}</td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          {patient.chronicConditions?.slice(0, 2).map(c => (
+                            <Badge key={c} label={c} color="orange" />
+                          ))}
+                          {patient.chronicConditions?.length > 2 && (
+                            <Badge label={`+${patient.chronicConditions.length - 2}`} color="gray" />
+                          )}
+                          {!patient.chronicConditions?.length && <span className="text-gray-400 text-xs">None</span>}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">
-                      {getPatientAge(patient) ? `${getPatientAge(patient)} yrs` : '—'} / {patient.gender}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {patient.bloodType
-                        ? <Badge label={patient.bloodType} color={BLOOD_COLORS[patient.bloodType] ?? 'gray'} />
-                        : <span className="text-gray-400 text-xs">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">{patient.phone}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1">
-                        {patient.chronicConditions?.slice(0, 2).map(c => (
-                          <Badge key={c} label={c} color="orange" />
-                        ))}
-                        {patient.chronicConditions?.length > 2 && (
-                          <Badge label={`+${patient.chronicConditions.length - 2}`} color="gray" />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
+                      </td>
+                      <td className="px-4 py-3.5 pr-6 text-center">
+                        {visitCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-bold px-2.5 py-1 rounded-full">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            {visitCount}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
                         )}
-                        {!patient.chronicConditions?.length && <span className="text-gray-400 text-xs">None</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
-                    </td>
-                    <td className="px-4 py-3.5 pr-6 text-right">
-                      <button
-                        onClick={e => { e.stopPropagation(); setDeleteId(patient.id) }}
-                        className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </>
       )}
 
-      {/* Delete confirm modal */}
+      {/* Delete confirm modal — accessible from patient profile page */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Remove Patient" size="sm">
-        <p className="text-gray-600 text-sm mb-6">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
           Are you sure you want to remove this patient? All their records, appointments, and invoices will be deleted permanently.
         </p>
         <div className="flex gap-3 justify-end">
