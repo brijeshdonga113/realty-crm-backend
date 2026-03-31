@@ -139,8 +139,8 @@ export default function SettingsPage() {
           <div className="p-6 space-y-5">
 
             {/* Clinic name — highlighted */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-              <label className="block text-sm font-semibold text-blue-800 mb-1.5">
+            <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
+              <label className="block text-sm font-semibold text-primary-800 mb-1.5">
                 Clinic / Hospital Name
               </label>
               <input
@@ -151,7 +151,7 @@ export default function SettingsPage() {
                 placeholder="e.g. Swastik Homoeopathy, City Medical Center"
                 className="input-field bg-white"
               />
-              <p className="text-xs text-blue-600 mt-1.5">Shown in the dashboard header and on invoices.</p>
+              <p className="text-xs text-primary-600 mt-1.5">Shown in the dashboard header and on invoices.</p>
             </div>
 
             {/* Name row */}
@@ -229,7 +229,7 @@ export default function SettingsPage() {
 
           <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
             <button type="submit" disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
               {saving ? (
                 <>
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -293,7 +293,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-400 mt-0.5">Connect to sync appointments both ways.</p>
                 </div>
                 <button onClick={handleGcalConnect} disabled={gcalLoading}
-                  className="flex items-center gap-2 bg-white border border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                  className="flex items-center gap-2 bg-white border border-gray-300 hover:border-primary-400 hover:bg-primary-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                   {gcalLoading ? (
                     <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -317,9 +317,9 @@ export default function SettingsPage() {
             )}
 
             {gcalConnected && (
-              <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                <p className="text-xs font-semibold text-blue-800 mb-1">What syncs automatically</p>
-                <ul className="text-xs text-blue-700 space-y-0.5">
+              <div className="mt-4 bg-primary-50 border border-primary-100 rounded-lg px-4 py-3">
+                <p className="text-xs font-semibold text-primary-800 mb-1">What syncs automatically</p>
+                <ul className="text-xs text-primary-700 space-y-0.5">
                   <li>✓ New appointment → creates event in Google Calendar</li>
                   <li>✓ Status/time change → updates the event</li>
                   <li>✓ Appointment deleted → removes from Google Calendar</li>

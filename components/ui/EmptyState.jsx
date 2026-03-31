@@ -13,7 +13,7 @@ export function EmptyState({ icon, title, description, action, actionLabel }) {
       {description && <p className="text-sm text-gray-400 max-w-xs">{description}</p>}
       {action && (
         <button onClick={action}
-          className="mt-5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
+          className="mt-5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors">
           {actionLabel ?? 'Get Started'}
         </button>
       )}

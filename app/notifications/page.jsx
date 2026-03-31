@@ -24,7 +24,7 @@ export default function NotificationsPage() {
       action={
         unread.length > 0 ? (
           <button onClick={markAllRead}
-            className="text-sm font-medium text-blue-600 hover:underline px-3 py-1.5">
+            className="text-sm font-medium text-primary-600 hover:underline px-3 py-1.5">
             Mark all as read
           </button>
         ) : null
@@ -57,7 +57,7 @@ export default function NotificationsPage() {
               <div key={n.id}
                 onClick={() => !n.read && markRead(n.id)}
                 className={`flex items-start gap-4 p-4 rounded-xl border transition-colors cursor-pointer group
-                  ${n.read ? 'bg-white border-gray-100' : 'bg-blue-50 border-blue-100 hover:bg-blue-50/70'}`}
+                  ${n.read ? 'bg-white border-gray-100' : 'bg-primary-50 border-primary-100 hover:bg-primary-50/70'}`}
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg
                   ${n.read ? 'bg-gray-100' : 'bg-white shadow-sm'}`}>
@@ -67,7 +67,7 @@ export default function NotificationsPage() {
                   <div className="flex items-start justify-between gap-2">
                     <p className={`text-sm font-semibold ${n.read ? 'text-gray-700' : 'text-gray-900'}`}>
                       {n.title}
-                      {!n.read && <span className="ml-2 inline-block w-2 h-2 bg-blue-500 rounded-full align-middle"/>}
+                      {!n.read && <span className="ml-2 inline-block w-2 h-2 bg-accent-500 rounded-full align-middle"/>}
                     </p>
                     <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(n.createdAt)}</span>
                   </div>

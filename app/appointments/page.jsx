@@ -70,12 +70,12 @@ function CalendarView({ appointments, onSelectDate, selectedDate }) {
             <div key={day}
               onClick={() => onSelectDate(dateStr)}
               className={`h-20 border-b border-r border-gray-50 p-1.5 cursor-pointer transition-colors
-                ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                ${isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'}
                 ${(firstDay + day - 1) % 7 === 6 ? 'border-r-0' : ''}
               `}
             >
               <span className={`text-xs font-semibold inline-flex w-6 h-6 items-center justify-center rounded-full
-                ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
+                ${isToday ? 'bg-primary-600 text-white' : 'text-gray-700'}`}>
                 {day}
               </span>
               <div className="mt-1 space-y-0.5">
@@ -83,7 +83,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate }) {
                   <div key={a.id} className={`text-xs px-1 py-0.5 rounded font-medium truncate
                     ${a.status === 'cancelled' ? 'bg-red-100 text-red-600' :
                       a.status === 'completed' ? 'bg-gray-100 text-gray-500' :
-                      'bg-blue-100 text-blue-700'}`}>
+                      'bg-primary-100 text-primary-700'}`}>
                     {a.time} {a.patientName.split(' ')[0]}
                   </div>
                 ))}
@@ -134,7 +134,7 @@ export default function AppointmentsPage() {
             ))}
           </div>
           <button onClick={() => router.push('/appointments/new')}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
             </svg>
@@ -211,7 +211,7 @@ export default function AppointmentsPage() {
                       <td className="px-4 py-3.5 pr-6">
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setEditAppt(appt); setEditForm({ status: appt.status, date: appt.date, time: appt.time }) }}
-                            className="text-xs text-blue-600 hover:underline font-medium">
+                            className="text-xs text-primary-600 hover:underline font-medium">
                             Change
                           </button>
                           <button onClick={() => remove(appt.id)}
@@ -258,7 +258,7 @@ export default function AppointmentsPage() {
             Cancel
           </button>
           <button onClick={handleApptUpdate}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
             Update
           </button>
         </div>

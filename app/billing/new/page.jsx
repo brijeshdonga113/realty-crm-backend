@@ -139,7 +139,7 @@ function NewInvoiceForm() {
             <div className="flex flex-wrap gap-2 mb-4">
               {COMMON_ITEMS.map(item => (
                 <button key={item.description} type="button" onClick={() => addItem(item)}
-                  className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-medium transition-colors">
+                  className="text-xs px-3 py-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg font-medium transition-colors">
                   + {item.description}
                 </button>
               ))}
@@ -176,7 +176,7 @@ function NewInvoiceForm() {
             </div>
 
             <button type="button" onClick={() => addItem()}
-              className="mt-3 text-sm text-blue-600 hover:underline font-medium">
+              className="mt-3 text-sm text-primary-600 hover:underline font-medium">
               + Add item
             </button>
 
@@ -197,7 +197,7 @@ function NewInvoiceForm() {
                 <div className="flex gap-8 text-gray-600"><span>Subtotal</span><span className="font-medium w-24 text-right">{formatCurrency(subtotal)}</span></div>
                 {taxAmount > 0 && <div className="flex gap-8 text-gray-600"><span>Tax ({form.taxRate}%)</span><span className="font-medium w-24 text-right">{formatCurrency(taxAmount)}</span></div>}
                 {Number(form.discount) > 0 && <div className="flex gap-8 text-green-600"><span>Discount</span><span className="font-medium w-24 text-right">-{formatCurrency(Number(form.discount))}</span></div>}
-                <div className="flex gap-8 font-bold text-base border-t pt-2"><span>Total</span><span className="w-24 text-right text-blue-600">{formatCurrency(total)}</span></div>
+                <div className="flex gap-8 font-bold text-base border-t pt-2"><span>Total</span><span className="w-24 text-right text-primary-600">{formatCurrency(total)}</span></div>
               </div>
             </div>
           </div>

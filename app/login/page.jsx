@@ -40,11 +40,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
 
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 flex-col justify-between p-12 relative overflow-hidden">
-        {/* Background decoration */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 right-20 w-64 h-64 rounded-full bg-white/30 blur-3xl" />
-          <div className="absolute bottom-32 left-10 w-48 h-48 rounded-full bg-blue-400/40 blur-3xl" />
+          <div className="absolute bottom-32 left-10 w-48 h-48 rounded-full bg-accent-500/40 blur-3xl" />
         </div>
 
         {/* Logo */}
@@ -63,7 +62,7 @@ export default function LoginPage() {
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
             Manage your patients<br />with confidence.
           </h1>
-          <p className="text-blue-200 text-lg leading-relaxed mb-10">
+          <p className="text-primary-200 text-lg leading-relaxed mb-10">
             Your complete clinic management system — patient records, appointments, billing, and more.
           </p>
           <div className="grid grid-cols-3 gap-4">
@@ -74,13 +73,13 @@ export default function LoginPage() {
             ].map(item => (
               <div key={item.label} className="bg-white/10 backdrop-blur rounded-2xl p-4 text-center">
                 <div className="text-2xl mb-1">{item.icon}</div>
-                <div className="text-blue-200 text-xs font-medium">{item.label}</div>
+                <div className="text-primary-200 text-xs font-medium">{item.label}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-blue-400 text-sm">© 2026 ClinicCRM. Built for doctors.</p>
+        <p className="relative text-primary-300 text-sm">© 2026 ClinicCRM. Built for doctors.</p>
       </div>
 
       {/* Right panel — form */}
@@ -89,13 +88,13 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-blue-700 text-lg font-bold">ClinicCRM</span>
+            <span className="text-primary-700 text-lg font-bold">ClinicCRM</span>
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back, Doctor</h2>
@@ -127,7 +126,7 @@ export default function LoginPage() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-sm font-medium text-gray-700">Password</label>
-                <button type="button" className="text-xs text-blue-600 hover:underline">
+                <button type="button" className="text-xs text-primary-600 hover:underline">
                   Forgot password?
                 </button>
               </div>
@@ -175,7 +174,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-gray-500">
             New to ClinicCRM?{' '}
-            <Link href="/signup" className="text-blue-600 font-medium hover:underline">
+            <Link href="/signup" className="text-primary-600 font-medium hover:underline">
               Create an account
             </Link>
           </p>
