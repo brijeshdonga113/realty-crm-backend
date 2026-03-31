@@ -87,7 +87,7 @@ function VisitCard({ visit }) {
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Prescriptions</p>
               <div className="space-y-2">
                 {visit.prescriptions.map(rx => (
-                  <div key={rx.id} className="bg-blue-50 rounded-lg p-3 text-sm">
+                  <div key={rx.id} className="bg-primary-50 rounded-lg p-3 text-sm">
                     <p className="font-semibold text-gray-800">{rx.medication} — {rx.dosage}</p>
                     <p className="text-gray-600 text-xs">{rx.frequency} · {rx.duration}</p>
                     {rx.instructions && <p className="text-gray-500 text-xs mt-1">{rx.instructions}</p>}
@@ -222,7 +222,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
         <div>
           <label className="form-label">Prescriptions</label>
           {form.prescriptions.map((p, i) => (
-            <div key={p.id ?? i} className="flex items-start gap-2 mb-2 bg-blue-50 rounded-lg p-3 text-sm">
+            <div key={p.id ?? i} className="flex items-start gap-2 mb-2 bg-primary-50 rounded-lg p-3 text-sm">
               <div className="flex-1">
                 <p className="font-semibold text-gray-800">{p.medication} — {p.dosage}</p>
                 <p className="text-gray-500 text-xs">{p.frequency} · {p.duration}</p>
@@ -249,7 +249,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
               set('prescriptions', [...form.prescriptions, { ...rx, id }])
               setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
             }
-          }} className="text-sm text-blue-600 hover:underline font-medium">+ Add prescription</button>
+          }} className="text-sm text-primary-600 hover:underline font-medium">+ Add prescription</button>
         </div>
 
         {/* Lab Orders */}
@@ -288,7 +288,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
             Cancel
           </button>
           <button type="submit" disabled={loading}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+            className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
             {loading ? 'Saving…' : 'Save Visit'}
           </button>
         </div>
@@ -337,7 +337,7 @@ export default function PatientProfilePage() {
             ← Back
           </button>
           <button onClick={() => setShowVisitModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
             </svg>
@@ -347,7 +347,7 @@ export default function PatientProfilePage() {
       }
     >
       {/* Profile header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 mb-6 text-white flex items-center gap-5">
+      <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 mb-6 text-white flex items-center gap-5">
         <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
           <span className="text-white font-bold text-xl">{getPatientInitials(patient)}</span>
         </div>
@@ -356,7 +356,7 @@ export default function PatientProfilePage() {
             <h2 className="text-2xl font-bold">{patient.firstName} {patient.lastName}</h2>
             <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
           </div>
-          <div className="flex flex-wrap gap-4 mt-2 text-blue-100 text-sm">
+          <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
             {age && <span>{age} years old</span>}
             <span className="capitalize">{patient.gender}</span>
             {patient.bloodType && <span className="font-semibold text-white">{patient.bloodType}</span>}
@@ -364,7 +364,7 @@ export default function PatientProfilePage() {
             {patient.email && <span>✉️ {patient.email}</span>}
           </div>
         </div>
-        <div className="hidden md:flex flex-col items-end gap-2 text-right text-sm text-blue-200">
+        <div className="hidden md:flex flex-col items-end gap-2 text-right text-sm text-primary-200">
           <span>{visits.length} visit{visits.length !== 1 ? 's' : ''}</span>
           <span>{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
           <span>{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
@@ -518,7 +518,7 @@ export default function PatientProfilePage() {
                 <tbody className="divide-y divide-gray-50">
                   {invoices.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-blue-600">{inv.invoiceNumber}</td>
+                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600">{inv.invoiceNumber}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{inv.issueDate}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3"><Badge label={inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/></td>

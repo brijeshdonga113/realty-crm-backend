@@ -109,7 +109,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex">
 
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-teal-600 via-teal-700 to-blue-800 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 w-72 h-72 rounded-full bg-white blur-3xl" />
           <div className="absolute bottom-20 left-5 w-56 h-56 rounded-full bg-teal-300 blur-3xl" />
@@ -161,13 +161,13 @@ export default function SignupPage() {
 
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-blue-700 text-lg font-bold">ClinicCRM</span>
+            <span className="text-primary-700 text-lg font-bold">ClinicCRM</span>
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-1">Create your doctor account</h2>
@@ -283,7 +283,7 @@ export default function SignupPage() {
 
           <p className="mt-6 text-center text-sm text-gray-500">
             Already have an account?{' '}
-            <Link href="/login" className="text-blue-600 font-medium hover:underline">
+            <Link href="/login" className="text-primary-600 font-medium hover:underline">
               Sign in
             </Link>
           </p>

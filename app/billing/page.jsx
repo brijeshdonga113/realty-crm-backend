@@ -15,7 +15,7 @@ function InvoicePrint({ invoice }) {
     <div id="invoice-print" className="p-8 font-sans text-sm text-gray-800 bg-white" style={{ maxWidth: 680, margin: '0 auto' }}>
       <div className="flex justify-between items-start mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-blue-600">ClinicCRM</h1>
+          <h1 className="text-2xl font-bold text-primary-600">ClinicCRM</h1>
           <p className="text-gray-500 text-xs mt-1">Medical Invoice</p>
         </div>
         <div className="text-right">
@@ -56,7 +56,7 @@ function InvoicePrint({ invoice }) {
           <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(invoice.subtotal)}</span></div>
           {invoice.taxAmount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Tax ({(invoice.taxRate * 100).toFixed(0)}%)</span><span>{formatCurrency(invoice.taxAmount)}</span></div>}
           {invoice.discount > 0 && <div className="flex justify-between text-sm text-green-600"><span>Discount</span><span>-{formatCurrency(invoice.discount)}</span></div>}
-          <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span className="text-blue-600">{formatCurrency(invoice.total)}</span></div>
+          <div className="flex justify-between font-bold text-base border-t pt-2"><span>Total</span><span className="text-primary-600">{formatCurrency(invoice.total)}</span></div>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ export default function BillingPage() {
       title="Billing & Invoices"
       action={
         <button onClick={() => router.push('/billing/new')}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
           </svg>
@@ -109,12 +109,12 @@ export default function BillingPage() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Total Revenue', value: formatCurrency(stats.revenue), color: 'green', sub: 'from paid invoices' },
-          { label: 'Pending',       value: formatCurrency(stats.pending), color: 'blue',  sub: 'awaiting payment' },
+          { label: 'Pending',       value: formatCurrency(stats.pending), color: 'teal',  sub: 'awaiting payment' },
           { label: 'Overdue',       value: formatCurrency(stats.overdue), color: 'red',   sub: 'past due date' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <p className="text-sm font-medium text-gray-500 mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color === 'green' ? 'text-green-600' : s.color === 'red' ? 'text-red-600' : 'text-blue-600'}`}>
+            <p className={`text-2xl font-bold ${s.color === 'green' ? 'text-green-600' : s.color === 'red' ? 'text-red-600' : 'text-primary-600'}`}>
               {s.value}
             </p>
             <p className="text-xs text-gray-400 mt-1">{s.sub}</p>
@@ -159,7 +159,7 @@ export default function BillingPage() {
               {filtered.map(inv => (
                 <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3.5 pl-6">
-                    <p className="text-sm font-semibold text-blue-600">{inv.invoiceNumber}</p>
+                    <p className="text-sm font-semibold text-primary-600">{inv.invoiceNumber}</p>
                   </td>
                   <td className="px-4 py-3.5 text-sm font-medium text-gray-900">{inv.patientName}</td>
                   <td className="px-4 py-3.5 text-sm text-gray-500">{inv.issueDate}</td>
@@ -177,7 +177,7 @@ export default function BillingPage() {
                         </button>
                       )}
                       <button onClick={() => setPrintInvoice(inv)}
-                        className="text-xs text-blue-600 hover:underline font-medium">
+                        className="text-xs text-primary-600 hover:underline font-medium">
                         Print
                       </button>
                       <button onClick={() => remove(inv.id)}
@@ -229,7 +229,7 @@ export default function BillingPage() {
                 Close
               </button>
               <button onClick={() => window.print()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
                 🖨️ Print / Save PDF
               </button>
             </div>

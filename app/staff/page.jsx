@@ -84,7 +84,7 @@ function StaffForm({ initial, onSave, onCancel }) {
           {WORK_DAYS.map(day => (
             <button key={day} type="button" onClick={() => toggleDay(day)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                ${form.schedule.workDays.includes(day) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                ${form.schedule.workDays.includes(day) ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {day.slice(0,3)}
             </button>
           ))}
@@ -111,7 +111,7 @@ function StaffForm({ initial, onSave, onCancel }) {
           Cancel
         </button>
         <button type="submit" disabled={loading}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+          className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
           {loading ? 'Saving…' : 'Save'}
         </button>
       </div>
@@ -130,7 +130,7 @@ export default function StaffPage() {
       title="Staff"
       action={
         <button onClick={() => setShowAdd(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
           </svg>
@@ -159,8 +159,8 @@ export default function StaffPage() {
             <div key={member.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-blue-700 font-bold text-sm">
+                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-700 font-bold text-sm">
                       {member.firstName?.[0]}{member.lastName?.[0]}
                     </span>
                   </div>
@@ -180,7 +180,7 @@ export default function StaffPage() {
 
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                 <button onClick={() => setEditItem(member)}
-                  className="flex-1 text-xs font-medium text-blue-600 hover:bg-blue-50 py-1.5 rounded-lg transition-colors">
+                  className="flex-1 text-xs font-medium text-primary-600 hover:bg-primary-50 py-1.5 rounded-lg transition-colors">
                   Edit
                 </button>
                 <button onClick={() => setDeleteId(member.id)}

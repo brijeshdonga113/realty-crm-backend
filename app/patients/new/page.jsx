@@ -21,9 +21,9 @@ function TagInput({ label, items, onChange, suggestions }) {
       <label className="form-label">{label}</label>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {items.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 text-primary-700 text-xs rounded-full font-medium">
             {item}
-            <button type="button" onClick={() => remove(item)} className="hover:text-blue-900">×</button>
+            <button type="button" onClick={() => remove(item)} className="hover:text-primary-900">×</button>
           </span>
         ))}
       </div>
@@ -196,7 +196,7 @@ export default function NewPatientPage() {
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="consent" checked={form.consentFormSigned}
                     onChange={e => set('consentFormSigned', e.target.checked)}
-                    className="w-4 h-4 accent-blue-600"/>
+                    className="w-4 h-4 accent-primary-600"/>
                   <label htmlFor="consent" className="text-sm text-gray-700 font-medium cursor-pointer">
                     Patient has signed the consent form
                   </label>

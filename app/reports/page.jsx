@@ -6,7 +6,7 @@ import { formatCurrency } from '@/models/Invoice'
 function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
   const max = Math.max(...data.map(d => d[valueKey]), 1)
   const colors = {
-    blue:   { bar: 'bg-blue-500', label: 'text-blue-600' },
+    blue:   { bar: 'bg-primary-500', label: 'text-primary-600' },
     green:  { bar: 'bg-green-500', label: 'text-green-600' },
     purple: { bar: 'bg-purple-500', label: 'text-purple-600' },
   }
@@ -31,7 +31,7 @@ function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
 }
 
 function StatCard({ label, value, sub, color = 'blue' }) {
-  const colors = { blue: 'text-blue-600', green: 'text-green-600', purple: 'text-purple-600', orange: 'text-orange-600', red: 'text-red-600' }
+  const colors = { blue: 'text-primary-600', green: 'text-green-600', purple: 'text-purple-600', orange: 'text-orange-600', red: 'text-red-600' }
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
       <p className="text-sm font-medium text-gray-500 mb-1">{label}</p>
@@ -104,7 +104,7 @@ export default function ReportsPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Appointment Breakdown</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Scheduled',  value: stats.appointments.upcomingCount,  color: 'bg-blue-500' },
+                  { label: 'Scheduled',  value: stats.appointments.upcomingCount,  color: 'bg-primary-500' },
                   { label: 'Completed',  value: stats.appointments.completedCount, color: 'bg-green-500' },
                   { label: 'No Shows',   value: stats.appointments.noShowCount,    color: 'bg-yellow-400' },
                   { label: 'Total',      value: stats.appointments.total,          color: 'bg-gray-300' },
@@ -134,7 +134,7 @@ export default function ReportsPage() {
               <div className="space-y-3">
                 {[
                   { label: 'Paid Invoices',    value: stats.billing.paid,    amount: stats.billing.totalRevenue,  color: 'bg-green-500' },
-                  { label: 'Pending Invoices', value: stats.billing.pending, amount: stats.billing.pendingAmount, color: 'bg-blue-500' },
+                  { label: 'Pending Invoices', value: stats.billing.pending, amount: stats.billing.pendingAmount, color: 'bg-primary-500' },
                   { label: 'Overdue',          value: stats.billing.overdue, amount: 0,                           color: 'bg-red-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
