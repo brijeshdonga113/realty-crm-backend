@@ -184,12 +184,23 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{appt.patientName}</p>
+                      <button
+                        onClick={() => appt.patientId && router.push(`/patients/${appt.patientId}`)}
+                        className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left">
+                        {appt.patientName}
+                      </button>
                       <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
                     </div>
-                    <div className="text-right flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time}</p>
                       <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
+                      {['scheduled','confirmed'].includes(appt.status) && appt.patientId && (
+                        <button
+                          onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
+                          className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                          Attend →
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

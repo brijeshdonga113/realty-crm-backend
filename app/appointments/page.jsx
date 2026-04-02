@@ -25,7 +25,7 @@ function formatTime(timeStr) {
   return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-function CalendarView({ appointments, onSelectDate, selectedDate }) {
+function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
   const [calYear, setCalYear]   = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
 
@@ -87,10 +87,14 @@ function CalendarView({ appointments, onSelectDate, selectedDate }) {
               </span>
               <div className="mt-1 space-y-0.5">
                 {dayAppts.slice(0, 2).map(a => (
-                  <div key={a.id} className={`text-xs px-1 py-0.5 rounded font-medium truncate
+                  <div key={a.id}
+                    onClick={e => { e.stopPropagation(); if (['scheduled','confirmed'].includes(a.status) && a.patientId && onAttend) onAttend(a) }}
+                    title={['scheduled','confirmed'].includes(a.status) && a.patientId ? 'Click to attend' : ''}
+                    className={`text-xs px-1 py-0.5 rounded font-medium truncate
+                    ${['scheduled','confirmed'].includes(a.status) && a.patientId ? 'cursor-pointer' : ''}
                     ${a.status === 'cancelled' ? 'bg-red-100 text-red-600' :
                       a.status === 'completed' ? 'bg-gray-100 text-gray-500' :
-                      'bg-primary-100 text-primary-700'}`}>
+                      'bg-primary-100 text-primary-700 hover:bg-primary-200'}`}>
                     {a.time} {a.patientName.split(' ')[0]}
                   </div>
                 ))}
@@ -227,6 +231,7 @@ export default function AppointmentsPage() {
               appointments={appointments}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
+              onAttend={appt => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason || '')}`)}
             />
           )}
 
@@ -279,6 +284,19 @@ export default function AppointmentsPage() {
                       </td>
                       <td className="px-4 py-3.5 pr-4">
                         <div className="flex items-center gap-1.5">
+                          {/* Attend Now */}
+                          {['scheduled','confirmed'].includes(appt.status) && appt.patientId && (
+                            <button
+                              onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason || '')}`)}
+                              title="Attend Now — record visit"
+                              className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-white dark:text-primary-300 bg-primary-50 hover:bg-primary-500 dark:bg-primary-900/30 dark:hover:bg-primary-600 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                              </svg>
+                              Attend Now
+                            </button>
+                          )}
                           {/* Remind via WhatsApp */}
                           {['scheduled','confirmed'].includes(appt.status) && (
                             <button
