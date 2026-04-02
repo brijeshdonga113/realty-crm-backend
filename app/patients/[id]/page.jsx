@@ -22,8 +22,8 @@ function InfoRow({ label, value }) {
   if (!value) return null
   return (
     <div>
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-medium text-gray-800 mt-0.5">{value}</p>
+      <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{value}</p>
     </div>
   )
 }
@@ -32,15 +32,15 @@ function VisitCard({ visit }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <div className="bg-white border border-gray-100 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer"
+      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer"
         onClick={() => setOpen(true)}>
         <div className="flex items-start justify-between mb-2">
-          <p className="text-sm font-semibold text-gray-900">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {new Date(visit.visitDate).toLocaleDateString('en-US', { dateStyle: 'medium' })}
           </p>
-          <span className="text-xs text-gray-400">{new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}</span>
         </div>
-        <p className="text-sm text-gray-700 font-medium">{visit.chiefComplaint || 'No complaint noted'}</p>
+        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{visit.chiefComplaint || 'No complaint noted'}</p>
         {visit.diagnosis?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {visit.diagnosis.slice(0, 3).map(d => <Badge key={d} label={d} color="teal" />)}
@@ -62,11 +62,11 @@ function VisitCard({ visit }) {
           {visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean) && (
             <div>
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Vital Signs</p>
-              <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4">
+              <div className="grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                 {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
                   <div key={k}>
-                    <p className="text-xs text-gray-400">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
-                    <p className="text-sm font-semibold text-gray-800">{v}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
                   </div>
                 ) : null)}
               </div>
@@ -87,10 +87,10 @@ function VisitCard({ visit }) {
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Prescriptions</p>
               <div className="space-y-2">
                 {visit.prescriptions.map(rx => (
-                  <div key={rx.id} className="bg-primary-50 rounded-lg p-3 text-sm">
-                    <p className="font-semibold text-gray-800">{rx.medication} — {rx.dosage}</p>
-                    <p className="text-gray-600 text-xs">{rx.frequency} · {rx.duration}</p>
-                    {rx.instructions && <p className="text-gray-500 text-xs mt-1">{rx.instructions}</p>}
+                  <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
+                    <p className="font-semibold text-gray-800 dark:text-gray-200">{rx.medication} — {rx.dosage}</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-xs">{rx.frequency} · {rx.duration}</p>
+                    {rx.instructions && <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">{rx.instructions}</p>}
                   </div>
                 ))}
               </div>
@@ -179,7 +179,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
               ['oxygenSat', 'SpO₂ (%)', 'e.g. 98'],
             ].map(([k, lbl, ph]) => (
               <div key={k}>
-                <label className="text-xs text-gray-500 mb-1 block">{lbl}</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{lbl}</label>
                 <input value={form.vitalSigns[k]} onChange={e => setVital(k, e.target.value)}
                   placeholder={ph} className="input-field text-sm py-2"/>
               </div>
@@ -208,7 +208,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') } }}}
               placeholder="Type diagnosis and press Enter" className="input-field flex-1"/>
             <button type="button" onClick={() => { if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors">Add</button>
+              className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
           </div>
         </div>
 
@@ -222,10 +222,10 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
         <div>
           <label className="form-label">Prescriptions</label>
           {form.prescriptions.map((p, i) => (
-            <div key={p.id ?? i} className="flex items-start gap-2 mb-2 bg-primary-50 rounded-lg p-3 text-sm">
+            <div key={p.id ?? i} className="flex items-start gap-2 mb-2 bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
               <div className="flex-1">
-                <p className="font-semibold text-gray-800">{p.medication} — {p.dosage}</p>
-                <p className="text-gray-500 text-xs">{p.frequency} · {p.duration}</p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{p.medication} — {p.dosage}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-xs">{p.frequency} · {p.duration}</p>
               </div>
               <button type="button" onClick={() => set('prescriptions', form.prescriptions.filter((_, j) => j !== i))}
                 className="text-gray-400 hover:text-red-500">×</button>
@@ -267,7 +267,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (labInput.trim()) { set('labOrders', [...form.labOrders, labInput.trim()]); setLabInput('') } }}}
               placeholder="Lab test name" className="input-field flex-1 text-sm py-2"/>
             <button type="button" onClick={() => { if (labInput.trim()) { set('labOrders', [...form.labOrders, labInput.trim()]); setLabInput('') }}}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors">Add</button>
+              className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
           </div>
         </div>
 
@@ -284,7 +284,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose}
-            className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
           <button type="submit" disabled={loading}
@@ -372,10 +372,10 @@ export default function PatientProfilePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit">
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
             {t}
           </button>
         ))}
@@ -384,8 +384,8 @@ export default function PatientProfilePage() {
       {/* Tab 0: Overview */}
       {tab === 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Personal Details</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Personal Details</h3>
             <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
@@ -397,8 +397,8 @@ export default function PatientProfilePage() {
           </div>
 
           <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Medical Summary</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Medical Summary</h3>
               {patient.allergies?.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
@@ -428,8 +428,8 @@ export default function PatientProfilePage() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Insurance</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Insurance</h3>
               <div className="grid grid-cols-2 gap-4">
                 <InfoRow label="Provider" value={patient.insuranceProvider} />
                 <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
@@ -440,8 +440,8 @@ export default function PatientProfilePage() {
             </div>
 
             {patient.emergencyContact?.name && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-3">Emergency Contact</h3>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Emergency Contact</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <InfoRow label="Name" value={patient.emergencyContact.name} />
                   <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
@@ -474,21 +474,21 @@ export default function PatientProfilePage() {
             <EmptyState title="No appointments" description="This patient has no appointments scheduled."
               action={() => router.push(`/appointments/new?patientId=${id}`)} actionLabel="Schedule Appointment"/>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                     {['Date & Time', 'Type', 'Reason', 'Status'].map(h => (
-                      <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-left first:pl-6">{h}</th>
+                      <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {appointments.map(appt => (
-                    <tr key={appt.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 pl-6 text-sm font-medium text-gray-900">{appt.date} {appt.time}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">{appt.type?.replace('_', ' ')}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{appt.reason || '—'}</td>
+                    <tr key={appt.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="px-4 py-3 pl-6 text-sm font-medium text-gray-900 dark:text-white">{appt.date} {appt.time}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 capitalize">{appt.type?.replace('_', ' ')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{appt.reason || '—'}</td>
                       <td className="px-4 py-3"><Badge label={appt.status} color={APPT_COLORS[appt.status] ?? 'gray'}/></td>
                     </tr>
                   ))}
@@ -506,21 +506,21 @@ export default function PatientProfilePage() {
             <EmptyState title="No invoices" description="No billing history for this patient."
               action={() => router.push(`/billing/new?patientId=${id}`)} actionLabel="Create Invoice"/>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                     {['Invoice #', 'Date', 'Amount', 'Status'].map(h => (
-                      <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-left first:pl-6">{h}</th>
+                      <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {invoices.map(inv => (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600">{inv.invoiceNumber}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{inv.issueDate}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(inv.total)}</td>
+                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{inv.issueDate}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3"><Badge label={inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/></td>
                     </tr>
                   ))}

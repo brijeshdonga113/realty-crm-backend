@@ -45,8 +45,8 @@ async function firebaseSignup(doctorData) {
   const uid     = cred.user.uid
   const profile = buildDoctorProfile(uid, doctorData)
 
-  // Store doctor profile in Firestore: clinics/{uid}/profile
-  await setDoc(doc(db, 'users', uid, 'profile', 'doctor'), profile)
+  // Store doctor profile directly on the root users/{uid} document
+  await setDoc(doc(db, 'users', uid), profile)
 
   await updateProfile(cred.user, {
     displayName: `${doctorData.firstName} ${doctorData.lastName}`,
@@ -58,12 +58,22 @@ async function firebaseSignup(doctorData) {
 
 async function firebaseLogin(email, password) {
   const { signInWithEmailAndPassword } = await import('firebase/auth')
-  const { doc, getDoc } = await import('firebase/firestore')
+  const { doc, getDoc, setDoc } = await import('firebase/firestore')
 
   const cred = await signInWithEmailAndPassword(auth, email, password)
   const uid  = cred.user.uid
 
-  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+  // Try root document first (new path)
+  let snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) {
+    // Migrate from old nested path: users/{uid}/profile/doctor
+    snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+    if (snap.exists()) {
+      // Migrate to root document
+      await setDoc(doc(db, 'users', uid), snap.data())
+    }
+  }
+
   const profile = snap.exists()
     ? buildDoctorProfile(uid, snap.data())
     : buildDoctorProfile(uid, { email })
@@ -79,8 +89,18 @@ async function firebaseLogout() {
 }
 
 async function loadFirebaseProfile(uid) {
-  const { doc, getDoc } = await import('firebase/firestore')
-  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+  const { doc, getDoc, setDoc } = await import('firebase/firestore')
+
+  // Try root document first (new path)
+  let snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) {
+    // Migrate from old nested path: users/{uid}/profile/doctor
+    snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+    if (snap.exists()) {
+      // Migrate to root document so admin panel and isAdmin flag work
+      await setDoc(doc(db, 'users', uid), snap.data())
+    }
+  }
   return snap.exists() ? buildDoctorProfile(uid, snap.data()) : null
 }
 
@@ -164,9 +184,9 @@ export function AuthProvider({ children }) {
 
   const updateProfile = async (patch) => {
     const updated = { ...doctor, ...patch }
-    if (isFirebaseConfigured) {
+    if (db) {
       const { doc, setDoc } = await import('firebase/firestore')
-      await setDoc(doc(db, 'users', doctor.id, 'profile', 'doctor'), updated)
+      await setDoc(doc(db, 'users', doctor.id), updated)
       const { updateProfile: fbUpdateProfile } = await import('firebase/auth')
       if (auth.currentUser) {
         await fbUpdateProfile(auth.currentUser, {

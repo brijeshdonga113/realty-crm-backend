@@ -4,11 +4,12 @@ import { useReports } from '@/hooks/useReports'
 import { formatCurrency } from '@/models/Invoice'
 
 function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
+  if (!data?.length) return <div className="h-40 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">No data yet</div>
   const max = Math.max(...data.map(d => d[valueKey]), 1)
   const colors = {
-    blue:   { bar: 'bg-primary-500', label: 'text-primary-600' },
-    green:  { bar: 'bg-green-500', label: 'text-green-600' },
-    purple: { bar: 'bg-purple-500', label: 'text-purple-600' },
+    blue:   { bar: 'bg-primary-500', label: 'text-primary-600 dark:text-primary-400' },
+    green:  { bar: 'bg-green-500',   label: 'text-green-600 dark:text-green-400' },
+    purple: { bar: 'bg-purple-500',  label: 'text-purple-600 dark:text-purple-400' },
   }
   const c = colors[color] ?? colors.blue
 
@@ -22,7 +23,7 @@ function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
               {unit === 'currency' ? formatCurrency(item[valueKey]) : item[valueKey]}
             </span>
             <div className={`w-full ${c.bar} rounded-t-lg transition-all`} style={{ height: `${h}%` }}/>
-            <span className="text-xs text-gray-400 truncate w-full text-center">{item[labelKey]}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 truncate w-full text-center">{item[labelKey]}</span>
           </div>
         )
       })}
@@ -31,12 +32,12 @@ function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
 }
 
 function StatCard({ label, value, sub, color = 'blue' }) {
-  const colors = { blue: 'text-primary-600', green: 'text-green-600', purple: 'text-purple-600', orange: 'text-orange-600', red: 'text-red-600' }
+  const colors = { blue: 'text-primary-600 dark:text-primary-400', green: 'text-green-600 dark:text-green-400', purple: 'text-purple-600 dark:text-purple-400', orange: 'text-orange-600 dark:text-orange-400', red: 'text-red-600 dark:text-red-400' }
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <p className="text-sm font-medium text-gray-500 mb-1">{label}</p>
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</p>
       <p className={`text-3xl font-bold ${colors[color] ?? colors.blue}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
     </div>
   )
 }
@@ -74,25 +75,17 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* Monthly Revenue */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Monthly Revenue</h3>
-            <p className="text-xs text-gray-400 mb-5">Last 6 months — paid invoices only</p>
-            {monthlyRevenue.length > 0 ? (
-              <BarChart data={monthlyRevenue} valueKey="revenue" labelKey="label" color="green" unit="currency"/>
-            ) : (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-400">No data yet</div>
-            )}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Monthly Revenue</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">Last 6 months — paid invoices only</p>
+            <BarChart data={monthlyRevenue} valueKey="revenue" labelKey="label" color="green" unit="currency"/>
           </div>
 
           {/* Patient Growth */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Patient Growth</h3>
-            <p className="text-xs text-gray-400 mb-5">New patients registered per month</p>
-            {patientGrowth.length > 0 ? (
-              <BarChart data={patientGrowth} valueKey="count" labelKey="label" color="blue"/>
-            ) : (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-400">No data yet</div>
-            )}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Patient Growth</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">New patients registered per month</p>
+            <BarChart data={patientGrowth} valueKey="count" labelKey="label" color="blue"/>
           </div>
         </div>
 
@@ -100,27 +93,27 @@ export default function ReportsPage() {
         {stats && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Appointment Breakdown</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Appointment Breakdown</h3>
               <div className="space-y-3">
                 {[
                   { label: 'Scheduled',  value: stats.appointments.upcomingCount,  color: 'bg-primary-500' },
                   { label: 'Completed',  value: stats.appointments.completedCount, color: 'bg-green-500' },
                   { label: 'No Shows',   value: stats.appointments.noShowCount,    color: 'bg-yellow-400' },
-                  { label: 'Total',      value: stats.appointments.total,          color: 'bg-gray-300' },
+                  { label: 'Total',      value: stats.appointments.total,          color: 'bg-gray-300 dark:bg-gray-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
-                    <span className="text-sm text-gray-600 flex-1">{item.label}</span>
-                    <span className="text-sm font-semibold text-gray-900">{item.value}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300 flex-1">{item.label}</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{item.value}</span>
                   </div>
                 ))}
                 {stats.appointments.total > 0 && (
                   <div className="mt-2">
-                    <div className="text-xs text-gray-400 mb-1.5">
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">
                       No-show rate: {((stats.appointments.noShowCount / stats.appointments.total) * 100).toFixed(1)}%
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
                       <div className="bg-yellow-400 h-2 rounded-full transition-all"
                         style={{ width: `${(stats.appointments.noShowCount / stats.appointments.total) * 100}%` }}/>
                     </div>
@@ -129,8 +122,8 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Billing Summary</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Billing Summary</h3>
               <div className="space-y-3">
                 {[
                   { label: 'Paid Invoices',    value: stats.billing.paid,    amount: stats.billing.totalRevenue,  color: 'bg-green-500' },
@@ -139,14 +132,14 @@ export default function ReportsPage() {
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
-                    <span className="text-sm text-gray-600 flex-1">{item.label}</span>
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm text-gray-600 dark:text-gray-300 flex-1">{item.label}</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">
                       {item.value} {item.amount > 0 ? `· ${formatCurrency(item.amount)}` : ''}
                     </span>
                   </div>
                 ))}
-                <div className="mt-3 p-3 bg-gray-50 rounded-xl">
-                  <p className="text-xs text-gray-500">Total invoices: <span className="font-semibold text-gray-800">{stats.billing.total}</span></p>
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Total invoices: <span className="font-semibold text-gray-800 dark:text-gray-200">{stats.billing.total}</span></p>
                 </div>
               </div>
             </div>

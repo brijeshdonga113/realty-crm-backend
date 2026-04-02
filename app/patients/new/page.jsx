@@ -21,7 +21,7 @@ function TagInput({ label, items, onChange, suggestions }) {
       <label className="form-label">{label}</label>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {items.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 text-primary-700 text-xs rounded-full font-medium">
+          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs rounded-full font-medium">
             {item}
             <button type="button" onClick={() => remove(item)} className="hover:text-primary-900">×</button>
           </span>
@@ -38,7 +38,7 @@ function TagInput({ label, items, onChange, suggestions }) {
           {suggestions?.map(s => <option key={s} value={s}/>)}
         </datalist>
         <button type="button" onClick={() => add(input)}
-          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors">
+          className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
           Add
         </button>
       </div>
@@ -130,17 +130,17 @@ export default function NewPatientPage() {
     >
       <div className="max-w-3xl mx-auto">
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+        <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit">
           {TABS.map((t, i) => (
             <button key={t} onClick={() => setTab(i)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
               {t}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
 
             {/* Tab 0: Basic Info */}
             {tab === 0 && (
@@ -197,7 +197,7 @@ export default function NewPatientPage() {
                   <input type="checkbox" id="consent" checked={form.consentFormSigned}
                     onChange={e => set('consentFormSigned', e.target.checked)}
                     className="w-4 h-4 accent-primary-600"/>
-                  <label htmlFor="consent" className="text-sm text-gray-700 font-medium cursor-pointer">
+                  <label htmlFor="consent" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer">
                     Patient has signed the consent form
                   </label>
                 </div>
@@ -219,7 +219,7 @@ export default function NewPatientPage() {
             {/* Tab 3: Emergency Contact */}
             {tab === 3 && (
               <>
-                <p className="text-sm text-gray-500">Emergency contact details for this patient.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Emergency contact details for this patient.</p>
                 <Field name="name" label="Contact Name" placeholder="Jane Smith" nested="emergencyContact" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
                   <Field name="phone" label="Contact Phone" placeholder="+1 234 567 8900" nested="emergencyContact" {...fieldProps} />
@@ -234,13 +234,13 @@ export default function NewPatientPage() {
             <div className="flex gap-2">
               {tab > 0 && (
                 <button type="button" onClick={() => setTab(t => t - 1)}
-                  className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                  className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   ← Previous
                 </button>
               )}
               {tab < TABS.length - 1 && (
                 <button type="button" onClick={() => setTab(t => t + 1)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
                   Next →
                 </button>
               )}
