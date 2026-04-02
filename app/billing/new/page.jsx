@@ -92,8 +92,8 @@ function NewInvoiceForm() {
     >
       <div className="max-w-2xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-gray-900">Invoice Details</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Invoice Details</h3>
 
             {/* Patient */}
             <div>
@@ -130,9 +130,9 @@ function NewInvoiceForm() {
           </div>
 
           {/* Line items */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Line Items</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Line Items</h3>
             </div>
 
             {/* Quick add */}
@@ -149,7 +149,7 @@ function NewInvoiceForm() {
 
             {/* Items table */}
             <div className="space-y-2">
-              <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 uppercase px-1">
+              <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-1">
                 <span className="col-span-6">Description</span>
                 <span className="col-span-2">Qty</span>
                 <span className="col-span-2">Unit Price</span>
@@ -164,7 +164,7 @@ function NewInvoiceForm() {
                     className="input-field col-span-2 py-2 text-sm"/>
                   <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateItem(item.id, 'unitPrice', e.target.value)}
                     className="input-field col-span-2 py-2 text-sm"/>
-                  <span className="col-span-1 text-sm font-semibold text-gray-700 text-right">{formatCurrency(item.quantity * item.unitPrice)}</span>
+                  <span className="col-span-1 text-sm font-semibold text-gray-700 dark:text-gray-300 text-right">{formatCurrency(item.quantity * item.unitPrice)}</span>
                   <button type="button" onClick={() => removeItem(item.id)}
                     className="col-span-1 text-gray-400 hover:text-red-500 transition-colors flex justify-center">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,7 +181,7 @@ function NewInvoiceForm() {
             </button>
 
             {/* Totals */}
-            <div className="mt-5 border-t pt-4 space-y-2">
+            <div className="mt-5 border-t dark:border-gray-700 pt-4 space-y-2">
               <div className="grid grid-cols-2 gap-4 max-w-xs ml-auto">
                 <div>
                   <label className="form-label text-xs">Tax Rate (%)</label>
@@ -194,16 +194,16 @@ function NewInvoiceForm() {
               </div>
 
               <div className="flex flex-col items-end gap-1.5 mt-4 text-sm">
-                <div className="flex gap-8 text-gray-600"><span>Subtotal</span><span className="font-medium w-24 text-right">{formatCurrency(subtotal)}</span></div>
-                {taxAmount > 0 && <div className="flex gap-8 text-gray-600"><span>Tax ({form.taxRate}%)</span><span className="font-medium w-24 text-right">{formatCurrency(taxAmount)}</span></div>}
-                {Number(form.discount) > 0 && <div className="flex gap-8 text-green-600"><span>Discount</span><span className="font-medium w-24 text-right">-{formatCurrency(Number(form.discount))}</span></div>}
-                <div className="flex gap-8 font-bold text-base border-t pt-2"><span>Total</span><span className="w-24 text-right text-primary-600">{formatCurrency(total)}</span></div>
+                <div className="flex gap-8 text-gray-600 dark:text-gray-300"><span>Subtotal</span><span className="font-medium w-24 text-right">{formatCurrency(subtotal)}</span></div>
+                {taxAmount > 0 && <div className="flex gap-8 text-gray-600 dark:text-gray-300"><span>Tax ({form.taxRate}%)</span><span className="font-medium w-24 text-right">{formatCurrency(taxAmount)}</span></div>}
+                {Number(form.discount) > 0 && <div className="flex gap-8 text-green-600 dark:text-green-400"><span>Discount</span><span className="font-medium w-24 text-right">-{formatCurrency(Number(form.discount))}</span></div>}
+                <div className="flex gap-8 font-bold text-base border-t dark:border-gray-700 pt-2 text-gray-900 dark:text-white"><span>Total</span><span className="w-24 text-right text-primary-600 dark:text-primary-400">{formatCurrency(total)}</span></div>
               </div>
             </div>
           </div>
 
           {/* Notes */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
             <label className="form-label">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               placeholder="Payment instructions, terms, etc." rows={2} className="input-field resize-none"/>
@@ -211,7 +211,7 @@ function NewInvoiceForm() {
 
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => router.back()}
-              className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+              className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={loading} className="btn-primary w-auto px-6">

@@ -15,9 +15,9 @@ export function useReports() {
     setLoading(true)
     try {
       const [dashStats, revenue, growth] = await Promise.all([
-        reportService.getDashboardStats(),
-        reportService.getMonthlyRevenue(6),
-        reportService.getPatientGrowth(6),
+        reportService.getDashboardStats().catch(() => null),
+        reportService.getMonthlyRevenue(6).catch(() => []),
+        reportService.getPatientGrowth(6).catch(() => []),
       ])
       setStats(dashStats)
       setMonthly(revenue)
