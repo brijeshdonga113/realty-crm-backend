@@ -119,8 +119,8 @@ export default function PatientsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {filtered.length} patient{filtered.length !== 1 ? 's' : ''}
           </p>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <table className="w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                   {['Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits', ''].map(h => (
