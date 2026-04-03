@@ -8,6 +8,18 @@ import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
 const SPECIALIZATIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
 const ALLERGIES_LIST  = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
 
+const REFERRAL_SOURCES = [
+  { value: '',               label: 'Select source…' },
+  { value: 'walk_in',        label: 'Walk-in' },
+  { value: 'first_visit',    label: 'First Visit' },
+  { value: 'patient_referral', label: 'Patient Referral' },
+  { value: 'doctor_referral',  label: 'Doctor Referral' },
+  { value: 'social_media',   label: 'Social Media' },
+  { value: 'advertisement',  label: 'Advertisement' },
+  { value: 'returning',      label: 'Returning Patient' },
+  { value: 'other',          label: 'Other' },
+]
+
 function TagInput({ label, items, onChange, suggestions }) {
   const [input, setInput] = useState('')
   const add = (val) => {
@@ -72,14 +84,17 @@ function Field({ name, label, type = 'text', placeholder, required, nested, opti
 
 export default function NewPatientPage() {
   const router = useRouter()
-  const { add } = usePatients()
+  const { add, patients } = usePatients()
   const [tab, setTab]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
+  const [duplicates, setDuplicates] = useState([])
+  const [forceSubmit, setForceSubmit] = useState(false)
 
   const [form, setForm] = useState({
-    firstName: '', lastName: '', dateOfBirth: '', gender: 'male', bloodType: '',
+    firstName: '', lastName: '', dateOfBirth: '', ageManual: '', gender: 'male', bloodType: '',
     nationalId: '', phone: '', alternatePhone: '', email: '', address: '',
+    referralSource: '',
     allergies: [], chronicConditions: [], currentMedications: [],
     familyHistory: '', notes: '', status: 'active',
     insuranceProvider: '', insurancePolicyNumber: '', insuranceExpiry: '', insuranceGroupNumber: '',
@@ -90,6 +105,10 @@ export default function NewPatientPage() {
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
     setErrors(prev => ({ ...prev, [field]: '' }))
+    if (['firstName', 'lastName', 'phone'].includes(field)) {
+      setDuplicates([])
+      setForceSubmit(false)
+    }
   }
 
   const setNested = (parent, field, value) =>
@@ -108,6 +127,22 @@ export default function NewPatientPage() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); setTab(0); return }
+
+    if (!forceSubmit) {
+      const nameMatch = `${form.firstName} ${form.lastName}`.toLowerCase()
+      const phoneDigits = form.phone.replace(/\D/g, '')
+      const found = patients.filter(p => {
+        const pName = `${p.firstName} ${p.lastName}`.toLowerCase()
+        const pPhone = (p.phone || '').replace(/\D/g, '')
+        return pName === nameMatch || (phoneDigits && pPhone === phoneDigits)
+      })
+      if (found.length) {
+        setDuplicates(found)
+        setTab(0)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const patient = await add(form)
@@ -139,6 +174,41 @@ export default function NewPatientPage() {
           ))}
         </div>
 
+        {/* Duplicate warning */}
+        {duplicates.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 mb-4">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
+              ⚠ Possible duplicate{duplicates.length > 1 ? 's' : ''} found
+            </p>
+            <div className="space-y-1.5 mb-3">
+              {duplicates.map(p => (
+                <div key={p.id} className="flex items-center justify-between">
+                  <span className="text-sm text-amber-700 dark:text-amber-300">
+                    {p.firstName} {p.lastName} · {p.phone}
+                  </span>
+                  <button type="button"
+                    onClick={() => router.push(`/patients/${p.id}`)}
+                    className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
+                    Open →
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button type="button"
+                onClick={() => { setDuplicates([]); setForceSubmit(true) }}
+                className="text-xs font-semibold px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors">
+                Save anyway (new patient)
+              </button>
+              <button type="button"
+                onClick={() => setDuplicates([])}
+                className="text-xs font-medium px-3 py-1.5 text-amber-700 dark:text-amber-400 hover:underline">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
 
@@ -149,8 +219,33 @@ export default function NewPatientPage() {
                   <Field name="firstName" label="First Name" placeholder="John" required {...fieldProps} />
                   <Field name="lastName" label="Last Name" placeholder="Smith" required {...fieldProps} />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <Field name="dateOfBirth" label="Date of Birth" type="date" {...fieldProps} />
+                  <div>
+                    <label className="form-label">
+                      Age <span className="text-gray-400 font-normal text-xs">(if no DOB)</span>
+                    </label>
+                    <input
+                      type="number" min="0" max="150"
+                      value={form.dateOfBirth ? '' : form.ageManual}
+                      disabled={!!form.dateOfBirth}
+                      onChange={e => set('ageManual', e.target.value)}
+                      placeholder={form.dateOfBirth ? 'Auto' : 'e.g. 45'}
+                      className="input-field disabled:opacity-50"
+                    />
+                    {form.dateOfBirth && (
+                      <p className="text-xs text-primary-600 dark:text-primary-400 mt-1 font-medium">
+                        Age: {(() => {
+                          const dob = new Date(form.dateOfBirth)
+                          const today = new Date()
+                          let age = today.getFullYear() - dob.getFullYear()
+                          const m = today.getMonth() - dob.getMonth()
+                          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+                          return age
+                        })()} yrs
+                      </p>
+                    )}
+                  </div>
                   <Field name="gender" label="Gender" required options={[
                     { value: 'male', label: 'Male' },
                     { value: 'female', label: 'Female' },
@@ -158,6 +253,7 @@ export default function NewPatientPage() {
                   ]} {...fieldProps} />
                   <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} {...fieldProps} />
                 </div>
+                <Field name="referralSource" label="Referral / Visit Source" options={REFERRAL_SOURCES} {...fieldProps} />
                 <Field name="nationalId" label="National ID / Patient ID" placeholder="e.g. PAN, Aadhaar, Passport" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
                   <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" required {...fieldProps} />

@@ -75,7 +75,8 @@ function NewInvoiceForm() {
     try {
       await add({
         ...form,
-        patientName: selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
+        patientName:  selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
+        patientPhone: selectedPatient?.phone ?? '',
         lineItems,
         taxRate: Number(form.taxRate) / 100,
         discount: Number(form.discount),
