@@ -128,12 +128,15 @@ export function useReports() {
     ready.current = { patients: false, appointments: false, invoices: false, followups: false, visits: false }
     live.current  = { patients: [], appointments: [], invoices: [], followups: [], visits: [] }
 
+    // visits uses getAllGroup (one-time fetch) — subscribeGroup requires a
+    // Firestore composite index that may not exist; this avoids that requirement.
+    dataStore.getAllGroup('visits').then(d => recompute('visits', d)).catch(() => recompute('visits', []))
+
     const unsubs = [
       dataStore.subscribe('patients',     d => recompute('patients',     d)),
       dataStore.subscribe('appointments', d => recompute('appointments', d)),
       dataStore.subscribe('invoices',     d => recompute('invoices',     d)),
       dataStore.subscribe('followups',    d => recompute('followups',    d)),
-      dataStore.subscribeGroup('visits',  d => recompute('visits',       d)),
     ]
 
     return () => unsubs.forEach(u => u())
