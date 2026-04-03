@@ -258,8 +258,8 @@ export default function AppointmentsPage() {
               actionLabel="Schedule Appointment"
             />
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                     {['Patient', 'Date & Time', 'Type', 'Reason', 'Status', 'Actions'].map(h => (

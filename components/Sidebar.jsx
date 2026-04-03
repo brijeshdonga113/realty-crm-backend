@@ -87,7 +87,7 @@ const navSections = [
   },
 ]
 
-export default function Sidebar({ unreadCount = 0 }) {
+export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { doctor, logout } = useAuth()
@@ -100,90 +100,117 @@ export default function Sidebar({ unreadCount = 0 }) {
 
   const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
 
+  const handleNavClick = () => {
+    if (onClose) onClose()
+  }
+
   return (
-    <aside className="w-60 bg-primary-900 flex flex-col flex-shrink-0 h-screen sticky top-0">
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-primary-800">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-            </svg>
-          </div>
-          <div className="min-w-0">
-            {doctor?.clinicName ? (
-              <>
-                <p className="text-white font-bold text-sm leading-tight truncate">{doctor.clinicName}</p>
-                <p className="text-primary-300 text-xs truncate">ClinicCRM</p>
-              </>
-            ) : (
-              <span className="text-white font-bold text-lg">ClinicCRM</span>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-primary-900 flex flex-col h-screen
+        transform transition-transform duration-300 ease-in-out
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        lg:relative lg:translate-x-0 lg:w-60 lg:flex-shrink-0
+      `}>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-        {navSections.map(section => {
-          const visibleItems = section.items.filter(item => !item.adminOnly || doctor?.isAdmin)
-          if (visibleItems.length === 0) return null
-          return (
-            <div key={section.label}>
-              <p className="px-3 mb-1.5 text-[10px] font-bold text-primary-400 uppercase tracking-widest">
-                {section.label}
-              </p>
-              <div className="space-y-0.5">
-                {visibleItems.map(item => {
-                  const active = isActive(item.href)
-                  return (
-                    <Link key={item.href} href={item.href}
-                      className={active
-                        ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg bg-accent-500 text-white font-semibold text-sm'
-                        : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-primary-200 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
-                      }
-                    >
-                      {item.icon}
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge && unreadCount > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
-                    </Link>
-                  )
-                })}
-              </div>
+        {/* Logo / clinic name */}
+        <div className="px-4 py-4 border-b border-primary-800 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 bg-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+              </svg>
             </div>
-          )
-        })}
-      </nav>
-
-      {/* Doctor profile */}
-      <div className="px-4 py-4 border-t border-primary-800">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-primary-100 font-bold text-sm">{initials}</span>
+            <div className="min-w-0">
+              {doctor?.clinicName ? (
+                <>
+                  <p className="text-white font-bold text-sm leading-tight truncate">{doctor.clinicName}</p>
+                  <p className="text-primary-300 text-xs truncate">ClinicCRM</p>
+                </>
+              ) : (
+                <span className="text-white font-bold text-lg">ClinicCRM</span>
+              )}
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
-              Dr. {doctor?.firstName} {doctor?.lastName}
-            </p>
-            <p className="text-xs text-primary-300 truncate capitalize">
-              {doctor?.isAdmin ? 'Admin · ' : ''}{doctor?.specialization?.replace(/_/g, ' ')}
-            </p>
-          </div>
-          <button onClick={handleLogout} title="Sign out"
-            className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          {/* Close button — mobile only */}
+          <button onClick={onClose}
+            className="lg:hidden text-primary-300 hover:text-white p-1 rounded transition-colors flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+          {navSections.map(section => {
+            const visibleItems = section.items.filter(item => !item.adminOnly || doctor?.isAdmin)
+            if (visibleItems.length === 0) return null
+            return (
+              <div key={section.label}>
+                <p className="px-3 mb-1.5 text-[10px] font-bold text-primary-400 uppercase tracking-widest">
+                  {section.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map(item => {
+                    const active = isActive(item.href)
+                    return (
+                      <Link key={item.href} href={item.href} onClick={handleNavClick}
+                        className={active
+                          ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg bg-accent-500 text-white font-semibold text-sm'
+                          : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-primary-200 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
+                        }
+                      >
+                        {item.icon}
+                        <span className="flex-1 truncate">{item.label}</span>
+                        {item.badge && unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </nav>
+
+        {/* Doctor profile */}
+        <div className="px-4 py-4 border-t border-primary-800">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-primary-100 font-bold text-sm">{initials}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">
+                Dr. {doctor?.firstName} {doctor?.lastName}
+              </p>
+              <p className="text-xs text-primary-300 truncate capitalize">
+                {doctor?.isAdmin ? 'Admin · ' : ''}{doctor?.specialization?.replace(/_/g, ' ')}
+              </p>
+            </div>
+            <button onClick={handleLogout} title="Sign out"
+              className="text-primary-400 hover:text-red-400 transition-colors p-1 rounded">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   )
 }
