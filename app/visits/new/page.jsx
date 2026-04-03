@@ -50,8 +50,9 @@ function VisitEntryForm() {
     description: 'Consultation Fee',
   })
 
-  const [diagInput, setDiagInput] = useState('')
-  const [labInput,  setLabInput]  = useState('')
+  const [diagInput,    setDiagInput]    = useState('')
+  const [labInput,     setLabInput]     = useState('')
+  const [customDays,   setCustomDays]   = useState('')
   const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
 
   // Pre-fill from patient data
@@ -363,20 +364,45 @@ function VisitEntryForm() {
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Follow-up Date</h3>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Select a quick interval or pick a custom date</p>
           <div className="flex flex-wrap gap-2 mb-3">
-            {[[7,'+7 days'],[10,'+10 days'],[15,'+15 days'],[21,'+3 weeks'],[30,'+1 month']].map(([days, label]) => (
+            {[[7,'+7'],[10,'+10'],[15,'+15'],[21,'+21'],[30,'+30']].map(([days, label]) => (
               <button key={days} type="button" onClick={() => addFollowUpDays(days)}
                 className="text-xs px-3 py-1.5 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors">
-                {label}
+                {label}d
               </button>
             ))}
+            {/* Custom days input */}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" min="1" max="365"
+                value={customDays}
+                onChange={e => setCustomDays(e.target.value)}
+                placeholder="Custom"
+                className="input-field text-xs py-1.5 w-20"
+              />
+              <button type="button"
+                onClick={() => { const d = parseInt(customDays); if (d > 0) { addFollowUpDays(d); setCustomDays('') } }}
+                disabled={!customDays || parseInt(customDays) < 1}
+                className="text-xs px-2.5 py-1.5 bg-orange-100 dark:bg-orange-900/40 hover:bg-orange-200 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors disabled:opacity-40">
+                Set
+              </button>
+            </div>
           </div>
           <input type="date" value={form.followUpDate}
             min={new Date().toISOString().slice(0, 10)}
             onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
           {form.followUpDate && (
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-2 font-medium">
-              📅 {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
-            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                📅 {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                ({Math.round((new Date(form.followUpDate) - new Date()) / 86400000)} days from today)
+              </p>
+              <button type="button" onClick={() => set('followUpDate', '')}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                Clear
+              </button>
+            </div>
           )}
         </div>
 

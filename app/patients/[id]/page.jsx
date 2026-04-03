@@ -9,8 +9,135 @@ import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
-import { getPatientAge, getPatientInitials } from '@/models/Patient'
+import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { formatCurrency } from '@/models/Invoice'
+
+const REFERRAL_SOURCES = [
+  { value: '', label: 'Select source…' },
+  { value: 'walk_in', label: 'Walk-in' },
+  { value: 'first_visit', label: 'First Visit' },
+  { value: 'patient_referral', label: 'Patient Referral' },
+  { value: 'doctor_referral', label: 'Doctor Referral' },
+  { value: 'social_media', label: 'Social Media' },
+  { value: 'advertisement', label: 'Advertisement' },
+  { value: 'returning', label: 'Returning Patient' },
+  { value: 'other', label: 'Other' },
+]
+
+function EditPatientModal({ open, onClose, patient, onSave }) {
+  const [form, setForm] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  // Initialize form when modal opens
+  if (open && !form) {
+    setForm({ ...patient })
+  }
+  if (!open && form) {
+    setForm(null)
+  }
+
+  if (!open || !form) return null
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const age = form.dateOfBirth ? getPatientAge(form) : null
+
+  const handleSave = async () => {
+    setSaving(true)
+    try { await onSave(form) } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Patient" size="xl">
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="form-label">First Name *</label>
+            <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field" required/>
+          </div>
+          <div>
+            <label className="form-label">Last Name *</label>
+            <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field" required/>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="form-label">Date of Birth</label>
+            <input type="date" value={form.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} className="input-field"/>
+            {age !== null && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Age: {age} years</p>}
+          </div>
+          <div>
+            <label className="form-label">Age (if no DOB)</label>
+            <input type="number" min="0" max="150"
+              value={form.dateOfBirth ? (age ?? '') : (form.ageManual ?? '')}
+              disabled={!!form.dateOfBirth}
+              onChange={e => set('ageManual', e.target.value)}
+              placeholder={form.dateOfBirth ? 'Calculated' : 'Enter age'}
+              className="input-field disabled:opacity-50"/>
+          </div>
+          <div>
+            <label className="form-label">Gender</label>
+            <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
+              {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="form-label">Blood Type</label>
+            <select value={form.bloodType || ''} onChange={e => set('bloodType', e.target.value)} className="input-field">
+              <option value="">Select…</option>
+              {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Referral Source</label>
+            <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
+              {REFERRAL_SOURCES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="form-label">Phone *</label>
+            <input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Alternate Phone</label>
+            <input value={form.alternatePhone || ''} onChange={e => set('alternatePhone', e.target.value)} className="input-field"/>
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Email</label>
+          <input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className="input-field"/>
+        </div>
+        <div>
+          <label className="form-label">Address</label>
+          <textarea value={form.address || ''} onChange={e => set('address', e.target.value)} rows={2} className="input-field resize-none"/>
+        </div>
+        <div>
+          <label className="form-label">Status</label>
+          <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
+            {['active','inactive','deceased'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Notes</label>
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none"/>
+        </div>
+      </div>
+      <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700 mt-4">
+        <button onClick={onClose}
+          className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+          Cancel
+        </button>
+        <button onClick={handleSave} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
+          className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
 
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
@@ -306,6 +433,7 @@ export default function PatientProfilePage() {
   const { invoices }         = usePatientInvoices(id)
   const [tab, setTab]            = useState(0)
   const [showVisitModal, setShowVisitModal] = useState(false)
+  const [showEditModal, setShowEditModal]   = useState(false)
 
   if (loading) return (
     <AppLayout title="Patient Profile">
@@ -335,6 +463,13 @@ export default function PatientProfilePage() {
           <button onClick={() => router.push('/patients')}
             className="text-sm font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 transition-colors">
             ← Back
+          </button>
+          <button onClick={() => setShowEditModal(true)}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Edit Patient
           </button>
           <button onClick={() => setShowVisitModal(true)}
             className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
@@ -394,6 +529,12 @@ export default function PatientProfilePage() {
             </div>
             <InfoRow label="Email" value={patient.email} />
             <InfoRow label="Address" value={patient.address} />
+            {patient.referralSource && (
+              <InfoRow label="Referral Source" value={REFERRAL_SOURCES.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+            )}
+            {!patient.dateOfBirth && patient.ageManual && (
+              <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
+            )}
           </div>
 
           <div className="space-y-4">
@@ -536,6 +677,16 @@ export default function PatientProfilePage() {
         onClose={() => setShowVisitModal(false)}
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
+      />
+
+      <EditPatientModal
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        patient={patient}
+        onSave={async (data) => {
+          await update(data)
+          setShowEditModal(false)
+        }}
       />
     </AppLayout>
   )

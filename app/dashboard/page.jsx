@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useReports } from '@/hooks/useReports'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
+import { useFollowUps } from '@/hooks/useFollowUps'
 import { formatCurrency } from '@/models/Invoice'
 
 const SPECIALIZATION_LABELS = {
@@ -46,8 +47,10 @@ export default function DashboardPage() {
   const { stats, loading: reportLoading } = useReports()
   const { appointments } = useAppointments()
   const { patients }     = usePatients()
+  const { followups }    = useFollowUps()
 
-  const todayStr   = new Date().toISOString().slice(0, 10)
+  const todayStr     = new Date().toISOString().slice(0, 10)
+  const twoDaysStr   = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
   const todayAppts = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5)
   const specLabel  = SPECIALIZATION_LABELS[doctor?.specialization] ?? doctor?.specialization
 
@@ -224,6 +227,50 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* 2-days upcoming follow-ups */}
+        {(() => {
+          const twoDayFollowups = followups.filter(f => f.dueDate === twoDaysStr && f.status === 'pending')
+          if (!twoDayFollowups.length && !(stats?.followups?.twoDaysCount > 0)) return null
+          return (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Follow-ups in 2 Days</h3>
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
+                    {stats?.followups?.twoDaysCount ?? twoDayFollowups.length}
+                  </span>
+                </div>
+                <button onClick={() => router.push('/follow-ups')}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                  View all
+                </button>
+              </div>
+              {twoDayFollowups.length === 0 ? (
+                <div className="px-6 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
+                  Follow-ups from visits are included in the count above.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                  {twoDayFollowups.map(f => (
+                    <div key={f.id} className="px-6 py-4 flex items-center gap-4">
+                      <div className="w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Scheduled follow-up'}</p>
+                      </div>
+                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex-shrink-0">{f.dueDate}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Recent visits */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
