@@ -90,10 +90,20 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
             </select>
           </div>
           <div>
+            <label className="form-label">Patient ID #</label>
+            <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
             <label className="form-label">Referral Source</label>
             <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
               {REFERRAL_SOURCES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="form-label">Referral Details</label>
+            <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -490,6 +500,11 @@ export default function PatientProfilePage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-2xl font-bold">{patient.firstName} {patient.lastName}</h2>
             <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
+            {patient.patientNumber && (
+              <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                #{patient.patientNumber}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
             {age && <span>{age} years old</span>}
@@ -531,6 +546,9 @@ export default function PatientProfilePage() {
             <InfoRow label="Address" value={patient.address} />
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={REFERRAL_SOURCES.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+            )}
+            {patient.referralNotes && (
+              <InfoRow label="Referral Details" value={patient.referralNotes} />
             )}
             {!patient.dateOfBirth && patient.ageManual && (
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />

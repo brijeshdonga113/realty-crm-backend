@@ -143,7 +143,9 @@ export default function PatientsPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{patient.firstName} {patient.lastName}</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500">{patient.email || patient.nationalId || '—'}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              {patient.patientNumber ? `#${patient.patientNumber} · ` : ''}{patient.email || patient.nationalId || '—'}
+                            </p>
                           </div>
                         </div>
                       </td>

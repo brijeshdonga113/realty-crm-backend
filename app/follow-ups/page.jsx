@@ -168,14 +168,15 @@ export default function FollowUpsPage() {
         source:      'standalone',
       }))
 
-    // Merge deduplicating by patientId+date (prefer standalone)
+    // Merge deduplicating by patientId+date (prefer standalone over visit-based)
     const seen = new Set()
     const merged = [...standalone]
+    // Add standalone keys first so visitBased duplicates are skipped
+    standalone.forEach(e => seen.add(`${e.patientId}_${e.dueDate}`))
     visitBased.forEach(e => {
       const key = `${e.patientId}_${e.dueDate}`
       if (!seen.has(key)) { seen.add(key); merged.push(e) }
     })
-    standalone.forEach(e => seen.add(`${e.patientId}_${e.dueDate}`))
 
     return merged.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   }, [visitFollowUps, followups])

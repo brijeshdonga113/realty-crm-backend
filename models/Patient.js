@@ -54,6 +54,13 @@ export function createPatient(data = {}) {
     consentFormSigned:   data.consentFormSigned ?? false,
     consentSignedAt:     data.consentSignedAt ?? null,
 
+    // Referral
+    referralSource: data.referralSource ?? '',
+    referralNotes:  data.referralNotes ?? '',
+
+    // Sequential patient number (e.g. 2001, 2002, …)
+    patientNumber:  data.patientNumber ?? null,
+
     // Meta
     notes:     data.notes ?? '',
     status:    data.status ?? 'active',

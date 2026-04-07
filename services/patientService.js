@@ -3,7 +3,16 @@ import { createPatient, getPatientFullName } from '@/models/Patient'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
 
-const COLLECTION = 'patients'
+const COLLECTION   = 'patients'
+const COUNTER_KEY  = 'patientCounter'
+const COUNTER_START = 2001
+
+async function nextPatientNumber() {
+  const current = (await dataStore.getMeta(COUNTER_KEY)) ?? (COUNTER_START - 1)
+  const next    = current + 1
+  await dataStore.setMeta(COUNTER_KEY, next)
+  return next
+}
 
 export const patientService = {
   async getAll() {
@@ -27,7 +36,18 @@ export const patientService = {
   },
 
   async create(data) {
-    const patient = createPatient(data)
+    let patientNumber
+    if (data.patientNumber) {
+      patientNumber = Number(data.patientNumber)
+      // Keep the counter in sync: if the assigned number is >= current counter, advance it
+      const current = (await dataStore.getMeta(COUNTER_KEY)) ?? (COUNTER_START - 1)
+      if (patientNumber >= current + 1) {
+        await dataStore.setMeta(COUNTER_KEY, patientNumber)
+      }
+    } else {
+      patientNumber = await nextPatientNumber()
+    }
+    const patient = createPatient({ ...data, patientNumber })
     const saved = await dataStore.create(COLLECTION, patient)
 
     await notificationService.create({
@@ -46,6 +66,11 @@ export const patientService = {
 
   async remove(id) {
     return dataStore.remove(COLLECTION, id)
+  },
+
+  async peekNextPatientNumber() {
+    const current = (await dataStore.getMeta(COUNTER_KEY)) ?? (COUNTER_START - 1)
+    return current + 1
   },
 
   async getStats() {

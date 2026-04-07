@@ -23,8 +23,9 @@ function parseCSV(text) {
   }).filter(row => Object.values(row).some(v => v))
 }
 
+const DOSAGE_FORMS = ['Globules', 'Drops', 'Tablets', 'Capsules', 'Syrup', 'Ointment', 'Cream', 'Powder', 'Tincture', 'Dilution', 'Injection', 'Gel', 'Lotion', 'Suppository', 'Other']
+
 function normalizeRow(row) {
-  // Try to find common column names
   const keys = Object.keys(row)
   const find = (...names) => {
     for (const n of names) {
@@ -34,16 +35,18 @@ function normalizeRow(row) {
     return ''
   }
   return {
-    name:       find('name', 'medicine', 'drug', 'item', 'product'),
-    generic:    find('generic', 'molecule', 'composition', 'salt', 'formula'),
-    category:   find('category', 'type', 'class', 'group'),
-    quantity:   find('quantity', 'qty', 'stock', 'units', 'available'),
-    unit:       find('unit', 'uom', 'pack', 'size'),
-    mrp:        find('mrp', 'price', 'rate', 'cost', 'amount'),
-    expiry:     find('expiry', 'exp', 'expire', 'expiration', 'validity'),
-    batch:      find('batch', 'lot', 'batch_no', 'lot_no'),
-    supplier:   find('supplier', 'vendor', 'distributor', 'manufacturer', 'company'),
-    _raw:       row,
+    name:        find('name', 'medicine', 'drug', 'item', 'product'),
+    generic:     find('generic', 'molecule', 'composition', 'salt', 'formula'),
+    potency:     find('potency', 'strength', 'power', 'dilution'),
+    dosageForm:  find('dosage', 'form', 'dosageform', 'preparation'),
+    category:    find('category', 'type', 'class', 'group'),
+    quantity:    find('quantity', 'qty', 'stock', 'units', 'available'),
+    unit:        find('unit', 'uom', 'pack', 'size'),
+    mrp:         find('mrp', 'price', 'rate', 'cost', 'amount'),
+    expiry:      find('expiry', 'exp', 'expire', 'expiration', 'validity'),
+    batch:       find('batch', 'lot', 'batch_no', 'lot_no'),
+    supplier:    find('supplier', 'vendor', 'distributor', 'manufacturer', 'company'),
+    _raw:        row,
   }
 }
 
@@ -53,9 +56,10 @@ export default function InventoryPage() {
   const fileRef = useRef(null)
   const [medicines, setMedicines] = useState([])
   const [rawHeaders, setRawHeaders] = useState([])
-  const [query,      setQuery]      = useState('')
-  const [catFilter,  setCatFilter]  = useState('')
-  const [viewMode,   setViewMode]   = useState('normalized') // 'normalized' | 'raw'
+  const [query,        setQuery]      = useState('')
+  const [catFilter,    setCatFilter]  = useState('')
+  const [formFilter,   setFormFilter] = useState('')
+  const [viewMode,     setViewMode]   = useState('normalized') // 'normalized' | 'raw'
   const [importing,  setImporting]  = useState(false)
   const [error,      setError]      = useState('')
 
@@ -90,13 +94,15 @@ export default function InventoryPage() {
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim()
     return medicines.filter(m => {
-      if (catFilter && m.category !== catFilter) return false
+      if (catFilter  && m.category   !== catFilter)  return false
+      if (formFilter && m.dosageForm !== formFilter) return false
       if (!q) return true
       return (m.name || '').toLowerCase().includes(q) ||
         (m.generic || '').toLowerCase().includes(q) ||
-        (m.supplier || '').toLowerCase().includes(q)
+        (m.supplier || '').toLowerCase().includes(q) ||
+        (m.potency || '').toLowerCase().includes(q)
     })
-  }, [medicines, query, catFilter])
+  }, [medicines, query, catFilter, formFilter])
 
   const lowStock = filtered.filter(m => {
     const qty = Number((m.quantity || '').replace(/[^0-9.]/g, ''))
@@ -104,8 +110,8 @@ export default function InventoryPage() {
   })
 
   const exportCSV = () => {
-    const headers = ['Name', 'Generic/Composition', 'Category', 'Quantity', 'Unit', 'MRP', 'Expiry', 'Batch', 'Supplier']
-    const rows = filtered.map(m => [m.name, m.generic, m.category, m.quantity, m.unit, m.mrp, m.expiry, m.batch, m.supplier])
+    const headers = ['Name', 'Generic/Composition', 'Potency', 'Dosage Form', 'Category', 'Quantity', 'Unit', 'MRP', 'Expiry', 'Batch', 'Supplier']
+    const rows = filtered.map(m => [m.name, m.generic, m.potency, m.dosageForm, m.category, m.quantity, m.unit, m.mrp, m.expiry, m.batch, m.supplier])
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory_export.csv'; a.click()
@@ -117,9 +123,10 @@ export default function InventoryPage() {
       action={
         <div className="flex items-center gap-2">
           <button onClick={() => {
-            const headers = ['Name', 'Generic/Composition', 'Category', 'Quantity', 'Unit', 'MRP', 'Expiry', 'Batch', 'Supplier']
-            const sample  = ['Paracetamol 500mg', 'Paracetamol', 'Analgesic', '100', 'Tablets', '25', '2026-12-31', 'BTX-001', 'ABC Pharma']
-            const csv = [headers, sample].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+            const headers = ['Name', 'Generic/Composition', 'Potency', 'Dosage Form', 'Category', 'Quantity', 'Unit', 'MRP', 'Expiry', 'Batch', 'Supplier']
+            const sample  = ['Arnica Montana', 'Arnica', '30C', 'Globules', 'Homoeopathic', '100', 'gm', '150', '2027-12-31', 'BTX-001', 'SBL Pvt Ltd']
+            const note    = ['# Dosage Form options: Globules / Drops / Tablets / Capsules / Syrup / Ointment / Cream / Powder / Tincture / Dilution / Injection / Gel / Lotion / Other', '', '', '', '', '', '', '', '', '', '']
+            const csv = [headers, sample, note].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
             const blob = new Blob([csv], { type: 'text/csv' })
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory_template.csv'; a.click()
           }}
@@ -167,7 +174,7 @@ export default function InventoryPage() {
             <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">No Inventory Data</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Import a CSV file with your medicine stock data.</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-6">
-              Expected columns: Name, Quantity, MRP, Expiry, Category, Supplier, Batch (flexible — system auto-detects)
+              Expected columns: Name, Generic/Composition, Potency, Dosage Form, Category, Quantity, MRP, Expiry, Batch, Supplier — system auto-detects column names
             </p>
             <button onClick={() => fileRef.current?.click()}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
@@ -204,9 +211,13 @@ export default function InventoryPage() {
                   placeholder="Search medicines, generics, suppliers…"
                   className="input-field pl-9"/>
               </div>
-              <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="input-field w-44">
+              <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="input-field w-40">
                 <option value="">All Categories</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={formFilter} onChange={e => setFormFilter(e.target.value)} className="input-field w-36">
+                <option value="">All Forms</option>
+                {DOSAGE_FORMS.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
               <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                 {[['normalized','Standard View'],['raw','Raw Data']].map(([v,l]) => (
@@ -235,10 +246,10 @@ export default function InventoryPage() {
             {/* Table */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-x-auto">
               {viewMode === 'normalized' ? (
-                <table className="w-full min-w-[800px]">
+                <table className="w-full min-w-[1000px]">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                      {['Medicine Name', 'Generic / Composition', 'Category', 'Qty', 'MRP', 'Expiry', 'Batch', 'Supplier'].map(h => (
+                      {['Medicine Name', 'Generic / Composition', 'Potency', 'Dosage Form', 'Category', 'Qty', 'MRP', 'Expiry', 'Supplier'].map(h => (
                         <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                       ))}
                     </tr>
@@ -252,7 +263,17 @@ export default function InventoryPage() {
                           <td className="px-4 py-3 pl-6">
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{m.name || '—'}</p>
                           </td>
-                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 max-w-48 truncate">{m.generic || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 max-w-40 truncate">{m.generic || '—'}</td>
+                          <td className="px-4 py-3">
+                            {m.potency ? (
+                              <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full font-medium">{m.potency}</span>
+                            ) : <span className="text-gray-400 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {m.dosageForm ? (
+                              <span className="inline-block px-2 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">{m.dosageForm}</span>
+                            ) : <span className="text-gray-400 text-xs">—</span>}
+                          </td>
                           <td className="px-4 py-3">
                             {m.category ? (
                               <span className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full font-medium">{m.category}</span>
@@ -267,7 +288,6 @@ export default function InventoryPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{m.mrp ? `₹${m.mrp}` : '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.expiry || '—'}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{m.batch || '—'}</td>
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{m.supplier || '—'}</td>
                         </tr>
                       )
