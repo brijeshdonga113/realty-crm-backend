@@ -335,7 +335,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <label className="form-label">Diagnosis</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.diagnosis.map(d => (
-              <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 text-teal-700 text-xs rounded-full font-medium">
+              <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">
                 {d} <button type="button" onClick={() => set('diagnosis', form.diagnosis.filter(x => x !== d))}>×</button>
               </span>
             ))}
@@ -394,7 +394,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <label className="form-label">Lab Orders</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.labOrders.map(l => (
-              <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+              <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full font-medium">
                 {l} <button type="button" onClick={() => set('labOrders', form.labOrders.filter(x => x !== l))}>×</button>
               </span>
             ))}
@@ -471,7 +471,7 @@ export default function PatientProfilePage() {
       action={
         <div className="flex gap-2">
           <button onClick={() => router.push('/patients')}
-            className="text-sm font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 transition-colors">
+            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-3 py-1.5 transition-colors">
             ← Back
           </button>
           <button onClick={() => setShowEditModal(true)}
