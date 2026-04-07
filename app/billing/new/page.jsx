@@ -29,7 +29,7 @@ function NewInvoiceForm() {
     patientId: searchParams.get('patientId') ?? '',
     issueDate: new Date().toISOString().slice(0, 10),
     dueDate:   '',
-    taxRate:   0,
+    taxRate:   15,
     discount:  0,
     notes:     '',
     status:    'draft',

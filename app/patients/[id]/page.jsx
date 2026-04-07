@@ -438,7 +438,7 @@ export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { patient, loading } = usePatient(id)
-  const { visits }           = useVisits(id)
+  const { visits, reload: reloadVisits } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const [tab, setTab]            = useState(0)
@@ -695,6 +695,7 @@ export default function PatientProfilePage() {
         onClose={() => setShowVisitModal(false)}
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
+        onSave={reloadVisits}
       />
 
       <EditPatientModal

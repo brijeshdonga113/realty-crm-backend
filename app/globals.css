@@ -4,6 +4,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Default primary palette: Teal ──────────────────────────────────────────
+   Values are "R G B" so Tailwind opacity modifiers (bg-primary-500/20) work.
+   Override these via JS using document.documentElement.style.setProperty()
+   when the user selects a different theme.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --primary-50:  230 244 244;
+  --primary-100: 192 228 227;
+  --primary-200: 153 211 210;
+  --primary-300: 115 194 193;
+  --primary-400: 77 177 176;
+  --primary-500: 22 120 118;
+  --primary-600: 20 107 105;
+  --primary-700: 17 94 92;
+  --primary-800: 14 81 80;
+  --primary-900: 11 68 67;
+}
+
 @layer base {
   body {
     @apply antialiased;

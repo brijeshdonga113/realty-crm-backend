@@ -9,17 +9,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Primary uses CSS variables so the palette can be switched at runtime.
+        // Values are stored as "R G B" to support Tailwind opacity modifiers (bg-primary-500/20).
         primary: {
-          50:  '#e6f4f4',
-          100: '#c0e4e3',
-          200: '#99d3d2',
-          300: '#73c2c1',
-          400: '#4db1b0',
-          500: '#167876',
-          600: '#146b69',
-          700: '#115e5c',
-          800: '#0e5150',
-          900: '#0b4443',
+          50:  'rgb(var(--primary-50)  / <alpha-value>)',
+          100: 'rgb(var(--primary-100) / <alpha-value>)',
+          200: 'rgb(var(--primary-200) / <alpha-value>)',
+          300: 'rgb(var(--primary-300) / <alpha-value>)',
+          400: 'rgb(var(--primary-400) / <alpha-value>)',
+          500: 'rgb(var(--primary-500) / <alpha-value>)',
+          600: 'rgb(var(--primary-600) / <alpha-value>)',
+          700: 'rgb(var(--primary-700) / <alpha-value>)',
+          800: 'rgb(var(--primary-800) / <alpha-value>)',
+          900: 'rgb(var(--primary-900) / <alpha-value>)',
         },
         accent: {
           50:  '#f4faec',
