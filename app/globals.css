@@ -64,7 +64,7 @@
   }
 
   .nav-link-active {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg bg-accent-500 text-white font-semibold text-sm;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-600 text-white font-semibold text-sm;
   }
 
   .stat-card {
