@@ -143,7 +143,9 @@ export default function PatientsPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{patient.firstName} {patient.lastName}</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500">{patient.email || patient.nationalId || '—'}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              {patient.patientNumber ? `#${patient.patientNumber} · ` : ''}{patient.email || patient.nationalId || '—'}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -272,7 +274,7 @@ export default function PatientsPage() {
         </p>
         <div className="flex gap-3 justify-end">
           <button onClick={() => setDeleteId(null)}
-            className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
           <button

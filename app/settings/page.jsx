@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
+import { useTheme } from '@/hooks/useTheme'
+import { THEMES } from '@/lib/themes'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -28,6 +30,7 @@ const SPECIALIZATIONS = [
 
 export default function SettingsPage() {
   const { doctor, updateProfile } = useAuth()
+  const { dark, toggle, colorTheme, setTheme } = useTheme()
 
   const [form, setForm] = useState({
     clinicName:     doctor?.clinicName     ?? '',
@@ -128,6 +131,68 @@ export default function SettingsPage() {
   return (
     <AppLayout title="Settings">
       <div className="max-w-2xl space-y-8">
+
+        {/* ── Appearance ───────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Appearance</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Personalise the look of the app. Saved to your account.</p>
+          </div>
+
+          <div className="p-6 space-y-6">
+
+            {/* Dark / Light mode toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Dark Mode</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Switch between light and dark interface.</p>
+              </div>
+              <button
+                onClick={toggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none
+                  ${dark ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
+                  ${dark ? 'translate-x-6' : 'translate-x-1'}`}/>
+              </button>
+            </div>
+
+            {/* Color palette */}
+            <div>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Accent Color</p>
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+                {THEMES.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTheme(t.key)}
+                    title={t.label}
+                    className={`group flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all
+                      ${colorTheme === t.key
+                        ? 'border-gray-900 dark:border-white scale-105 shadow-md'
+                        : 'border-transparent hover:border-gray-300 dark:hover:border-gray-500'}`}
+                  >
+                    {/* Swatch circle */}
+                    <span
+                      className="w-9 h-9 rounded-full shadow-inner flex items-center justify-center transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: t.swatch }}
+                    >
+                      {colorTheme === t.key && (
+                        <svg className="w-4 h-4 text-white drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+                Changes apply instantly and sync across your devices.
+              </p>
+            </div>
+
+          </div>
+        </div>
 
         {/* Profile & clinic section */}
         <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">

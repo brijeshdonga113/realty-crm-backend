@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
+import { patientService } from '@/services/patientService'
 
 const SPECIALIZATIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
 const ALLERGIES_LIST  = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
@@ -88,19 +89,28 @@ export default function NewPatientPage() {
   const [tab, setTab]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
+  const [saveError, setSaveError] = useState('')
   const [duplicates, setDuplicates] = useState([])
   const [forceSubmit, setForceSubmit] = useState(false)
 
   const [form, setForm] = useState({
+    patientNumber: '',
     firstName: '', lastName: '', dateOfBirth: '', ageManual: '', gender: 'male', bloodType: '',
     nationalId: '', phone: '', alternatePhone: '', email: '', address: '',
-    referralSource: '',
+    referralSource: '', referralNotes: '',
     allergies: [], chronicConditions: [], currentMedications: [],
     familyHistory: '', notes: '', status: 'active',
     insuranceProvider: '', insurancePolicyNumber: '', insuranceExpiry: '', insuranceGroupNumber: '',
     consentFormSigned: false,
     emergencyContact: { name: '', phone: '', relationship: '' },
   })
+
+  // Pre-fill the next sequential patient number on mount
+  useEffect(() => {
+    patientService.peekNextPatientNumber().then(n => {
+      setForm(prev => ({ ...prev, patientNumber: String(n) }))
+    }).catch(() => {})
+  }, [])
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -116,6 +126,7 @@ export default function NewPatientPage() {
 
   const validate = () => {
     const errs = {}
+    if (!form.patientNumber || isNaN(Number(form.patientNumber))) errs.patientNumber = 'Required (numeric)'
     if (!form.firstName.trim()) errs.firstName = 'Required'
     if (!form.lastName.trim())  errs.lastName  = 'Required'
     if (!form.phone.trim())     errs.phone     = 'Required'
@@ -143,10 +154,13 @@ export default function NewPatientPage() {
       }
     }
 
+    setSaveError('')
     setLoading(true)
     try {
-      const patient = await add(form)
+      const patient = await add({ ...form, patientNumber: Number(form.patientNumber) })
       router.push(`/patients/${patient.id}`)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save patient. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -173,6 +187,14 @@ export default function NewPatientPage() {
             </button>
           ))}
         </div>
+
+        {/* Save error */}
+        {saveError && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4 mb-4">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Error saving patient</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-0.5">{saveError}</p>
+          </div>
+        )}
 
         {/* Duplicate warning */}
         {duplicates.length > 0 && (
@@ -215,6 +237,22 @@ export default function NewPatientPage() {
             {/* Tab 0: Basic Info */}
             {tab === 0 && (
               <>
+                {/* Patient Number */}
+                <div>
+                  <label className="form-label">Patient ID <span className="text-red-500 ml-0.5">*</span> <span className="text-xs text-gray-400 font-normal">(auto-assigned, editable)</span></label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={form.patientNumber}
+                      onChange={e => { set('patientNumber', e.target.value); setErrors(prev => ({ ...prev, patientNumber: '' })) }}
+                      placeholder="e.g. 2001"
+                      className={`input-field w-40 font-mono font-semibold ${errors.patientNumber ? 'border-red-400' : ''}`}
+                    />
+                    <span className="text-xs text-gray-400">Sequential number assigned automatically. You may override it.</span>
+                  </div>
+                  {errors.patientNumber && <p className="error-text">{errors.patientNumber}</p>}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <Field name="firstName" label="First Name" placeholder="John" required {...fieldProps} />
                   <Field name="lastName" label="Last Name" placeholder="Smith" required {...fieldProps} />
@@ -253,7 +291,19 @@ export default function NewPatientPage() {
                   ]} {...fieldProps} />
                   <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} {...fieldProps} />
                 </div>
-                <Field name="referralSource" label="Referral / Visit Source" options={REFERRAL_SOURCES} {...fieldProps} />
+                <div className="grid grid-cols-2 gap-4">
+                  <Field name="referralSource" label="Referral / Visit Source" options={REFERRAL_SOURCES} {...fieldProps} />
+                  <div>
+                    <label className="form-label">Referral Details <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={form.referralNotes}
+                      onChange={e => set('referralNotes', e.target.value)}
+                      placeholder="e.g. referred by Dr. Sharma, saw ad on Instagram…"
+                      className="input-field"
+                    />
+                  </div>
+                </div>
                 <Field name="nationalId" label="National ID / Patient ID" placeholder="e.g. PAN, Aadhaar, Passport" {...fieldProps} />
                 <div className="grid grid-cols-2 gap-4">
                   <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" required {...fieldProps} />

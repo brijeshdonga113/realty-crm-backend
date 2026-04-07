@@ -93,14 +93,39 @@ function computePatientGrowth(patients, months = 6) {
   })
 }
 
+function computeReferralBreakdown(patients) {
+  const LABELS = {
+    walk_in: 'Walk-in', first_visit: 'First Visit', patient_referral: 'Patient Referral',
+    doctor_referral: 'Doctor Referral', social_media: 'Social Media',
+    advertisement: 'Advertisement', returning: 'Returning', other: 'Other', '': 'Unknown',
+  }
+  const counts = {}
+  patients.forEach(p => {
+    const key = p.referralSource || ''
+    counts[key] = (counts[key] ?? 0) + 1
+  })
+  return Object.entries(counts)
+    .map(([key, count]) => ({ key, label: LABELS[key] ?? key, count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+export function computeRevenueForRange(invoices, from, to) {
+  return invoices
+    .filter(inv => inv.status === 'paid' && inv.issueDate >= from && inv.issueDate <= to)
+    .reduce((s, inv) => s + inv.total, 0)
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useReports() {
   const { doctor } = useAuth()
-  const [stats,         setStats]   = useState(null)
-  const [monthlyRevenue, setMonthly] = useState([])
-  const [patientGrowth,  setGrowth]  = useState([])
-  const [loading,        setLoading] = useState(true)
+  const [stats,             setStats]    = useState(null)
+  const [monthlyRevenue,    setMonthly]  = useState([])
+  const [yearlyRevenue,     setYearly]   = useState([])
+  const [patientGrowth,     setGrowth]   = useState([])
+  const [referralBreakdown, setReferral] = useState([])
+  const [rawInvoices,       setRawInvoices] = useState([])
+  const [loading,           setLoading]  = useState(true)
 
   // Stable ref holds the latest snapshot from each listener
   const live = useRef({ patients: [], appointments: [], invoices: [], followups: [], visits: [] })
@@ -114,8 +139,11 @@ export function useReports() {
     if (Object.values(ready.current).every(Boolean)) {
       const d = live.current
       setStats(computeStats(d))
-      setMonthly(computeMonthlyRevenue(d.invoices))
+      setMonthly(computeMonthlyRevenue(d.invoices, 6))
+      setYearly(computeMonthlyRevenue(d.invoices, 12))
       setGrowth(computePatientGrowth(d.patients))
+      setReferral(computeReferralBreakdown(d.patients))
+      setRawInvoices(d.invoices)
       setLoading(false)
     }
   }, [])
@@ -142,5 +170,5 @@ export function useReports() {
     return () => unsubs.forEach(u => u())
   }, [doctor, recompute])
 
-  return { stats, monthlyRevenue, patientGrowth, loading }
+  return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, loading }
 }

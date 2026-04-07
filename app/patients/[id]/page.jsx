@@ -90,10 +90,20 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
             </select>
           </div>
           <div>
+            <label className="form-label">Patient ID #</label>
+            <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
             <label className="form-label">Referral Source</label>
             <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
               {REFERRAL_SOURCES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="form-label">Referral Details</label>
+            <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -325,7 +335,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <label className="form-label">Diagnosis</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.diagnosis.map(d => (
-              <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 text-teal-700 text-xs rounded-full font-medium">
+              <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">
                 {d} <button type="button" onClick={() => set('diagnosis', form.diagnosis.filter(x => x !== d))}>×</button>
               </span>
             ))}
@@ -384,7 +394,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <label className="form-label">Lab Orders</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.labOrders.map(l => (
-              <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+              <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full font-medium">
                 {l} <button type="button" onClick={() => set('labOrders', form.labOrders.filter(x => x !== l))}>×</button>
               </span>
             ))}
@@ -428,7 +438,7 @@ export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { patient, loading } = usePatient(id)
-  const { visits }           = useVisits(id)
+  const { visits, reload: reloadVisits } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const [tab, setTab]            = useState(0)
@@ -461,7 +471,7 @@ export default function PatientProfilePage() {
       action={
         <div className="flex gap-2">
           <button onClick={() => router.push('/patients')}
-            className="text-sm font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 transition-colors">
+            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-3 py-1.5 transition-colors">
             ← Back
           </button>
           <button onClick={() => setShowEditModal(true)}
@@ -490,6 +500,11 @@ export default function PatientProfilePage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-2xl font-bold">{patient.firstName} {patient.lastName}</h2>
             <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
+            {patient.patientNumber && (
+              <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                #{patient.patientNumber}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
             {age && <span>{age} years old</span>}
@@ -531,6 +546,9 @@ export default function PatientProfilePage() {
             <InfoRow label="Address" value={patient.address} />
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={REFERRAL_SOURCES.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+            )}
+            {patient.referralNotes && (
+              <InfoRow label="Referral Details" value={patient.referralNotes} />
             )}
             {!patient.dateOfBirth && patient.ageManual && (
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
@@ -677,6 +695,7 @@ export default function PatientProfilePage() {
         onClose={() => setShowVisitModal(false)}
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
+        onSave={reloadVisits}
       />
 
       <EditPatientModal
