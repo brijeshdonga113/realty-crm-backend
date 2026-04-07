@@ -36,16 +36,20 @@ export const patientService = {
   },
 
   async create(data) {
-    let patientNumber
-    if (data.patientNumber) {
-      patientNumber = Number(data.patientNumber)
-      // Keep the counter in sync: if the assigned number is >= current counter, advance it
-      const current = (await dataStore.getMeta(COUNTER_KEY)) ?? (COUNTER_START - 1)
-      if (patientNumber >= current + 1) {
-        await dataStore.setMeta(COUNTER_KEY, patientNumber)
+    let patientNumber = data.patientNumber ? Number(data.patientNumber) : null
+    try {
+      if (patientNumber) {
+        // Keep the counter in sync: if the assigned number is >= current counter, advance it
+        const current = (await dataStore.getMeta(COUNTER_KEY)) ?? (COUNTER_START - 1)
+        if (patientNumber >= current + 1) {
+          await dataStore.setMeta(COUNTER_KEY, patientNumber)
+        }
+      } else {
+        patientNumber = await nextPatientNumber()
       }
-    } else {
-      patientNumber = await nextPatientNumber()
+    } catch {
+      // Counter update failed (e.g. Firestore rules) — use provided number or a timestamp fallback
+      patientNumber = patientNumber ?? (COUNTER_START + (Date.now() % 100000))
     }
     const patient = createPatient({ ...data, patientNumber })
     const saved = await dataStore.create(COLLECTION, patient)

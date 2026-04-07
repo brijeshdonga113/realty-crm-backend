@@ -89,6 +89,7 @@ export default function NewPatientPage() {
   const [tab, setTab]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
+  const [saveError, setSaveError] = useState('')
   const [duplicates, setDuplicates] = useState([])
   const [forceSubmit, setForceSubmit] = useState(false)
 
@@ -153,10 +154,13 @@ export default function NewPatientPage() {
       }
     }
 
+    setSaveError('')
     setLoading(true)
     try {
       const patient = await add({ ...form, patientNumber: Number(form.patientNumber) })
       router.push(`/patients/${patient.id}`)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save patient. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -183,6 +187,14 @@ export default function NewPatientPage() {
             </button>
           ))}
         </div>
+
+        {/* Save error */}
+        {saveError && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4 mb-4">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Error saving patient</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-0.5">{saveError}</p>
+          </div>
+        )}
 
         {/* Duplicate warning */}
         {duplicates.length > 0 && (
