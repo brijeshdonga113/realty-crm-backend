@@ -1,7 +1,26 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { dataStore } from '@/lib/dataStore'
+import { formatCurrency } from '@/models/Invoice'
+
+function useTodayRevenue(doctor) {
+  const [revenue, setRevenue] = useState(null)
+  useEffect(() => {
+    if (!doctor) return
+    const today = new Date().toISOString().slice(0, 10)
+    const unsub = dataStore.subscribe('invoices', (invoices) => {
+      const total = invoices
+        .filter(i => i.status === 'paid' && i.issueDate === today)
+        .reduce((s, i) => s + (i.total ?? 0), 0)
+      setRevenue(total)
+    })
+    return () => unsub()
+  }, [doctor])
+  return revenue
+}
 
 const navSections = [
   {
@@ -91,6 +110,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { doctor, logout } = useAuth()
+  const todayRevenue = useTodayRevenue(doctor)
 
   const handleLogout = () => { logout(); router.push('/login') }
 
@@ -197,8 +217,11 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
               <p className="text-sm font-semibold text-white truncate">
                 Dr. {doctor?.firstName} {doctor?.lastName}
               </p>
-              <p className="text-xs text-primary-300 truncate capitalize">
-                {doctor?.isAdmin ? 'Admin · ' : ''}{doctor?.specialization?.replace(/_/g, ' ')}
+              <p className="text-xs text-primary-300 truncate">
+                {todayRevenue !== null
+                  ? <>Today: <span className="text-green-400 font-semibold">{formatCurrency(todayRevenue)}</span></>
+                  : <span className="capitalize">{doctor?.specialization?.replace(/_/g, ' ')}</span>
+                }
               </p>
             </div>
             <button onClick={handleLogout} title="Sign out"
