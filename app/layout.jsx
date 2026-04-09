@@ -1,6 +1,7 @@
 import './globals.css'
 import { AuthProvider } from '@/context/AuthContext'
 import { getThemeScript } from '@/lib/themes'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata = {
   title: 'ClinicCRM',
@@ -18,6 +19,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           {children}
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
