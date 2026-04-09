@@ -5,6 +5,9 @@ import { auth, db } from '@/lib/firebase'
 
 const AuthContext = createContext(null)
 
+// Profile lives at users/{uid}/profile/doctor
+const profileDocPath = (uid) => ['users', uid, 'profile', 'doctor']
+
 function buildDoctorProfile(uid, data) {
   return {
     id:             uid,
@@ -21,6 +24,12 @@ function buildDoctorProfile(uid, data) {
   }
 }
 
+// Strip `id` before writing to Firestore — it's the document path, not a field
+function toFirestoreProfile(profile) {
+  const { id, ...rest } = profile
+  return rest
+}
+
 // Session cache — synchronous reads for components that need doctor data immediately
 function saveSessionLocally(doctor) {
   try { localStorage.setItem('clinic_crm_doctor', JSON.stringify(doctor)) } catch {}
@@ -30,17 +39,23 @@ function clearSessionLocally() {
 }
 
 async function loadFirebaseProfile(uid) {
-  const { doc, getDoc, setDoc } = await import('firebase/firestore')
+  const { doc, getDoc, setDoc, deleteField } = await import('firebase/firestore')
 
-  let snap = await getDoc(doc(db, 'users', uid))
-  if (!snap.exists()) {
-    // Migrate from old nested path if it exists
-    snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
-    if (snap.exists()) {
-      await setDoc(doc(db, 'users', uid), snap.data())
-    }
+  // Primary: users/{uid}/profile/doctor
+  const profileSnap = await getDoc(doc(db, ...profileDocPath(uid)))
+  if (profileSnap.exists()) {
+    return buildDoctorProfile(uid, profileSnap.data())
   }
-  return snap.exists() ? buildDoctorProfile(uid, snap.data()) : null
+
+  // Migrate from old flat path users/{uid} if it has profile data
+  const flatSnap = await getDoc(doc(db, 'users', uid))
+  if (flatSnap.exists() && flatSnap.data().firstName) {
+    const { id: _id, ...profileData } = flatSnap.data()
+    await setDoc(doc(db, ...profileDocPath(uid)), profileData)
+    return buildDoctorProfile(uid, profileData)
+  }
+
+  return null
 }
 
 export function AuthProvider({ children }) {
@@ -82,7 +97,7 @@ export function AuthProvider({ children }) {
     const uid     = cred.user.uid
     const profile = buildDoctorProfile(uid, doctorData)
 
-    await setDoc(doc(db, 'users', uid), profile)
+    await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
     await fbUpdateProfile(cred.user, { displayName: `${doctorData.firstName} ${doctorData.lastName}` })
 
     saveSessionLocally(profile)
@@ -103,7 +118,7 @@ export function AuthProvider({ children }) {
   const updateProfile = async (patch) => {
     const updated = { ...doctor, ...patch }
     const { doc, setDoc } = await import('firebase/firestore')
-    await setDoc(doc(db, 'users', doctor.id), updated)
+    await setDoc(doc(db, ...profileDocPath(doctor.id)), toFirestoreProfile(updated))
     if (auth.currentUser) {
       const { updateProfile: fbUpdateProfile } = await import('firebase/auth')
       await fbUpdateProfile(auth.currentUser, {

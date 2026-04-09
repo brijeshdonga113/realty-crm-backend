@@ -13,7 +13,7 @@ async function saveThemeToProfile(key) {
     const uid = auth?.currentUser?.uid
     if (!uid || !db) return
     const { doc, updateDoc } = await import('firebase/firestore')
-    await updateDoc(doc(db, 'users', uid), { colorTheme: key, darkMode: undefined })
+    await updateDoc(doc(db, 'users', uid, 'profile', 'doctor'), { colorTheme: key })
   } catch {}
 }
 
@@ -22,7 +22,7 @@ async function saveDarkToProfile(isDark) {
     const uid = auth?.currentUser?.uid
     if (!uid || !db) return
     const { doc, updateDoc } = await import('firebase/firestore')
-    await updateDoc(doc(db, 'users', uid), { darkMode: isDark })
+    await updateDoc(doc(db, 'users', uid, 'profile', 'doctor'), { darkMode: isDark })
   } catch {}
 }
 
@@ -52,7 +52,7 @@ export function useTheme() {
         const uid = fbAuth?.currentUser?.uid
         if (!uid || !fbDb) return null
         const { doc, getDoc } = await import('firebase/firestore')
-        const snap = await getDoc(doc(fbDb, 'users', uid))
+        const snap = await getDoc(doc(fbDb, 'users', uid, 'profile', 'doctor'))
         return snap.exists() ? snap.data().colorTheme : null
       })(),
     ]).then(([metaResult, profileResult]) => {
