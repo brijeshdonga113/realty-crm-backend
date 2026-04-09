@@ -20,6 +20,8 @@ function buildDoctorProfile(uid, data) {
     clinicName:     data.clinicName     ?? '',
     colorTheme:     data.colorTheme     ?? null,
     darkMode:       data.darkMode       ?? null,
+    dateFormat:     data.dateFormat     ?? 'DD/MM/YYYY',
+    currency:       data.currency       ?? 'INR',
     createdAt:      data.createdAt      ?? new Date().toISOString(),
   }
 }

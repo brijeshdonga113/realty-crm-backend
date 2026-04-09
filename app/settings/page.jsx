@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
+import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -63,6 +64,25 @@ export default function SettingsPage() {
   const handleGcalDisconnect = () => {
     disconnectGoogleCalendar()
     setGcalConnected(false)
+  }
+
+  const [prefForm, setPrefForm]   = useState({
+    dateFormat: doctor?.dateFormat ?? 'DD/MM/YYYY',
+    currency:   doctor?.currency   ?? 'INR',
+  })
+  const [prefSaving, setPrefSaving] = useState(false)
+  const [prefSaved,  setPrefSaved]  = useState(false)
+
+  const handlePrefSave = async () => {
+    setPrefSaving(true)
+    setPrefSaved(false)
+    try {
+      await updateProfile(prefForm)
+      setPrefSaved(true)
+      setTimeout(() => setPrefSaved(false), 3000)
+    } finally {
+      setPrefSaving(false)
+    }
   }
 
   const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' })
