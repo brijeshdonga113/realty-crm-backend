@@ -5,21 +5,10 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
+import { useReferralSources } from '@/hooks/useReferralSources'
 
 const SPECIALIZATIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
 const ALLERGIES_LIST  = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
-
-const REFERRAL_SOURCES = [
-  { value: '',               label: 'Select source…' },
-  { value: 'walk_in',        label: 'Walk-in' },
-  { value: 'first_visit',    label: 'First Visit' },
-  { value: 'patient_referral', label: 'Patient Referral' },
-  { value: 'doctor_referral',  label: 'Doctor Referral' },
-  { value: 'social_media',   label: 'Social Media' },
-  { value: 'advertisement',  label: 'Advertisement' },
-  { value: 'returning',      label: 'Returning Patient' },
-  { value: 'other',          label: 'Other' },
-]
 
 function TagInput({ label, items, onChange, suggestions }) {
   const [input, setInput] = useState('')
@@ -86,6 +75,7 @@ function Field({ name, label, type = 'text', placeholder, required, nested, opti
 export default function NewPatientPage() {
   const router = useRouter()
   const { add, patients } = usePatients()
+  const referralSources = useReferralSources()
   const [tab, setTab]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
@@ -95,6 +85,7 @@ export default function NewPatientPage() {
 
   const [form, setForm] = useState({
     patientNumber: '',
+    registrationDate: new Date().toISOString().slice(0, 10),
     firstName: '', lastName: '', dateOfBirth: '', ageManual: '', gender: 'male', bloodType: '',
     nationalId: '', phone: '', alternatePhone: '', email: '', address: '',
     referralSource: '', referralNotes: '',
@@ -157,7 +148,13 @@ export default function NewPatientPage() {
     setSaveError('')
     setLoading(true)
     try {
-      const patient = await add({ ...form, patientNumber: Number(form.patientNumber) })
+      const patient = await add({
+        ...form,
+        patientNumber: Number(form.patientNumber),
+        createdAt: form.registrationDate
+          ? new Date(form.registrationDate).toISOString()
+          : undefined,
+      })
       router.push(`/patients/${patient.id}`)
     } catch (err) {
       setSaveError(err?.message || 'Failed to save patient. Please try again.')
@@ -253,6 +250,19 @@ export default function NewPatientPage() {
                   {errors.patientNumber && <p className="error-text">{errors.patientNumber}</p>}
                 </div>
 
+                {/* Registration Date */}
+                <div>
+                  <label className="form-label">
+                    Registration Date <span className="text-gray-400 font-normal text-xs">(defaults to today)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.registrationDate}
+                    onChange={e => set('registrationDate', e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <Field name="firstName" label="First Name" placeholder="John" required {...fieldProps} />
                   <Field name="lastName" label="Last Name" placeholder="Smith" required {...fieldProps} />
@@ -292,7 +302,8 @@ export default function NewPatientPage() {
                   <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} {...fieldProps} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field name="referralSource" label="Referral / Visit Source" options={REFERRAL_SOURCES} {...fieldProps} />
+                  <Field name="referralSource" label="Referral / Visit Source"
+                    options={[{ value: '', label: 'Select source…' }, ...referralSources]} {...fieldProps} />
                   <div>
                     <label className="form-label">Referral Details <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
                     <input

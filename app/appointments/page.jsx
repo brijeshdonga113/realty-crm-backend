@@ -111,7 +111,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
 export default function AppointmentsPage() {
   const router  = useRouter()
   const { doctor } = useAuth()
-  const { formatDate } = usePreferences()
+  const { formatDate, formatDateFull } = usePreferences()
   const { appointments, loading, update, remove } = useAppointments()
 
   const [view, setView]                 = useState('list')
@@ -239,7 +239,7 @@ export default function AppointmentsPage() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             {view === 'calendar' ? (
               <h3 className="font-semibold text-gray-900 dark:text-white">
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { dateStyle: 'full' })}
+                {formatDateFull(selectedDate)}
               </h3>
             ) : (
               <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ export default function AppointmentsPage() {
                 )}
                 {filterDate && (
                   <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
-                    {filtered.length} appointment{filtered.length !== 1 ? 's' : ''} on {new Date(filterDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'medium' })}
+                    {filtered.length} appointment{filtered.length !== 1 ? 's' : ''} on {formatDate(filterDate)}
                   </span>
                 )}
               </div>

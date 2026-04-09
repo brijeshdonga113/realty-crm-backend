@@ -7,6 +7,7 @@ import { auth } from '@/lib/firebase'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
+import { DEFAULT_REFERRAL_SOURCES, getReferralSources } from '@/lib/referralSources'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -83,6 +84,45 @@ export default function SettingsPage() {
     } finally {
       setPrefSaving(false)
     }
+  }
+
+  // Referral sources management
+  const [refSources,  setRefSources]  = useState(() => getReferralSources(doctor?.referralSources))
+  const [refInput,    setRefInput]    = useState('')
+  const [editingIdx,  setEditingIdx]  = useState(null)
+  const [editLabel,   setEditLabel]   = useState('')
+  const [refSaving,   setRefSaving]   = useState(false)
+  const [refSaved,    setRefSaved]    = useState(false)
+
+  const handleRefSave = async () => {
+    setRefSaving(true)
+    setRefSaved(false)
+    try {
+      await updateProfile({ referralSources: refSources })
+      setRefSaved(true)
+      setTimeout(() => setRefSaved(false), 3000)
+    } finally {
+      setRefSaving(false)
+    }
+  }
+
+  const addRefSource = () => {
+    const label = refInput.trim()
+    if (!label) return
+    const value = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    if (refSources.some(s => s.value === value || s.label.toLowerCase() === label.toLowerCase())) return
+    setRefSources(prev => [...prev, { value, label }])
+    setRefInput('')
+  }
+
+  const removeRefSource = (idx) => setRefSources(prev => prev.filter((_, i) => i !== idx))
+
+  const startEdit = (idx) => { setEditingIdx(idx); setEditLabel(refSources[idx].label) }
+  const commitEdit = (idx) => {
+    const label = editLabel.trim()
+    if (!label) { setEditingIdx(null); return }
+    setRefSources(prev => prev.map((s, i) => i === idx ? { ...s, label } : s))
+    setEditingIdx(null)
   }
 
   const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' })
@@ -284,6 +324,97 @@ export default function SettingsPage() {
               {prefSaving
                 ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
                 : 'Save Preferences'
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* ── Referral / Visit Sources ─────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Referral / Visit Sources</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Customise the sources shown when registering a new patient. Used for filtering and reporting.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {/* Source list */}
+            <div className="space-y-2">
+              {refSources.map((src, idx) => (
+                <div key={src.value} className="flex items-center gap-2 group">
+                  {editingIdx === idx ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editLabel}
+                        onChange={e => setEditLabel(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitEdit(idx); if (e.key === 'Escape') setEditingIdx(null) }}
+                        className="input-field flex-1 text-sm py-1.5"
+                      />
+                      <button onClick={() => commitEdit(idx)}
+                        className="text-xs px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors">
+                        Save
+                      </button>
+                      <button onClick={() => setEditingIdx(null)}
+                        className="text-xs px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5">
+                        {src.label}
+                        <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-mono">{src.value}</span>
+                      </span>
+                      <button onClick={() => startEdit(idx)}
+                        className="opacity-0 group-hover:opacity-100 text-xs px-2.5 py-1.5 text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 border border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600 rounded-lg transition-all">
+                        Edit
+                      </button>
+                      <button onClick={() => removeRefSource(idx)}
+                        className="opacity-0 group-hover:opacity-100 text-xs px-2.5 py-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 border border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-700 rounded-lg transition-all">
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add new source */}
+            <div className="flex gap-2 pt-1">
+              <input
+                value={refInput}
+                onChange={e => setRefInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRefSource() } }}
+                placeholder="e.g. Instagram, Walk-in, Google Ads…"
+                className="input-field flex-1 text-sm"
+              />
+              <button onClick={addRefSource}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                + Add
+              </button>
+            </div>
+
+            <button onClick={() => { setRefSources(DEFAULT_REFERRAL_SOURCES); setEditingIdx(null) }}
+              className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:underline transition-colors">
+              Reset to defaults
+            </button>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            {refSaved
+              ? <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  Sources saved.
+                </p>
+              : <span/>
+            }
+            <button onClick={handleRefSave} disabled={refSaving}
+              className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              {refSaving
+                ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                : 'Save Sources'
               }
             </button>
           </div>

@@ -14,19 +14,8 @@ import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
+import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
-
-const REFERRAL_SOURCES = [
-  { value: '', label: 'Select source…' },
-  { value: 'walk_in', label: 'Walk-in' },
-  { value: 'first_visit', label: 'First Visit' },
-  { value: 'patient_referral', label: 'Patient Referral' },
-  { value: 'doctor_referral', label: 'Doctor Referral' },
-  { value: 'social_media', label: 'Social Media' },
-  { value: 'advertisement', label: 'Advertisement' },
-  { value: 'returning', label: 'Returning Patient' },
-  { value: 'other', label: 'Other' },
-]
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -41,6 +30,7 @@ function daysBetween(dateStr) {
 
 /* ─────────────── EditPatientModal ─────────────── */
 function EditPatientModal({ open, onClose, patient, onSave }) {
+  const referralSources = useReferralSources()
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -108,7 +98,8 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
           <div>
             <label className="form-label">Referral Source</label>
             <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
-              {REFERRAL_SOURCES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              <option value="">Select source…</option>
+              {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
           <div>
@@ -177,7 +168,7 @@ function InfoRow({ label, value }) {
 
 /* ─────────────── VisitCard with edit ─────────────── */
 function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
-  const { formatCurrency, formatDate } = usePreferences()
+  const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -227,7 +218,7 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
         onClick={() => setOpen(true)}>
         <div className="flex items-start justify-between mb-2">
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {new Date(visit.visitDate).toLocaleDateString('en-US', { dateStyle: 'medium' })}
+            {formatDate(visit.visitDate)}
           </p>
           <div className="flex items-center gap-2">
             {visit.followUpDate && (
@@ -456,8 +447,8 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
 }
 
 /* ─────────────── AddVisitModal with payment + billing ─────────────── */
-function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, onSave, doctor }) {
-  const { add } = useVisits(patientId)
+function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, add, doctor }) {
+  const { formatDateFull } = usePreferences()
   const [loading, setLoading] = useState(false)
   const [customDays, setCustomDays] = useState('')
   const [form, setForm] = useState({
@@ -532,7 +523,6 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, on
       }
 
       resetForm()
-      onSave?.()
       onClose()
     } catch (err) {
       alert(err?.message || 'Failed to save visit')
@@ -690,7 +680,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, on
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+                {formatDateFull(form.followUpDate)}
               </p>
               <p className="text-xs text-gray-400">({daysBetween(form.followUpDate)} days from today)</p>
               <button type="button" onClick={() => set('followUpDate', '')} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
@@ -778,6 +768,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, on
 
 /* ─────────────── FollowUpRow for patient profile tab ─────────────── */
 function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
+  const { formatDate } = usePreferences()
   const diff = daysBetween(entry.dueDate)
   const isOverdue = diff < 0
   const isToday   = diff === 0
@@ -816,7 +807,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
       ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{entry.dueDate}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatDate(entry.dueDate)}</p>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
           {entry.source === 'standalone' && (
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Reminder</span>
@@ -851,9 +842,10 @@ export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { doctor } = useAuth()
-  const { formatCurrency, formatDate } = usePreferences()
+  const { formatCurrency, formatDate, formatDateFull } = usePreferences()
+  const referralSources = useReferralSources()
   const { patient, loading, update } = usePatient(id)
-  const { visits, update: updateVisit, reload: reloadVisits } = useVisits(id)
+  const { visits, update: updateVisit, add: addVisit } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
@@ -862,41 +854,42 @@ export default function PatientProfilePage() {
   const [showEditModal, setShowEditModal]   = useState(false)
 
   // Merge visit-based + standalone follow-ups for this patient
+  const patientName = patient ? `${patient.firstName} ${patient.lastName}` : ''
   const patientFollowUps = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
-
+    // Visit-based: every visit with a followUpDate set
     const visitBased = visits
       .filter(v => v.followUpDate)
       .map(v => ({
-        id:      v.id,
-        dueDate: v.followUpDate,
-        note:    v.chiefComplaint,
-        source:  'visit',
-        status:  'pending',
-        phone:   '',
+        id:          v.id,
+        dueDate:     v.followUpDate,
+        note:        v.chiefComplaint,
+        patientName: v.patientName || patientName,
+        source:      'visit',
+        status:      'pending',
+        phone:       '',
       }))
 
+    // Standalone: manually created follow-up reminders for this patient
     const standalone = followups
       .filter(f => f.patientId === id && f.status === 'pending')
       .map(f => ({
-        id:      f.id,
-        dueDate: f.dueDate,
-        note:    f.note,
-        source:  'standalone',
-        status:  f.status,
-        phone:   f.phone || '',
+        id:          f.id,
+        dueDate:     f.dueDate,
+        note:        f.note,
+        patientName: f.patientName || patientName,
+        source:      'standalone',
+        status:      f.status,
+        phone:       f.phone || '',
       }))
 
-    // Deduplicate: prefer standalone over visit-based for same date
-    const seen = new Set()
-    const merged = [...standalone]
-    standalone.forEach(e => seen.add(`${e.dueDate}`))
-    visitBased.forEach(e => {
-      if (!seen.has(e.dueDate)) { seen.add(e.dueDate); merged.push(e) }
-    })
+    // If a standalone reminder exists for the same date as a visit follow-up,
+    // prefer the standalone (hide the visit-based one for that date only).
+    const standaloneDates = new Set(standalone.map(e => e.dueDate))
+    const filteredVisitBased = visitBased.filter(e => !standaloneDates.has(e.dueDate))
 
-    return merged.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-  }, [visits, followups, id])
+    return [...standalone, ...filteredVisitBased]
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  }, [visits, followups, id, patientName])
 
   if (loading) return (
     <AppLayout title="Patient Profile">
@@ -1029,7 +1022,7 @@ export default function PatientProfilePage() {
             <InfoRow label="Email" value={patient.email} />
             <InfoRow label="Address" value={patient.address} />
             {patient.referralSource && (
-              <InfoRow label="Referral Source" value={REFERRAL_SOURCES.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+              <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
             )}
             {patient.referralNotes && (
               <InfoRow label="Referral Details" value={patient.referralNotes} />
@@ -1286,7 +1279,7 @@ export default function PatientProfilePage() {
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
         patientPhone={patient.phone}
-        onSave={reloadVisits}
+        add={addVisit}
         doctor={doctor}
       />
 

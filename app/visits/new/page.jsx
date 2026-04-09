@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
+import { usePreferences } from '@/hooks/usePreferences'
 import { visitService } from '@/services/visitService'
 import { appointmentService } from '@/services/appointmentService'
 import { billingService } from '@/services/billingService'
@@ -20,6 +21,7 @@ function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { doctor } = useAuth()
+  const { formatDateFull } = usePreferences()
 
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
@@ -32,6 +34,7 @@ function VisitEntryForm() {
   const [saveError, setSaveError]   = useState('')
 
   const [form, setForm] = useState({
+    visitDate: new Date().toISOString().slice(0, 10),
     chiefComplaint: reasonParam,
     history: '',
     findings: '',
@@ -73,7 +76,8 @@ function VisitEntryForm() {
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
   const addFollowUpDays = (days) => {
-    const d = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+    const base = form.visitDate ? new Date(form.visitDate) : new Date()
+    const d = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10)
     set('followUpDate', d)
   }
 
@@ -86,7 +90,9 @@ function VisitEntryForm() {
         patientId,
         patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
         appointmentId: appointmentId || null,
-        visitDate:     new Date().toISOString(),
+        visitDate:     form.visitDate
+          ? new Date(form.visitDate).toISOString()
+          : new Date().toISOString(),
         chiefComplaint: form.chiefComplaint,
         history:       form.history,
         examination:   { vitalSigns: form.vitalSigns, findings: form.findings },
@@ -107,11 +113,11 @@ function VisitEntryForm() {
         await billingService.create({
           patientId,
           patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
-          issueDate:     new Date().toISOString().slice(0, 10),
+          issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
           lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
           status:        payment.status,
           paymentMethod: payment.method,
-          paymentDate:   payment.status === 'paid' ? new Date().toISOString().slice(0, 10) : null,
+          paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
           taxRate:       0,
           discount:      0,
           visitId:       visit.id,
@@ -177,7 +183,7 @@ function VisitEntryForm() {
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 rounded-xl p-4 mb-6 text-left">
               <p className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-1">Follow-up Scheduled</p>
               <p className="text-sm text-orange-700 dark:text-orange-400">
-                {new Date(savedVisit.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+                {formatDateFull(savedVisit.followUpDate)}
               </p>
               <button onClick={openWhatsApp}
                 className="mt-3 flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-700 px-3 py-2 rounded-lg transition-colors w-full justify-center">
@@ -240,7 +246,18 @@ function VisitEntryForm() {
 
         {/* Clinical info */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Clinical Information</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Clinical Information</h3>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Visit Date</label>
+              <input
+                type="date"
+                value={form.visitDate}
+                onChange={e => set('visitDate', e.target.value)}
+                className="input-field text-sm py-1.5 w-auto"
+              />
+            </div>
+          </div>
 
           <div>
             <label className="form-label">Chief Complaint <span className="text-red-500">*</span></label>
@@ -394,12 +411,11 @@ function VisitEntryForm() {
             </div>
           </div>
           <input type="date" value={form.followUpDate}
-            min={new Date().toISOString().slice(0, 10)}
             onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                📅 {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+                📅 {formatDateFull(form.followUpDate)}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 ({Math.round((new Date(form.followUpDate) - new Date()) / 86400000)} days from today)

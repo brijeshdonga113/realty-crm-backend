@@ -6,6 +6,7 @@ import { useAppointments } from '@/hooks/useAppointments'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const DAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -20,6 +21,7 @@ function formatTime(t) {
 export default function CalendarPage() {
   const router  = useRouter()
   const { doctor } = useAuth()
+  const { formatDateFull } = usePreferences()
   const { appointments } = useAppointments()
   const { followups }    = useFollowUps()
 
@@ -181,7 +183,7 @@ export default function CalendarPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-              {new Date(selected + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {formatDateFull(selected)}
             </h3>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}

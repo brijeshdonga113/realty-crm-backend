@@ -80,14 +80,14 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
         {/* WhatsApp */}
         <button onClick={() => sendWhatsApp(entry, doctor, waKey)}
           title="Send WhatsApp reminder"
-          className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2 py-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+          className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2 py-1 rounded-lg transition-colors">
           {WA_ICON} Remind
         </button>
         {/* Mark done (standalone only) */}
         {isStandalone && entry.status === 'pending' && onMarkDone && (
           <button onClick={() => onMarkDone(entry.id)}
             title="Mark as done"
-            className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+            className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
             </svg>
@@ -124,6 +124,7 @@ function Section({ title, count, color, children, emptyMsg }) {
 export default function FollowUpsPage() {
   const router = useRouter()
   const { doctor } = useAuth()
+  const { formatDateFull } = usePreferences()
   const { followups, markDone } = useFollowUps()     // standalone follow-ups
 
   const [visitFollowUps, setVisitFollowUps] = useState([])
@@ -270,7 +271,7 @@ export default function FollowUpsPage() {
 
           {filterDate && (
             <p className="text-sm font-medium text-primary-600 dark:text-primary-400">
-              Showing follow-ups on: {new Date(filterDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+              Showing follow-ups on: {formatDateFull(filterDate)}
               {` (${displayed.length} result${displayed.length !== 1 ? 's' : ''})`}
             </p>
           )}

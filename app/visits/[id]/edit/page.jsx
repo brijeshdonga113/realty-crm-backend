@@ -3,10 +3,12 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
+import { usePreferences } from '@/hooks/usePreferences'
 
 function EditVisitForm() {
   const router = useRouter()
   const { id } = useParams()
+  const { formatDateFull } = usePreferences()
 
   const [visit, setVisit]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -270,7 +272,7 @@ function EditVisitForm() {
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                📅 {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+                📅 {formatDateFull(form.followUpDate)}
               </p>
               <button type="button" onClick={() => set('followUpDate', '')}
                 className="text-xs text-gray-400 hover:text-red-500">Clear</button>

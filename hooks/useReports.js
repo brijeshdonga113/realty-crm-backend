@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
+import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
 
 // ─── Inline stat computation from live data ──────────────────────────────────
 
@@ -93,12 +94,8 @@ function computePatientGrowth(patients, months = 6) {
   })
 }
 
-function computeReferralBreakdown(patients) {
-  const LABELS = {
-    walk_in: 'Walk-in', first_visit: 'First Visit', patient_referral: 'Patient Referral',
-    doctor_referral: 'Doctor Referral', social_media: 'Social Media',
-    advertisement: 'Advertisement', returning: 'Returning', other: 'Other', '': 'Unknown',
-  }
+function computeReferralBreakdown(patients, customSources) {
+  const LABELS = buildLabelMap(getReferralSources(customSources))
   const counts = {}
   patients.forEach(p => {
     const key = p.referralSource || ''
@@ -145,7 +142,7 @@ export function useReports() {
       setMonthly(computeMonthlyRevenue(d.invoices, 6))
       setYearly(computeMonthlyRevenue(d.invoices, 12))
       setGrowth(computePatientGrowth(d.patients))
-      setReferral(computeReferralBreakdown(d.patients))
+      setReferral(computeReferralBreakdown(d.patients, doctor?.referralSources))
       setRawInvoices(d.invoices)
       setRawPatients(d.patients)
       setRawAppointments(d.appointments)
