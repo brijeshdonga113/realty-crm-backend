@@ -71,12 +71,12 @@ export const billingService = {
       paymentDate: new Date().toISOString().slice(0, 10),
     })
 
-    await notificationService.create({
+    notificationService.create({
       type:  NOTIFICATION_TYPES.INVOICE_PAID,
       title: 'Payment received',
       body:  `${updated.invoiceNumber} from ${updated.patientName} marked as paid.`,
       relatedEntity: { type: 'invoice', id: updated.id },
-    })
+    }).catch(() => {})
 
     return updated
   },
