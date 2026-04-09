@@ -4,7 +4,7 @@ function uid() {
 }
 
 export const INVOICE_STATUSES = [
-  { value: 'draft',     label: 'Draft',     color: 'gray' },
+  { value: 'draft',     label: 'Due',       color: 'orange' },
   { value: 'sent',      label: 'Sent',      color: 'blue' },
   { value: 'paid',      label: 'Paid',      color: 'green' },
   { value: 'overdue',   label: 'Overdue',   color: 'red' },

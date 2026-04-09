@@ -124,8 +124,11 @@ export function useReports() {
   const [yearlyRevenue,     setYearly]   = useState([])
   const [patientGrowth,     setGrowth]   = useState([])
   const [referralBreakdown, setReferral] = useState([])
-  const [rawInvoices,       setRawInvoices] = useState([])
-  const [loading,           setLoading]  = useState(true)
+  const [rawInvoices,       setRawInvoices]     = useState([])
+  const [rawPatients,       setRawPatients]     = useState([])
+  const [rawAppointments,   setRawAppointments] = useState([])
+  const [rawVisits,         setRawVisits]       = useState([])
+  const [loading,           setLoading]         = useState(true)
 
   // Stable ref holds the latest snapshot from each listener
   const live = useRef({ patients: [], appointments: [], invoices: [], followups: [], visits: [] })
@@ -144,6 +147,9 @@ export function useReports() {
       setGrowth(computePatientGrowth(d.patients))
       setReferral(computeReferralBreakdown(d.patients))
       setRawInvoices(d.invoices)
+      setRawPatients(d.patients)
+      setRawAppointments(d.appointments)
+      setRawVisits(d.visits)
       setLoading(false)
     }
   }, [])
@@ -170,5 +176,5 @@ export function useReports() {
     return () => unsubs.forEach(u => u())
   }, [doctor, recompute])
 
-  return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, loading }
+  return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, rawPatients, rawAppointments, rawVisits, loading }
 }

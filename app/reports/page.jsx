@@ -4,6 +4,43 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useReports, computeRevenueForRange } from '@/hooks/useReports'
 import { formatCurrency } from '@/models/Invoice'
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const today = new Date().toISOString().slice(0, 10)
+const firstOfYear = `${new Date().getFullYear()}-01-01`
+
+function periodRange(period) {
+  const now = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  switch (period) {
+    case 'this_month': {
+      const from = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+      return { from, to: today }
+    }
+    case 'last_month': {
+      const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const last = new Date(now.getFullYear(), now.getMonth(), 0)
+      return {
+        from: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`,
+        to:   `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`,
+      }
+    }
+    case '3m': {
+      const d = new Date(now); d.setMonth(d.getMonth() - 3)
+      return { from: d.toISOString().slice(0, 10), to: today }
+    }
+    case '6m': {
+      const d = new Date(now); d.setMonth(d.getMonth() - 6)
+      return { from: d.toISOString().slice(0, 10), to: today }
+    }
+    case 'this_year':
+      return { from: firstOfYear, to: today }
+    case 'all':
+    default:
+      return { from: '2000-01-01', to: today }
+  }
+}
+
 // ─── Chart components ─────────────────────────────────────────────────────────
 
 function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
@@ -77,24 +114,57 @@ function StatCard({ label, value, sub, color = 'blue' }) {
   )
 }
 
+// ─── Period filter bar ────────────────────────────────────────────────────────
+
+const PERIODS = [
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: '3m',         label: '3 Months' },
+  { value: '6m',         label: '6 Months' },
+  { value: 'this_year',  label: 'This Year' },
+  { value: 'all',        label: 'All Time' },
+  { value: 'custom',     label: 'Custom' },
+]
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const today = new Date().toISOString().slice(0, 10)
-const firstOfYear = `${new Date().getFullYear()}-01-01`
-
 export default function ReportsPage() {
-  const { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, loading } = useReports()
+  const { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown,
+          rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()
 
-  const [revenueView, setRevenueView]   = useState('6m') // '6m' | '12m' | 'custom'
-  const [customFrom,  setCustomFrom]    = useState(firstOfYear)
-  const [customTo,    setCustomTo]      = useState(today)
+  const [period,      setPeriod]      = useState('this_month')
+  const [customFrom,  setCustomFrom]  = useState(firstOfYear)
+  const [customTo,    setCustomTo]    = useState(today)
+  const [revenueView, setRevenueView] = useState('6m')
 
-  const customRevenue = useMemo(() => {
-    if (!rawInvoices?.length || !customFrom || !customTo) return 0
-    return computeRevenueForRange(rawInvoices, customFrom, customTo)
-  }, [rawInvoices, customFrom, customTo])
+  // Resolve date range for the active period
+  const { from, to } = useMemo(() => {
+    return period === 'custom'
+      ? { from: customFrom, to: customTo }
+      : periodRange(period)
+  }, [period, customFrom, customTo])
 
-  const revenueData = revenueView === '12m' ? yearlyRevenue : monthlyRevenue
+  // Filtered KPI stats for selected period
+  const filteredStats = useMemo(() => {
+    if (!rawPatients.length && !rawInvoices.length && !rawAppointments.length && !rawVisits.length) return null
+    const inRange = (dateStr) => dateStr >= from && dateStr <= to
+
+    const patients     = rawPatients.filter(p => inRange((p.createdAt ?? '').slice(0, 10)))
+    const visits       = rawVisits.filter(v => inRange((v.visitDate ?? '').slice(0, 10)))
+    const appointments = rawAppointments.filter(a => inRange(a.date ?? ''))
+    const paidInvoices = rawInvoices.filter(i => i.status === 'paid' && inRange(i.issueDate ?? ''))
+    const dueInvoices  = rawInvoices.filter(i => ['draft', 'sent'].includes(i.status) && inRange(i.issueDate ?? ''))
+
+    return {
+      patients:     patients.length,
+      visits:       visits.length,
+      revenue:      paidInvoices.reduce((s, i) => s + i.total, 0),
+      pending:      dueInvoices.length,
+      pendingAmount: dueInvoices.reduce((s, i) => s + i.total, 0),
+      appointments: appointments.length,
+      completed:    appointments.filter(a => a.status === 'completed').length,
+    }
+  }, [rawPatients, rawVisits, rawAppointments, rawInvoices, from, to])
 
   if (loading) return (
     <AppLayout title="Reports & Analytics">
@@ -112,13 +182,42 @@ export default function ReportsPage() {
     <AppLayout title="Reports & Analytics">
       <div className="space-y-8">
 
-        {/* ── KPI row ─────────────────────────────────────────────────────── */}
-        {stats && (
+        {/* ── Period filter ────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Period</span>
+            <div className="flex flex-wrap gap-1.5">
+              {PERIODS.map(p => (
+                <button key={p.value} onClick={() => setPeriod(p.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                    ${period === p.value
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {period === 'custom' && (
+              <div className="flex items-center gap-2 ml-1">
+                <input type="date" value={customFrom} max={customTo}
+                  onChange={e => setCustomFrom(e.target.value)}
+                  className="input-field py-1.5 text-xs w-36"/>
+                <span className="text-gray-400 text-xs">to</span>
+                <input type="date" value={customTo} min={customFrom} max={today}
+                  onChange={e => setCustomTo(e.target.value)}
+                  className="input-field py-1.5 text-xs w-36"/>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Filtered KPI row ─────────────────────────────────────────────── */}
+        {filteredStats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Patients"     value={stats.patients.total}                        sub={`${stats.patients.thisMonth} this month`}    color="blue"/>
-            <StatCard label="Total Visits"        value={stats.visits.todayCount}                     sub="today"                                        color="teal"/>
-            <StatCard label="Total Revenue"       value={formatCurrency(stats.billing.totalRevenue)}  sub="from paid invoices"                           color="green"/>
-            <StatCard label="Pending Payments"    value={formatCurrency(stats.billing.pendingAmount)} sub={`${stats.billing.pending} invoices`}          color="orange"/>
+            <StatCard label="New Patients"     value={filteredStats.patients}                        sub={`registered in period`}           color="blue"/>
+            <StatCard label="Visits"           value={filteredStats.visits}                          sub="recorded in period"               color="teal"/>
+            <StatCard label="Revenue"          value={formatCurrency(filteredStats.revenue)}         sub="from paid invoices"               color="green"/>
+            <StatCard label="Due / Pending"    value={formatCurrency(filteredStats.pendingAmount)}   sub={`${filteredStats.pending} invoices`} color="orange"/>
           </div>
         )}
 
@@ -130,7 +229,7 @@ export default function ReportsPage() {
               <p className="text-xs text-gray-400 dark:text-gray-500">Paid invoices only</p>
             </div>
             <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg w-fit">
-              {[['6m','6 Months'],['12m','12 Months'],['custom','Custom']].map(([v, l]) => (
+              {[['6m','6 Months'],['12m','12 Months']].map(([v, l]) => (
                 <button key={v} onClick={() => setRevenueView(v)}
                   className={`px-3 py-1 rounded text-xs font-medium transition-colors
                     ${revenueView === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
@@ -139,31 +238,8 @@ export default function ReportsPage() {
               ))}
             </div>
           </div>
-
-          {revenueView === 'custom' ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div>
-                  <label className="form-label">From</label>
-                  <input type="date" value={customFrom} max={customTo}
-                    onChange={e => setCustomFrom(e.target.value)} className="input-field w-40"/>
-                </div>
-                <div>
-                  <label className="form-label">To</label>
-                  <input type="date" value={customTo} min={customFrom} max={today}
-                    onChange={e => setCustomTo(e.target.value)} className="input-field w-40"/>
-                </div>
-              </div>
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-xl p-5 text-center">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  Revenue from {customFrom} to {customTo}
-                </p>
-                <p className="text-4xl font-bold text-green-600 dark:text-green-400">{formatCurrency(customRevenue)}</p>
-              </div>
-            </div>
-          ) : (
-            <BarChart data={revenueData} valueKey="revenue" labelKey="label" color="green" unit="currency"/>
-          )}
+          <BarChart data={revenueView === '12m' ? yearlyRevenue : monthlyRevenue}
+            valueKey="revenue" labelKey="label" color="green" unit="currency"/>
         </div>
 
         {/* ── Patient Growth ───────────────────────────────────────────────── */}
@@ -222,12 +298,12 @@ export default function ReportsPage() {
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Patient Analytics</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Total Registered',     value: stats.patients.total,                 color: 'bg-primary-500' },
-                  { label: 'Active Patients',       value: stats.patients.active,                color: 'bg-green-500' },
-                  { label: 'Registered This Month', value: stats.patients.thisMonth,             color: 'bg-teal-500' },
-                  { label: 'Follow-ups Scheduled',  value: stats.followups.total,                color: 'bg-orange-400' },
-                  { label: 'Follow-ups Overdue',    value: stats.followups.overdueCount,         color: 'bg-red-500' },
-                  { label: 'Appointments No-Show',  value: stats.appointments.noShowCount,       color: 'bg-yellow-400' },
+                  { label: 'Total Registered',     value: stats.patients.total,           color: 'bg-primary-500' },
+                  { label: 'Active Patients',       value: stats.patients.active,          color: 'bg-green-500' },
+                  { label: 'Registered This Month', value: stats.patients.thisMonth,       color: 'bg-teal-500' },
+                  { label: 'Follow-ups Scheduled',  value: stats.followups.total,          color: 'bg-orange-400' },
+                  { label: 'Follow-ups Overdue',    value: stats.followups.overdueCount,   color: 'bg-red-500' },
+                  { label: 'Appointments No-Show',  value: stats.appointments.noShowCount, color: 'bg-yellow-400' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
@@ -243,7 +319,7 @@ export default function ReportsPage() {
               <div className="space-y-3">
                 {[
                   { label: 'Paid Invoices',    value: stats.billing.paid,    amount: stats.billing.totalRevenue,  color: 'bg-green-500' },
-                  { label: 'Pending Invoices', value: stats.billing.pending, amount: stats.billing.pendingAmount, color: 'bg-primary-500' },
+                  { label: 'Due / Pending',    value: stats.billing.pending, amount: stats.billing.pendingAmount, color: 'bg-orange-400' },
                   { label: 'Overdue',          value: stats.billing.overdue, amount: 0,                           color: 'bg-red-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">

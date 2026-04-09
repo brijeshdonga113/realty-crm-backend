@@ -133,7 +133,7 @@ function NewInvoiceForm() {
             <div>
               <label className="form-label">Status</label>
               <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
-                <option value="draft">Draft</option>
+                <option value="draft">Due</option>
                 <option value="sent">Sent to Patient</option>
                 <option value="paid">Paid</option>
               </select>

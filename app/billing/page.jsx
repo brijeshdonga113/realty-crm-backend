@@ -9,7 +9,7 @@ import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
 import { formatCurrency, INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
 
-const STATUS_COLOR = { draft: 'gray', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
+const STATUS_COLOR = { draft: 'orange', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
 function InvoicePrint({ invoice, doctor }) {
   const clinicName  = invoice.clinicName  || doctor?.clinicName  || 'Clinic'
