@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { visitService } from '@/services/visitService'
+import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
 
 export function useVisits(patientId) {
@@ -8,34 +9,28 @@ export function useVisits(patientId) {
   const [visits, setVisits]   = useState([])
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback(async () => {
-    if (!patientId) return
+  useEffect(() => {
+    if (!doctor || !patientId) return
     setLoading(true)
-    const data = patientId
-      ? await visitService.getForPatient(patientId)
-      : await visitService.getAll()
-    setVisits(data)
-    setLoading(false)
-  }, [patientId])
-
-  useEffect(() => { load() }, [load])
+    const unsub = dataStore.subscribe(`patients/${patientId}/visits`, (data) => {
+      setVisits(data.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate)))
+      setLoading(false)
+    })
+    return () => unsub()
+  }, [doctor, patientId])
 
   const add = useCallback(async (data) => {
     const saved = await visitService.create({ ...data, doctorId: doctor?.id })
-    setVisits(prev => [saved, ...prev])
     return saved
   }, [doctor])
 
   const update = useCallback(async (id, patch) => {
-    const updated = await visitService.update(id, patch)
-    setVisits(prev => prev.map(v => v.id === id ? updated : v))
-    return updated
+    return visitService.update(id, patch)
   }, [])
 
   const remove = useCallback(async (id) => {
-    await visitService.remove(id)
-    setVisits(prev => prev.filter(v => v.id !== id))
+    return visitService.remove(id)
   }, [])
 
-  return { visits, loading, add, update, remove, reload: load }
+  return { visits, loading, add, update, remove }
 }
