@@ -52,7 +52,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onSave(form) } finally { setSaving(false) }
+    try { await onSave(form) } catch (err) { alert(err?.message || 'Failed to save') } finally { setSaving(false) }
   }
 
   return (
@@ -210,6 +210,8 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
       })
       setEditing(false)
       setOpen(false)
+    } catch (err) {
+      alert(err?.message || 'Failed to update visit')
     } finally {
       setSaving(false)
     }
@@ -526,6 +528,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, on
       resetForm()
       onSave?.()
       onClose()
+    } catch (err) {
+      alert(err?.message || 'Failed to save visit')
     } finally {
       setLoading(false)
     }

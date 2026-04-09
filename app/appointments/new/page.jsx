@@ -14,6 +14,7 @@ function NewAppointmentForm() {
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
+  const [saveError, setSaveError] = useState('')
   const [form, setForm] = useState({
     patientId:       searchParams.get('patientId') ?? '',
     date:            new Date().toISOString().slice(0, 10),
@@ -42,6 +43,7 @@ function NewAppointmentForm() {
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
     setLoading(true)
+    setSaveError('')
     try {
       await add({
         ...form,
@@ -49,6 +51,8 @@ function NewAppointmentForm() {
         durationMinutes: Number(form.durationMinutes),
       })
       router.push('/appointments')
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save appointment. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -123,6 +127,12 @@ function NewAppointmentForm() {
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               placeholder="Any additional notes…" rows={2} className="input-field resize-none"/>
           </div>
+
+          {saveError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              {saveError}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => router.back()}

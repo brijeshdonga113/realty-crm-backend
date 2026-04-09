@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
@@ -25,8 +25,9 @@ function NewInvoiceForm() {
   const { patients } = usePatients()
   const { doctor }   = useAuth()
 
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors]   = useState({})
+  const [loading, setLoading]   = useState(false)
+  const [errors, setErrors]     = useState({})
+  const [saveError, setSaveError] = useState('')
   const [form, setForm] = useState({
     patientId: searchParams.get('patientId') ?? '',
     issueDate: new Date().toISOString().slice(0, 10),
@@ -74,6 +75,7 @@ function NewInvoiceForm() {
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
     setLoading(true)
+    setSaveError('')
     try {
       await add({
         ...form,
@@ -88,6 +90,8 @@ function NewInvoiceForm() {
         doctorEmail:  doctor?.email ?? '',
       })
       router.push('/billing')
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save invoice. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -216,6 +220,11 @@ function NewInvoiceForm() {
               placeholder="Payment instructions, terms, etc." rows={2} className="input-field resize-none"/>
           </div>
 
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+              {saveError}
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => router.back()}
               className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">

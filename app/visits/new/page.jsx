@@ -27,8 +27,9 @@ function VisitEntryForm() {
 
   const { patient, loading: patientLoading } = usePatient(patientId)
 
-  const [saving, setSaving]       = useState(false)
+  const [saving, setSaving]         = useState(false)
   const [savedVisit, setSavedVisit] = useState(null)
+  const [saveError, setSaveError]   = useState('')
 
   const [form, setForm] = useState({
     chiefComplaint: reasonParam,
@@ -79,6 +80,7 @@ function VisitEntryForm() {
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     setSaving(true)
+    setSaveError('')
     try {
       const visit = await visitService.create({
         patientId,
@@ -117,6 +119,8 @@ function VisitEntryForm() {
       }
 
       setSavedVisit(visit)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save visit. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -475,6 +479,11 @@ function VisitEntryForm() {
         </div>
 
         {/* Actions */}
+        {saveError && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+            {saveError}
+          </div>
+        )}
         <div className="flex justify-end gap-3">
           <button type="button" onClick={() => router.back()}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
