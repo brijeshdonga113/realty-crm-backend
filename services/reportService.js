@@ -1,17 +1,20 @@
+import { dataStore } from '@/lib/dataStore'
 import { billingService } from './billingService'
 import { patientService } from './patientService'
 import { appointmentService } from './appointmentService'
 import { visitService } from './visitService'
+import { followupService } from './followupService'
 
 export const reportService = {
   async getDashboardStats() {
-    const [patients, appointments, billing, visits] = await Promise.all([
+    const [patients, appointments, billing, visits, followups] = await Promise.all([
       patientService.getStats(),
       appointmentService.getStats(),
       billingService.getStats(),
       visitService.getDashboardStats(),
+      followupService.getStats(),
     ])
-    return { patients, appointments, billing, visits }
+    return { patients, appointments, billing, visits, followups }
   },
 
   async getMonthlyRevenue(months = 6) {
@@ -19,7 +22,6 @@ export const reportService = {
   },
 
   async getPatientGrowth(months = 6) {
-    const { dataStore } = await import('@/lib/dataStore')
     const all  = await dataStore.getAll('patients')
     const now  = new Date()
     const result = []
@@ -35,7 +37,6 @@ export const reportService = {
   },
 
   async getAppointmentBreakdown() {
-    const { dataStore } = await import('@/lib/dataStore')
     const all = await dataStore.getAll('appointments')
     const breakdown = {}
     all.forEach(a => { breakdown[a.status] = (breakdown[a.status] ?? 0) + 1 })
@@ -43,7 +44,6 @@ export const reportService = {
   },
 
   async getTopDiagnoses(limit = 5) {
-    const { dataStore } = await import('@/lib/dataStore')
     // visits are stored as a subcollection — use collectionGroup query
     const visits = await dataStore.getAllGroup('visits')
     const counts = {}

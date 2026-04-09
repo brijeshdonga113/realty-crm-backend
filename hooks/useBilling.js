@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { billingService } from '@/services/billingService'
+import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
 
 export function useBilling() {
@@ -9,57 +10,54 @@ export function useBilling() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!doctor) return
     setLoading(true)
-    try {
-      setInvoices(await billingService.getAll())
-      setError(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
+    const unsub = dataStore.subscribe('invoices', (data) => {
+      setInvoices(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
       setLoading(false)
-    }
+      setError(null)
+    })
+    return () => unsub()
   }, [doctor])
 
-  useEffect(() => { load() }, [load])
-
   const add = useCallback(async (data) => {
-    const saved = await billingService.create({ ...data, doctorId: doctor?.id })
-    setInvoices(prev => [saved, ...prev])
-    return saved
+    return billingService.create({ ...data, doctorId: doctor?.id })
   }, [doctor])
 
   const update = useCallback(async (id, patch) => {
-    const updated = await billingService.update(id, patch)
-    setInvoices(prev => prev.map(inv => inv.id === id ? updated : inv))
-    return updated
+    return billingService.update(id, patch)
   }, [])
 
   const markPaid = useCallback(async (id, paymentMethod) => {
-    const updated = await billingService.markPaid(id, paymentMethod)
-    setInvoices(prev => prev.map(inv => inv.id === id ? updated : inv))
-    return updated
+    return billingService.markPaid(id, paymentMethod)
   }, [])
 
   const remove = useCallback(async (id) => {
-    await billingService.remove(id)
-    setInvoices(prev => prev.filter(inv => inv.id !== id))
+    return billingService.remove(id)
   }, [])
 
-  return { invoices, loading, error, add, update, markPaid, remove, reload: load }
+  return { invoices, loading, error, add, update, markPaid, remove }
 }
 
 export function usePatientInvoices(patientId) {
+  const { doctor } = useAuth()
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
-    if (!patientId) return
-    billingService.getForPatient(patientId)
-      .then(setInvoices)
-      .finally(() => setLoading(false))
-  }, [patientId])
+    if (!patientId || !doctor) return
+    setLoading(true)
+    // Use live subscription so new invoices appear immediately
+    const unsub = dataStore.subscribe('invoices', (data) => {
+      const filtered = data
+        .filter(inv => inv.patientId === patientId)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      setInvoices(filtered)
+      setLoading(false)
+    })
+    return () => unsub()
+  }, [patientId, doctor])
 
   return { invoices, loading }
 }

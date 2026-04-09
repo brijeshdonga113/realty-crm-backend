@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect } from 'react'
-import { isFirebaseConfigured, auth, db } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 
 const AuthContext = createContext(null)
 
@@ -17,6 +17,8 @@ function buildDoctorProfile(uid, data) {
     licenseNumber:  data.licenseNumber  ?? '',
     phone:          data.phone          ?? '',
     clinicName:     data.clinicName     ?? '',
+    colorTheme:     data.colorTheme     ?? null,   // persisted theme preference
+    darkMode:       data.darkMode       ?? null,   // persisted dark/light preference
     createdAt:      data.createdAt      ?? new Date().toISOString(),
   }
 }
@@ -45,8 +47,8 @@ async function firebaseSignup(doctorData) {
   const uid     = cred.user.uid
   const profile = buildDoctorProfile(uid, doctorData)
 
-  // Store doctor profile in Firestore: clinics/{uid}/profile
-  await setDoc(doc(db, 'users', uid, 'profile', 'doctor'), profile)
+  // Store doctor profile directly on the root users/{uid} document
+  await setDoc(doc(db, 'users', uid), profile)
 
   await updateProfile(cred.user, {
     displayName: `${doctorData.firstName} ${doctorData.lastName}`,
@@ -58,12 +60,22 @@ async function firebaseSignup(doctorData) {
 
 async function firebaseLogin(email, password) {
   const { signInWithEmailAndPassword } = await import('firebase/auth')
-  const { doc, getDoc } = await import('firebase/firestore')
+  const { doc, getDoc, setDoc } = await import('firebase/firestore')
 
   const cred = await signInWithEmailAndPassword(auth, email, password)
   const uid  = cred.user.uid
 
-  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+  // Try root document first (new path)
+  let snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) {
+    // Migrate from old nested path: users/{uid}/profile/doctor
+    snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+    if (snap.exists()) {
+      // Migrate to root document
+      await setDoc(doc(db, 'users', uid), snap.data())
+    }
+  }
+
   const profile = snap.exists()
     ? buildDoctorProfile(uid, snap.data())
     : buildDoctorProfile(uid, { email })
@@ -79,8 +91,18 @@ async function firebaseLogout() {
 }
 
 async function loadFirebaseProfile(uid) {
-  const { doc, getDoc } = await import('firebase/firestore')
-  const snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+  const { doc, getDoc, setDoc } = await import('firebase/firestore')
+
+  // Try root document first (new path)
+  let snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) {
+    // Migrate from old nested path: users/{uid}/profile/doctor
+    snap = await getDoc(doc(db, 'users', uid, 'profile', 'doctor'))
+    if (snap.exists()) {
+      // Migrate to root document so admin panel and isAdmin flag work
+      await setDoc(doc(db, 'users', uid), snap.data())
+    }
+  }
   return snap.exists() ? buildDoctorProfile(uid, snap.data()) : null
 }
 
@@ -120,68 +142,53 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (isFirebaseConfigured) {
-      // Listen to Firebase Auth state changes
-      let unsubscribe
-      import('firebase/auth').then(({ onAuthStateChanged }) => {
-        unsubscribe = onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            try {
-              const profile = await loadFirebaseProfile(user.uid)
-              if (profile) {
-                saveSessionLocally(profile)
-                setDoctor(profile)
-              } else {
-                // Profile not in Firestore yet (edge case) — use basic info
-                const fallback = buildDoctorProfile(user.uid, {
-                  email: user.email,
-                  firstName: user.displayName?.split(' ')[0] ?? '',
-                  lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
-                })
-                setDoctor(fallback)
-              }
-            } catch {
-              setDoctor(null)
+    let unsubscribe
+    import('firebase/auth').then(({ onAuthStateChanged }) => {
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try {
+            const profile = await loadFirebaseProfile(user.uid)
+            if (profile) {
+              saveSessionLocally(profile)
+              setDoctor(profile)
+            } else {
+              const fallback = buildDoctorProfile(user.uid, {
+                email: user.email,
+                firstName: user.displayName?.split(' ')[0] ?? '',
+                lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
+              })
+              setDoctor(fallback)
             }
-          } else {
-            clearSessionLocally()
+          } catch {
             setDoctor(null)
           }
-          setLoading(false)
-        })
+        } else {
+          clearSessionLocally()
+          setDoctor(null)
+        }
+        setLoading(false)
       })
-      return () => unsubscribe?.()
-    } else {
-      // localStorage mode
-      try {
-        const saved = localStorage.getItem('clinic_crm_doctor')
-        if (saved) setDoctor(JSON.parse(saved))
-      } catch {}
-      setLoading(false)
-    }
+    })
+    return () => unsubscribe?.()
   }, [])
 
   const signup = async (doctorData) => {
-    const profile = isFirebaseConfigured
-      ? await firebaseSignup(doctorData)
-      : localSignup(doctorData)
+    const profile = await firebaseSignup(doctorData)
     setDoctor(profile)
     return profile
   }
 
   const login = async (email, password) => {
-    const profile = isFirebaseConfigured
-      ? await firebaseLogin(email, password)
-      : localLogin(email, password)
+    const profile = await firebaseLogin(email, password)
     setDoctor(profile)
     return profile
   }
 
   const updateProfile = async (patch) => {
     const updated = { ...doctor, ...patch }
-    if (isFirebaseConfigured) {
+    if (db) {
       const { doc, setDoc } = await import('firebase/firestore')
-      await setDoc(doc(db, 'users', doctor.id, 'profile', 'doctor'), updated)
+      await setDoc(doc(db, 'users', doctor.id), updated)
       const { updateProfile: fbUpdateProfile } = await import('firebase/auth')
       if (auth.currentUser) {
         await fbUpdateProfile(auth.currentUser, {
@@ -201,11 +208,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    if (isFirebaseConfigured) {
-      await firebaseLogout()
-    } else {
-      localLogout()
-    }
+    await firebaseLogout()
     setDoctor(null)
   }
 

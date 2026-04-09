@@ -2,6 +2,7 @@ import { dataStore } from '@/lib/dataStore'
 import { createAppointment } from '@/models/Appointment'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
+import { visitService } from './visitService'
 import {
   isGoogleCalendarConnected,
   createCalendarEvent,
@@ -67,12 +68,12 @@ export const appointmentService = {
     const appt = createAppointment(data)
     const saved = await dataStore.create(COLLECTION, appt)
 
-    await notificationService.create({
+    notificationService.create({
       type:  NOTIFICATION_TYPES.APPOINTMENT_NEW,
       title: 'Appointment scheduled',
       body:  `${saved.patientName} — ${saved.date} at ${saved.time}`,
       relatedEntity: { type: 'appointment', id: saved.id },
-    })
+    }).catch(() => {})
 
     // Sync to Google Calendar
     gcalSync(async () => {
@@ -84,14 +85,27 @@ export const appointmentService = {
   },
 
   async update(id, patch) {
-    const updated = await dataStore.update(COLLECTION, id, patch)
+    const existing = await dataStore.getById(COLLECTION, id)
+    const updated  = await dataStore.update(COLLECTION, id, patch)
 
     if (patch.status === 'cancelled') {
-      await notificationService.create({
+      notificationService.create({
         type:  NOTIFICATION_TYPES.APPOINTMENT_CANCELLED,
         title: 'Appointment cancelled',
         body:  `${updated.patientName} — ${updated.date} at ${updated.time}`,
         relatedEntity: { type: 'appointment', id: updated.id },
+      }).catch(() => {})
+    }
+
+    // Auto-create a visit record when an appointment is marked completed for the first time
+    if (patch.status === 'completed' && existing?.status !== 'completed') {
+      await visitService.create({
+        doctorId:       updated.doctorId,
+        patientId:      updated.patientId,
+        patientName:    updated.patientName,
+        appointmentId:  updated.id,
+        visitDate:      updated.date,
+        chiefComplaint: updated.reason ?? '',
       })
     }
 

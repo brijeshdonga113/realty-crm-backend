@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { patientService } from '@/services/patientService'
+import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
 
 export function usePatients() {
@@ -9,45 +10,36 @@ export function usePatients() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!doctor) return
     setLoading(true)
-    try {
-      setPatients(await patientService.getAll())
-      setError(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
+    const unsub = dataStore.subscribe('patients', (data) => {
+      setPatients(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
       setLoading(false)
-    }
+      setError(null)
+    })
+    return () => unsub()
   }, [doctor])
 
-  useEffect(() => { load() }, [load])
-
   const add = useCallback(async (data) => {
-    const saved = await patientService.create({ ...data, doctorId: doctor?.id })
-    setPatients(prev => [saved, ...prev])
-    return saved
+    return patientService.create({ ...data, doctorId: doctor?.id })
   }, [doctor])
 
   const update = useCallback(async (id, patch) => {
-    const updated = await patientService.update(id, patch)
-    setPatients(prev => prev.map(p => p.id === id ? updated : p))
-    return updated
+    return patientService.update(id, patch)
   }, [])
 
   const remove = useCallback(async (id) => {
-    await patientService.remove(id)
-    setPatients(prev => prev.filter(p => p.id !== id))
+    return patientService.remove(id)
   }, [])
 
-  const search = useCallback(async (query) => {
-    if (!query.trim()) return load()
-    const results = await patientService.search(query)
+  const search = useCallback(async (q) => {
+    if (!q.trim()) return
+    const results = await patientService.search(q)
     setPatients(results)
-  }, [load])
+  }, [])
 
-  return { patients, loading, error, add, update, remove, search, reload: load }
+  return { patients, loading, error, add, update, remove, search }
 }
 
 export function usePatient(id) {

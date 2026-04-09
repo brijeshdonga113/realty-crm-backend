@@ -1,12 +1,12 @@
 const colorMap = {
-  blue:   'bg-blue-100 text-blue-700',
-  green:  'bg-green-100 text-green-700',
-  red:    'bg-red-100 text-red-700',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  gray:   'bg-gray-100 text-gray-600',
-  purple: 'bg-purple-100 text-purple-700',
-  teal:   'bg-teal-100 text-teal-700',
-  orange: 'bg-orange-100 text-orange-700',
+  blue:   'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300',
+  teal:   'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300',
+  green:  'bg-green-100  dark:bg-green-900/30  text-green-700  dark:text-green-300',
+  red:    'bg-red-100    dark:bg-red-900/30    text-red-700    dark:text-red-300',
+  yellow: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  gray:   'bg-gray-100   dark:bg-gray-700      text-gray-600   dark:text-gray-300',
+  purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
 }
 
 export function Badge({ label, color = 'gray', className = '' }) {

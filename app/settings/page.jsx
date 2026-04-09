@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { isFirebaseConfigured } from '@/lib/firebase'
+import { auth } from '@/lib/firebase'
+import { useTheme } from '@/hooks/useTheme'
+import { THEMES } from '@/lib/themes'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -28,6 +30,7 @@ const SPECIALIZATIONS = [
 
 export default function SettingsPage() {
   const { doctor, updateProfile } = useAuth()
+  const { dark, toggle, colorTheme, setTheme } = useTheme()
 
   const [form, setForm] = useState({
     clinicName:     doctor?.clinicName     ?? '',
@@ -62,13 +65,13 @@ export default function SettingsPage() {
     setGcalConnected(false)
   }
 
-  const [pwForm, setPwForm]   = useState({ current: '', next: '', confirm: '' })
-  const [saving, setSaving]   = useState(false)
+  const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' })
+  const [saving, setSaving]     = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
-  const [saved, setSaved]     = useState(false)
-  const [pwError, setPwError] = useState('')
-  const [pwSaved, setPwSaved] = useState(false)
-  const [error, setError]     = useState('')
+  const [saved, setSaved]       = useState(false)
+  const [pwError, setPwError]   = useState('')
+  const [pwSaved, setPwSaved]   = useState(false)
+  const [error, setError]       = useState('')
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -108,20 +111,11 @@ export default function SettingsPage() {
     }
     setPwSaving(true)
     try {
-      if (isFirebaseConfigured) {
+      {
         const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth')
-        const { auth } = await import('@/lib/firebase')
         const cred = EmailAuthProvider.credential(doctor.email, pwForm.current)
         await reauthenticateWithCredential(auth.currentUser, cred)
         await updatePassword(auth.currentUser, pwForm.next)
-      } else {
-        const doctors = JSON.parse(localStorage.getItem('clinic_crm_doctors') || '{}')
-        const found   = doctors[doctor.email]
-        if (!found || found.passwordHash !== btoa(pwForm.current)) {
-          throw new Error('Current password is incorrect.')
-        }
-        doctors[doctor.email].passwordHash = btoa(pwForm.next)
-        localStorage.setItem('clinic_crm_doctors', JSON.stringify(doctors))
       }
       setPwForm({ current: '', next: '', confirm: '' })
       setPwSaved(true)
@@ -138,18 +132,80 @@ export default function SettingsPage() {
     <AppLayout title="Settings">
       <div className="max-w-2xl space-y-8">
 
+        {/* ── Appearance ───────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Appearance</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Personalise the look of the app. Saved to your account.</p>
+          </div>
+
+          <div className="p-6 space-y-6">
+
+            {/* Dark / Light mode toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Dark Mode</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Switch between light and dark interface.</p>
+              </div>
+              <button
+                onClick={toggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none
+                  ${dark ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
+                  ${dark ? 'translate-x-6' : 'translate-x-1'}`}/>
+              </button>
+            </div>
+
+            {/* Color palette */}
+            <div>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Accent Color</p>
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+                {THEMES.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTheme(t.key)}
+                    title={t.label}
+                    className={`group flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all
+                      ${colorTheme === t.key
+                        ? 'border-gray-900 dark:border-white scale-105 shadow-md'
+                        : 'border-transparent hover:border-gray-300 dark:hover:border-gray-500'}`}
+                  >
+                    {/* Swatch circle */}
+                    <span
+                      className="w-9 h-9 rounded-full shadow-inner flex items-center justify-center transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: t.swatch }}
+                    >
+                      {colorTheme === t.key && (
+                        <svg className="w-4 h-4 text-white drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+                Changes apply instantly and sync across your devices.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
         {/* Profile & clinic section */}
-        <form onSubmit={handleSave} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Clinic & Profile</h2>
-            <p className="text-sm text-gray-500 mt-0.5">This information appears on your dashboard and invoices.</p>
+        <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Clinic & Profile</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">This information appears on your dashboard and invoices.</p>
           </div>
 
           <div className="p-6 space-y-5">
 
-            {/* Clinic name — highlighted */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-              <label className="block text-sm font-semibold text-blue-800 mb-1.5">
+            {/* Clinic name */}
+            <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-xl p-4">
+              <label className="block text-sm font-semibold text-primary-800 dark:text-primary-300 mb-1.5">
                 Clinic / Hospital Name
               </label>
               <input
@@ -158,9 +214,9 @@ export default function SettingsPage() {
                 value={form.clinicName}
                 onChange={handleChange}
                 placeholder="e.g. Swastik Homoeopathy, City Medical Center"
-                className="input-field bg-white"
+                className="input-field bg-white dark:bg-gray-700"
               />
-              <p className="text-xs text-blue-600 mt-1.5">Shown in the dashboard header and on invoices.</p>
+              <p className="text-xs text-primary-600 dark:text-primary-400 mt-1.5">Shown in the dashboard header and on invoices.</p>
             </div>
 
             {/* Name row */}
@@ -182,9 +238,9 @@ export default function SettingsPage() {
                 type="email"
                 value={doctor?.email ?? ''}
                 readOnly
-                className="input-field bg-gray-50 text-gray-400 cursor-not-allowed"
+                className="input-field bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
               />
-              <p className="text-xs text-gray-400 mt-1">Email cannot be changed.</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Email cannot be changed.</p>
             </div>
 
             {/* Phone + Specialization */}
@@ -223,11 +279,10 @@ export default function SettingsPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-2">{error}</p>
             )}
-
             {saved && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2">
+              <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg px-4 py-2 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -236,9 +291,9 @@ export default function SettingsPage() {
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
             <button type="submit" disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
               {saving ? (
                 <>
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -253,9 +308,8 @@ export default function SettingsPage() {
         </form>
 
         {/* Google Calendar integration */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-            {/* Google Calendar icon */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 48 48" fill="none">
               <path d="M34 8H14a6 6 0 00-6 6v20a6 6 0 006 6h20a6 6 0 006-6V14a6 6 0 00-6-6z" fill="#fff" stroke="#dadce0" strokeWidth="2"/>
               <path d="M34 8H14a6 6 0 00-6 6v4h32v-4a6 6 0 00-6-6z" fill="#1A73E8"/>
@@ -265,19 +319,19 @@ export default function SettingsPage() {
               <text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1A73E8">G</text>
             </svg>
             <div>
-              <h2 className="font-semibold text-gray-900">Google Calendar</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Auto-sync appointments to your Google Calendar.</p>
+              <h2 className="font-semibold text-gray-900 dark:text-white">Google Calendar</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Auto-sync appointments to your Google Calendar.</p>
             </div>
           </div>
 
           <div className="p-6">
             {!isGoogleCalendarEnabled ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                <p className="text-sm text-amber-800 font-medium mb-1">Configuration required</p>
-                <p className="text-xs text-amber-700">
-                  Set <code className="bg-amber-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your <code className="bg-amber-100 px-1 rounded">.env.local</code> to enable Google Calendar sync.
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-800 dark:text-amber-300 font-medium mb-1">Configuration required</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Set <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">.env.local</code> to enable Google Calendar sync.
                 </p>
-                <p className="text-xs text-amber-600 mt-2">
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
                   Go to Google Cloud Console → Credentials → Create OAuth 2.0 Client ID (Web application).
                 </p>
               </div>
@@ -286,23 +340,23 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3">
                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full"/>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Connected</p>
-                    <p className="text-xs text-gray-400">New appointments will sync automatically.</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Connected</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">New appointments will sync automatically.</p>
                   </div>
                 </div>
                 <button onClick={handleGcalDisconnect}
-                  className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
+                  className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 dark:border-red-700 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
                   Disconnect
                 </button>
               </div>
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Not connected</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Connect to sync appointments both ways.</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Not connected</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Connect to sync appointments both ways.</p>
                 </div>
                 <button onClick={handleGcalConnect} disabled={gcalLoading}
-                  className="flex items-center gap-2 bg-white border border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                  className="flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                   {gcalLoading ? (
                     <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -322,13 +376,13 @@ export default function SettingsPage() {
             )}
 
             {gcalError && (
-              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{gcalError}</p>
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-2">{gcalError}</p>
             )}
 
             {gcalConnected && (
-              <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                <p className="text-xs font-semibold text-blue-800 mb-1">What syncs automatically</p>
-                <ul className="text-xs text-blue-700 space-y-0.5">
+              <div className="mt-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-lg px-4 py-3">
+                <p className="text-xs font-semibold text-primary-800 dark:text-primary-300 mb-1">What syncs automatically</p>
+                <ul className="text-xs text-primary-700 dark:text-primary-400 space-y-0.5">
                   <li>✓ New appointment → creates event in Google Calendar</li>
                   <li>✓ Status/time change → updates the event</li>
                   <li>✓ Appointment deleted → removes from Google Calendar</li>
@@ -339,10 +393,10 @@ export default function SettingsPage() {
         </div>
 
         {/* Change password section */}
-        <form onSubmit={handlePasswordChange} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Change Password</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Use a strong password of at least 8 characters.</p>
+        <form onSubmit={handlePasswordChange} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Change Password</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Use a strong password of at least 8 characters.</p>
           </div>
 
           <div className="p-6 space-y-4">
@@ -383,10 +437,10 @@ export default function SettingsPage() {
             </div>
 
             {pwError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{pwError}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-2">{pwError}</p>
             )}
             {pwSaved && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2">
+              <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg px-4 py-2 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -395,9 +449,9 @@ export default function SettingsPage() {
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
             <button type="submit" disabled={pwSaving}
-              className="bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors">
+              className="bg-gray-900 dark:bg-gray-600 hover:bg-gray-700 dark:hover:bg-gray-500 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors">
               {pwSaving ? 'Updating…' : 'Update Password'}
             </button>
           </div>

@@ -29,16 +29,24 @@ export const billingService = {
   },
 
   async create(data) {
-    const invoiceNumber = await nextInvoiceNumber()
+    // Counter wrapped in try/catch so a Firestore meta permission error never blocks invoice creation
+    let invoiceNumber = data.invoiceNumber ?? null
+    try {
+      invoiceNumber = await nextInvoiceNumber()
+    } catch {
+      const year = new Date().getFullYear()
+      invoiceNumber = `INV-${year}-${Date.now().toString().slice(-5)}`
+    }
     const invoice = createInvoice({ ...data, invoiceNumber })
     const saved = await dataStore.create(COLLECTION, invoice)
 
-    await notificationService.create({
+    // Fire-and-forget — never let notification failure block invoice creation
+    notificationService.create({
       type:  NOTIFICATION_TYPES.INVOICE_CREATED,
       title: 'Invoice created',
       body:  `${saved.invoiceNumber} for ${saved.patientName} — ${saved.total}`,
       relatedEntity: { type: 'invoice', id: saved.id },
-    })
+    }).catch(() => {})
 
     return saved
   },
@@ -63,12 +71,12 @@ export const billingService = {
       paymentDate: new Date().toISOString().slice(0, 10),
     })
 
-    await notificationService.create({
+    notificationService.create({
       type:  NOTIFICATION_TYPES.INVOICE_PAID,
       title: 'Payment received',
       body:  `${updated.invoiceNumber} from ${updated.patientName} marked as paid.`,
       relatedEntity: { type: 'invoice', id: updated.id },
-    })
+    }).catch(() => {})
 
     return updated
   },
@@ -86,7 +94,7 @@ export const billingService = {
     const pendingAmount = pending.reduce((s, inv) => s + inv.total, 0)
     const today = new Date().toISOString().slice(0, 10)
     const todayRevenue = paid
-      .filter(inv => inv.paymentDate === today)
+      .filter(inv => inv.issueDate === today)
       .reduce((s, inv) => s + inv.total, 0)
     return { total: all.length, paid: paid.length, pending: pending.length, overdue: overdue.length, totalRevenue, pendingAmount, todayRevenue }
   },
