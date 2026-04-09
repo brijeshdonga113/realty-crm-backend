@@ -30,20 +30,21 @@ export const visitService = {
     const visit = createVisitRecord(data)
     const saved = await dataStore.create(visitPath(visit.patientId), visit)
 
-    await notificationService.create({
+    // Fire-and-forget — never let notification failures block visit creation
+    notificationService.create({
       type:  NOTIFICATION_TYPES.VISIT_COMPLETED,
       title: 'Visit recorded',
       body:  `Visit for ${saved.patientName} has been saved.`,
       relatedEntity: { type: 'visit', id: saved.id },
-    })
+    }).catch(() => {})
 
     if (saved.followUpDate) {
-      await notificationService.create({
+      notificationService.create({
         type:  NOTIFICATION_TYPES.FOLLOW_UP_DUE,
         title: 'Follow-up reminder',
         body:  `Follow-up for ${saved.patientName} due on ${saved.followUpDate}.`,
         relatedEntity: { type: 'patient', id: saved.patientId },
-      })
+      }).catch(() => {})
     }
 
     return saved

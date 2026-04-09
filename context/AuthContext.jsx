@@ -17,6 +17,8 @@ function buildDoctorProfile(uid, data) {
     licenseNumber:  data.licenseNumber  ?? '',
     phone:          data.phone          ?? '',
     clinicName:     data.clinicName     ?? '',
+    colorTheme:     data.colorTheme     ?? null,   // persisted theme preference
+    darkMode:       data.darkMode       ?? null,   // persisted dark/light preference
     createdAt:      data.createdAt      ?? new Date().toISOString(),
   }
 }

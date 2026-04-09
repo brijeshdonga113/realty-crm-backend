@@ -175,7 +175,7 @@ function InfoRow({ label, value }) {
 }
 
 /* ─────────────── VisitCard with edit ─────────────── */
-function VisitCard({ visit, onUpdate, patientId, patientName }) {
+function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -250,6 +250,17 @@ function VisitCard({ visit, onUpdate, patientId, patientName }) {
         )}
         {visit.prescriptions?.length > 0 && (
           <p className="text-xs text-gray-400 mt-2">💊 {visit.prescriptions.length} prescription{visit.prescriptions.length !== 1 ? 's' : ''}</p>
+        )}
+        {linkedInvoice && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              linkedInvoice.status === 'paid'
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+            }`}>
+              {linkedInvoice.status === 'paid' ? '₹ Paid' : '₹ Due'} · {formatCurrency(linkedInvoice.total)}
+            </span>
+          </div>
         )}
       </div>
 
@@ -329,6 +340,32 @@ function VisitCard({ visit, onUpdate, patientId, patientName }) {
               </div>
             )}
             <InfoRow label="Notes" value={visit.notes} />
+            {/* Linked payment */}
+            {linkedInvoice && (
+              <div className={`rounded-xl px-4 py-3 border flex items-center justify-between ${
+                linkedInvoice.status === 'paid'
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+                  : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
+              }`}>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Payment</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    {linkedInvoice.invoiceNumber}
+                    {linkedInvoice.paymentMethod && (
+                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2 capitalize">
+                        via {linkedInvoice.paymentMethod.replace('_', ' ')}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-lg font-bold ${linkedInvoice.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                    {formatCurrency(linkedInvoice.total)}
+                  </p>
+                  <Badge label={linkedInvoice.status} color={linkedInvoice.status === 'paid' ? 'green' : 'yellow'} />
+                </div>
+              </div>
+            )}
             <div className="flex justify-end pt-2 border-t dark:border-gray-700">
               <button onClick={openEdit}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
@@ -1138,7 +1175,14 @@ export default function PatientProfilePage() {
           ) : (
             <div className="space-y-4">
               {visits.map(visit => (
-                <VisitCard key={visit.id} visit={visit} onUpdate={updateVisit} patientId={id} patientName={`${patient.firstName} ${patient.lastName}`}/>
+                <VisitCard
+                  key={visit.id}
+                  visit={visit}
+                  onUpdate={updateVisit}
+                  patientId={id}
+                  patientName={`${patient.firstName} ${patient.lastName}`}
+                  linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
+                />
               ))}
             </div>
           )}

@@ -68,12 +68,12 @@ export const appointmentService = {
     const appt = createAppointment(data)
     const saved = await dataStore.create(COLLECTION, appt)
 
-    await notificationService.create({
+    notificationService.create({
       type:  NOTIFICATION_TYPES.APPOINTMENT_NEW,
       title: 'Appointment scheduled',
       body:  `${saved.patientName} — ${saved.date} at ${saved.time}`,
       relatedEntity: { type: 'appointment', id: saved.id },
-    })
+    }).catch(() => {})
 
     // Sync to Google Calendar
     gcalSync(async () => {
@@ -89,12 +89,12 @@ export const appointmentService = {
     const updated  = await dataStore.update(COLLECTION, id, patch)
 
     if (patch.status === 'cancelled') {
-      await notificationService.create({
+      notificationService.create({
         type:  NOTIFICATION_TYPES.APPOINTMENT_CANCELLED,
         title: 'Appointment cancelled',
         body:  `${updated.patientName} — ${updated.date} at ${updated.time}`,
         relatedEntity: { type: 'appointment', id: updated.id },
-      })
+      }).catch(() => {})
     }
 
     // Auto-create a visit record when an appointment is marked completed for the first time

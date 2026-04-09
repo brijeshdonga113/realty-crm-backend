@@ -30,18 +30,15 @@ export const followupService = {
     // Create the follow-up record first
     const saved = await dataStore.create(COLLECTION, followup)
 
-    // Create a notification linked back to this follow-up
-    const notification = await notificationService.create({
+    // Fire-and-forget — never let notification failure block follow-up creation
+    notificationService.create({
       type:  NOTIFICATION_TYPES.FOLLOW_UP_DUE,
       title: `Follow-up: ${saved.patientName}`,
       body:  `${saved.note || 'Scheduled follow-up'} — due on ${saved.dueDate}`,
       relatedEntity: { type: 'followup', id: saved.id },
-    })
+    }).catch(() => {})
 
-    // Store notification id on the follow-up for cross-reference
-    await dataStore.update(COLLECTION, saved.id, { notificationId: notification.id })
-
-    return { ...saved, notificationId: notification.id }
+    return saved
   },
 
   async markDone(id) {
