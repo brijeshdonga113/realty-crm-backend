@@ -48,6 +48,7 @@ function VisitEntryForm() {
     amount: '',
     method: 'cash',
     description: 'Consultation Fee',
+    status: 'paid',
   })
 
   const [diagInput,    setDiagInput]    = useState('')
@@ -106,11 +107,12 @@ function VisitEntryForm() {
           patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
           issueDate:     new Date().toISOString().slice(0, 10),
           lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
-          status:        'paid',
+          status:        payment.status,
           paymentMethod: payment.method,
-          paymentDate:   new Date().toISOString().slice(0, 10),
+          paymentDate:   payment.status === 'paid' ? new Date().toISOString().slice(0, 10) : null,
           taxRate:       0,
           discount:      0,
+          visitId:       visit.id,
         })
       }
 
@@ -423,7 +425,7 @@ function VisitEntryForm() {
 
           {payment.record && (
             <>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">Amount (₹)</label>
                   <input type="number" min="0" value={payment.amount}
@@ -444,11 +446,26 @@ function VisitEntryForm() {
                     onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
                     placeholder="Consultation Fee" className="input-field"/>
                 </div>
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <select value={payment.status}
+                    onChange={e => setPayment(p => ({ ...p, status: e.target.value }))}
+                    className="input-field">
+                    <option value="paid">Paid</option>
+                    <option value="draft">Due / Unpaid</option>
+                  </select>
+                </div>
               </div>
               {Number(payment.amount) > 0 && (
-                <div className="mt-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm text-green-800 dark:text-green-300 font-medium">Amount to collect</span>
-                  <span className="text-xl font-bold text-green-700 dark:text-green-400">
+                <div className={`mt-4 rounded-xl px-4 py-3 flex items-center justify-between border ${
+                  payment.status === 'paid'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
+                }`}>
+                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                    {payment.status === 'paid' ? 'Amount collected' : 'Amount due (unpaid)'}
+                  </span>
+                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
                     ₹{Number(payment.amount).toLocaleString('en-IN')}
                   </span>
                 </div>

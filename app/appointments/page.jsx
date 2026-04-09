@@ -118,6 +118,7 @@ export default function AppointmentsPage() {
   const [view, setView]                 = useState('list')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterDate, setFilterDate]     = useState('')
   const [editAppt, setEditAppt]         = useState(null)
   const [editForm, setEditForm]         = useState({ status: '', date: '', time: '' })
   const [remindAppt, setRemindAppt]     = useState(null)
@@ -136,6 +137,7 @@ export default function AppointmentsPage() {
   const filtered = appointments.filter(a => {
     if (filterStatus !== 'all' && a.status !== filterStatus) return false
     if (view === 'calendar' && a.date !== selectedDate) return false
+    if (view === 'list' && filterDate && a.date !== filterDate) return false
     return true
   })
 
@@ -235,11 +237,28 @@ export default function AppointmentsPage() {
             />
           )}
 
-          <div className="flex items-center justify-between">
-            {view === 'calendar' && (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            {view === 'calendar' ? (
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { dateStyle: 'full' })}
               </h3>
+            ) : (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Filter by date:</label>
+                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
+                  className="input-field text-sm py-1.5 w-40"/>
+                {filterDate && (
+                  <button onClick={() => setFilterDate('')}
+                    className="text-xs text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-medium">
+                    Clear
+                  </button>
+                )}
+                {filterDate && (
+                  <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
+                    {filtered.length} appointment{filtered.length !== 1 ? 's' : ''} on {new Date(filterDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'medium' })}
+                  </span>
+                )}
+              </div>
             )}
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
               className="input-field w-40 ml-auto">

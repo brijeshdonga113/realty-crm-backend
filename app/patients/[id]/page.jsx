@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -9,8 +9,11 @@ import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
+import { useFollowUps } from '@/hooks/useFollowUps'
+import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { formatCurrency } from '@/models/Invoice'
+import { formatCurrency, PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { billingService } from '@/services/billingService'
 
 const REFERRAL_SOURCES = [
   { value: '', label: 'Select source…' },
@@ -24,18 +27,24 @@ const REFERRAL_SOURCES = [
   { value: 'other', label: 'Other' },
 ]
 
+const WA_ICON = (
+  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+)
+
+function daysBetween(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0)
+  return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
+}
+
+/* ─────────────── EditPatientModal ─────────────── */
 function EditPatientModal({ open, onClose, patient, onSave }) {
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  // Initialize form when modal opens
-  if (open && !form) {
-    setForm({ ...patient })
-  }
-  if (!open && form) {
-    setForm(null)
-  }
-
+  if (open && !form) setForm({ ...patient })
+  if (!open && form) setForm(null)
   if (!open || !form) return null
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -153,7 +162,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const INV_COLORS    = { draft: 'gray', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
-const TABS = ['Overview', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -165,8 +174,49 @@ function InfoRow({ label, value }) {
   )
 }
 
-function VisitCard({ visit }) {
-  const [open, setOpen] = useState(false)
+/* ─────────────── VisitCard with edit ─────────────── */
+function VisitCard({ visit, onUpdate, patientId, patientName }) {
+  const [open, setOpen]       = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [editForm, setEditForm] = useState(null)
+  const [diagInput, setDiagInput] = useState('')
+
+  const openEdit = () => {
+    setEditForm({
+      chiefComplaint: visit.chiefComplaint || '',
+      history:        visit.history || '',
+      findings:       visit.examination?.findings || '',
+      diagnosis:      [...(visit.diagnosis || [])],
+      treatment:      visit.treatment || '',
+      notes:          visit.notes || '',
+      followUpDate:   visit.followUpDate || '',
+    })
+    setEditing(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!onUpdate || !editForm) return
+    setSaving(true)
+    try {
+      await onUpdate(visit.id, {
+        chiefComplaint: editForm.chiefComplaint,
+        history:        editForm.history,
+        examination:    { ...visit.examination, findings: editForm.findings },
+        diagnosis:      editForm.diagnosis,
+        treatment:      editForm.treatment,
+        notes:          editForm.notes,
+        followUpDate:   editForm.followUpDate || null,
+      })
+      setEditing(false)
+      setOpen(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const daysRemaining = visit.followUpDate ? daysBetween(visit.followUpDate) : null
+
   return (
     <>
       <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer"
@@ -175,7 +225,22 @@ function VisitCard({ visit }) {
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {new Date(visit.visitDate).toLocaleDateString('en-US', { dateStyle: 'medium' })}
           </p>
-          <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}</span>
+          <div className="flex items-center gap-2">
+            {visit.followUpDate && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+              }`}>
+                {daysRemaining < 0 ? `${Math.abs(daysRemaining)}d overdue` :
+                 daysRemaining === 0 ? 'Follow-up today' :
+                 `Follow-up in ${daysRemaining}d`}
+              </span>
+            )}
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
+            </span>
+          </div>
         </div>
         <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{visit.chiefComplaint || 'No complaint noted'}</p>
         {visit.diagnosis?.length > 0 && (
@@ -188,74 +253,184 @@ function VisitCard({ visit }) {
         )}
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Visit Record" size="lg">
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <InfoRow label="Visit Date" value={new Date(visit.visitDate).toLocaleString()} />
-            <InfoRow label="Follow-up" value={visit.followUpDate ?? 'None'} />
+      {/* View/Edit Modal */}
+      <Modal open={open} onClose={() => { setOpen(false); setEditing(false) }} title={editing ? 'Edit Visit' : 'Visit Record'} size="lg">
+        {!editing ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Visit Date" value={new Date(visit.visitDate).toLocaleString()} />
+              <div>
+                <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Follow-up</p>
+                {visit.followUpDate ? (
+                  <div className="mt-0.5">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{visit.followUpDate}</p>
+                    {daysRemaining !== null && (
+                      <p className={`text-xs font-semibold mt-0.5 ${
+                        daysRemaining < 0 ? 'text-red-600 dark:text-red-400' :
+                        daysRemaining === 0 ? 'text-orange-600 dark:text-orange-400' :
+                        'text-primary-600 dark:text-primary-400'
+                      }`}>
+                        {daysRemaining < 0 ? `${Math.abs(daysRemaining)} days overdue` :
+                         daysRemaining === 0 ? 'Today' :
+                         `${daysRemaining} days remaining`}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-0.5">None scheduled</p>
+                )}
+              </div>
+            </div>
+            <InfoRow label="Chief Complaint" value={visit.chiefComplaint} />
+            <InfoRow label="History" value={visit.history} />
+            {visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean) && (
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Vital Signs</p>
+                <div className="grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                  {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
+                    <div key={k}>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
+                    </div>
+                  ) : null)}
+                </div>
+              </div>
+            )}
+            <InfoRow label="Findings" value={visit.examination?.findings} />
+            {visit.diagnosis?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Diagnosis</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
+                </div>
+              </div>
+            )}
+            <InfoRow label="Treatment" value={visit.treatment} />
+            {visit.prescriptions?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Prescriptions</p>
+                <div className="space-y-2">
+                  {visit.prescriptions.map(rx => (
+                    <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
+                      <p className="font-semibold text-gray-800 dark:text-gray-200">{rx.medication} — {rx.dosage}</p>
+                      <p className="text-gray-600 dark:text-gray-400 text-xs">{rx.frequency} · {rx.duration}</p>
+                      {rx.instructions && <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">{rx.instructions}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {visit.labOrders?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Lab Orders</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
+                </div>
+              </div>
+            )}
+            <InfoRow label="Notes" value={visit.notes} />
+            <div className="flex justify-end pt-2 border-t dark:border-gray-700">
+              <button onClick={openEdit}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit Visit
+              </button>
+            </div>
           </div>
-          <InfoRow label="Chief Complaint" value={visit.chiefComplaint} />
-          <InfoRow label="History" value={visit.history} />
-          {visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean) && (
+        ) : (
+          <div className="space-y-4">
             <div>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Vital Signs</p>
-              <div className="grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
-                  <div key={k}>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
-                  </div>
-                ) : null)}
-              </div>
+              <label className="form-label">Chief Complaint *</label>
+              <input value={editForm.chiefComplaint} onChange={e => setEditForm(f => ({...f, chiefComplaint: e.target.value}))}
+                className="input-field"/>
             </div>
-          )}
-          <InfoRow label="Findings" value={visit.examination?.findings} />
-          {visit.diagnosis?.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Diagnosis</p>
-              <div className="flex flex-wrap gap-1.5">
-                {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
-              </div>
+              <label className="form-label">History</label>
+              <textarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
+                rows={2} className="input-field resize-none"/>
             </div>
-          )}
-          <InfoRow label="Treatment" value={visit.treatment} />
-          {visit.prescriptions?.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Prescriptions</p>
-              <div className="space-y-2">
-                {visit.prescriptions.map(rx => (
-                  <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
-                    <p className="font-semibold text-gray-800 dark:text-gray-200">{rx.medication} — {rx.dosage}</p>
-                    <p className="text-gray-600 dark:text-gray-400 text-xs">{rx.frequency} · {rx.duration}</p>
-                    {rx.instructions && <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">{rx.instructions}</p>}
-                  </div>
+              <label className="form-label">Clinical Findings</label>
+              <textarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
+                rows={2} className="input-field resize-none"/>
+            </div>
+            <div>
+              <label className="form-label">Diagnosis</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {editForm.diagnosis.map(d => (
+                  <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">
+                    {d}
+                    <button type="button" onClick={() => setEditForm(f => ({...f, diagnosis: f.diagnosis.filter(x => x !== d)}))} className="hover:text-red-500">×</button>
+                  </span>
                 ))}
               </div>
-            </div>
-          )}
-          {visit.labOrders?.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Lab Orders</p>
-              <div className="flex flex-wrap gap-1.5">
-                {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
+              <div className="flex gap-2">
+                <input value={diagInput} onChange={e => setDiagInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (diagInput.trim()) { setEditForm(f => ({...f, diagnosis: [...f.diagnosis, diagInput.trim()]})); setDiagInput('') } }}}
+                  placeholder="Type and press Enter" className="input-field flex-1"/>
+                <button type="button" onClick={() => { if (diagInput.trim()) { setEditForm(f => ({...f, diagnosis: [...f.diagnosis, diagInput.trim()]})); setDiagInput('') }}}
+                  className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Add</button>
               </div>
             </div>
-          )}
-          <InfoRow label="Notes" value={visit.notes} />
-        </div>
+            <div>
+              <label className="form-label">Treatment Plan</label>
+              <textarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
+                rows={2} className="input-field resize-none"/>
+            </div>
+            <div>
+              <label className="form-label">Follow-up Date</label>
+              <input type="date" value={editForm.followUpDate}
+                onChange={e => setEditForm(f => ({...f, followUpDate: e.target.value}))}
+                className="input-field"/>
+              {editForm.followUpDate && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">
+                  {daysBetween(editForm.followUpDate) >= 0
+                    ? `${daysBetween(editForm.followUpDate)} days from today`
+                    : `${Math.abs(daysBetween(editForm.followUpDate))} days ago`}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="form-label">Notes</label>
+              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
+                rows={2} className="input-field resize-none"/>
+            </div>
+            <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
+              <button onClick={() => setEditing(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleUpdate} disabled={saving || !editForm.chiefComplaint.trim()}
+                className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   )
 }
 
-function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
+/* ─────────────── AddVisitModal with payment + billing ─────────────── */
+function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, onSave, doctor }) {
   const { add } = useVisits(patientId)
   const [loading, setLoading] = useState(false)
+  const [customDays, setCustomDays] = useState('')
   const [form, setForm] = useState({
     chiefComplaint: '', history: '', findings: '', diagnosis: [],
     treatment: '', prescriptions: [], labOrders: [], followUpDate: '',
     notes: '',
     vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+  })
+  const [payment, setPayment] = useState({
+    record: false,
+    amount: '',
+    method: 'cash',
+    description: 'Consultation Fee',
+    status: 'paid',
   })
   const [diagInput, setDiagInput] = useState('')
   const [labInput, setLabInput]   = useState('')
@@ -264,11 +439,24 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
+  const addFollowUpDays = (days) => {
+    const d = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+    set('followUpDate', d)
+  }
+
+  const resetForm = () => {
+    setForm({ chiefComplaint: '', history: '', findings: '', diagnosis: [], treatment: '', prescriptions: [], labOrders: [], followUpDate: '', notes: '',
+      vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' } })
+    setPayment({ record: false, amount: '', method: 'cash', description: 'Consultation Fee', status: 'paid' })
+    setDiagInput(''); setLabInput(''); setCustomDays('')
+    setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+  }
+
   const handleSave = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      await add({
+      const visit = await add({
         patientId,
         patientName,
         visitDate: new Date().toISOString(),
@@ -282,6 +470,23 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
         followUpDate: form.followUpDate || null,
         notes: form.notes,
       })
+
+      if (payment.record && Number(payment.amount) > 0) {
+        await billingService.create({
+          patientId,
+          patientName,
+          issueDate:     new Date().toISOString().slice(0, 10),
+          lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
+          status:        payment.status,
+          paymentMethod: payment.method,
+          paymentDate:   payment.status === 'paid' ? new Date().toISOString().slice(0, 10) : null,
+          taxRate:       0,
+          discount:      0,
+          visitId:       visit.id,
+        })
+      }
+
+      resetForm()
       onSave?.()
       onClose()
     } finally {
@@ -289,14 +494,17 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
     }
   }
 
+  if (!open) return null
+
   return (
-    <Modal open={open} onClose={onClose} title="Record Visit" size="xl">
+    <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Record Visit" size="xl">
       <form onSubmit={handleSave} className="space-y-5">
         <div>
           <label className="form-label">Chief Complaint *</label>
           <input value={form.chiefComplaint} onChange={e => set('chiefComplaint', e.target.value)}
             placeholder="Patient's main concern" className="input-field" required/>
         </div>
+
         <div>
           <label className="form-label">History of Present Illness</label>
           <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={2}
@@ -336,7 +544,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.diagnosis.map(d => (
               <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">
-                {d} <button type="button" onClick={() => set('diagnosis', form.diagnosis.filter(x => x !== d))}>×</button>
+                {d} <button type="button" onClick={() => set('diagnosis', form.diagnosis.filter(x => x !== d))} className="hover:text-red-500">×</button>
               </span>
             ))}
           </div>
@@ -355,7 +563,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
             placeholder="Treatment approach..." className="input-field resize-none"/>
         </div>
 
-        {/* Prescription */}
+        {/* Prescriptions */}
         <div>
           <label className="form-label">Prescriptions</label>
           {form.prescriptions.map((p, i) => (
@@ -382,11 +590,10 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
             placeholder="Special instructions (e.g. Take after meals)" className="input-field text-sm py-2 mb-2"/>
           <button type="button" onClick={() => {
             if (rx.medication.trim()) {
-              const id = `${Date.now()}`
-              set('prescriptions', [...form.prescriptions, { ...rx, id }])
+              set('prescriptions', [...form.prescriptions, { ...rx, id: `${Date.now()}` }])
               setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
             }
-          }} className="text-sm text-primary-600 hover:underline font-medium">+ Add prescription</button>
+          }} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">+ Add prescription</button>
         </div>
 
         {/* Lab Orders */}
@@ -395,7 +602,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           <div className="flex flex-wrap gap-1.5 mb-2">
             {form.labOrders.map(l => (
               <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full font-medium">
-                {l} <button type="button" onClick={() => set('labOrders', form.labOrders.filter(x => x !== l))}>×</button>
+                {l} <button type="button" onClick={() => set('labOrders', form.labOrders.filter(x => x !== l))} className="hover:text-red-500">×</button>
               </span>
             ))}
           </div>
@@ -408,23 +615,111 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">Follow-up Date</label>
-            <input type="date" value={form.followUpDate} onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
+        {/* Follow-up Date */}
+        <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-xl p-4">
+          <p className="form-label text-orange-800 dark:text-orange-300">Follow-up Date</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[[7,'+7'],[10,'+10'],[15,'+15'],[21,'+21'],[30,'+30']].map(([days, label]) => (
+              <button key={days} type="button" onClick={() => addFollowUpDays(days)}
+                className="text-xs px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors">
+                {label}d
+              </button>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <input type="number" min="1" max="365" value={customDays}
+                onChange={e => setCustomDays(e.target.value)} placeholder="Custom"
+                className="input-field text-xs py-1.5 w-20"/>
+              <button type="button"
+                onClick={() => { const d = parseInt(customDays); if (d > 0) { addFollowUpDays(d); setCustomDays('') } }}
+                disabled={!customDays || parseInt(customDays) < 1}
+                className="text-xs px-2.5 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors disabled:opacity-40">
+                Set
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="form-label">Notes</label>
-            <input value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Additional notes" className="input-field"/>
+          <input type="date" value={form.followUpDate}
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
+          {form.followUpDate && (
+            <div className="mt-2 flex items-center gap-3">
+              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                {new Date(form.followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { dateStyle: 'full' })}
+              </p>
+              <p className="text-xs text-gray-400">({daysBetween(form.followUpDate)} days from today)</p>
+              <button type="button" onClick={() => set('followUpDate', '')} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
+            </div>
+          )}
+        </div>
+
+        {/* Payment */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">Payment Collection</p>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+              <input type="checkbox" checked={payment.record}
+                onChange={e => setPayment(p => ({ ...p, record: e.target.checked }))}
+                className="w-4 h-4 rounded border-gray-300 text-primary-600"/>
+              Record payment
+            </label>
           </div>
+          {payment.record && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="form-label">Amount (₹)</label>
+                  <input type="number" min="0" value={payment.amount}
+                    onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="0" className="input-field"/>
+                </div>
+                <div>
+                  <label className="form-label">Method</label>
+                  <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
+                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Description</label>
+                  <input value={payment.description} onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Consultation Fee" className="input-field"/>
+                </div>
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
+                    <option value="paid">Paid</option>
+                    <option value="draft">Due / Unpaid</option>
+                  </select>
+                </div>
+              </div>
+              {Number(payment.amount) > 0 && (
+                <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${
+                  payment.status === 'paid'
+                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800'
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800'
+                }`}>
+                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                    {payment.status === 'paid' ? 'Amount collected' : 'Amount due'}
+                  </span>
+                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                    ₹{Number(payment.amount).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div>
+          <label className="form-label">Notes</label>
+          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
+            placeholder="Additional notes..." className="input-field resize-none"/>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose}
+          <button type="button" onClick={() => { resetForm(); onClose() }}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={loading || !form.chiefComplaint.trim()}
             className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
             {loading ? 'Saving…' : 'Save Visit'}
           </button>
@@ -434,16 +729,126 @@ function AddVisitModal({ open, onClose, patientId, patientName, onSave }) {
   )
 }
 
+/* ─────────────── FollowUpRow for patient profile tab ─────────────── */
+function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
+  const diff = daysBetween(entry.dueDate)
+  const isOverdue = diff < 0
+  const isToday   = diff === 0
+  const waKey = isOverdue ? 'missed' : isToday ? 'today' : diff === 1 ? 'tomorrow' : 'followup'
+
+  let badge, badgeBg
+  if (isOverdue)    { badge = `${Math.abs(diff)}d overdue`; badgeBg = 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' }
+  else if (isToday) { badge = 'Today';                       badgeBg = 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' }
+  else if (diff===1){ badge = 'Tomorrow';                    badgeBg = 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' }
+  else              { badge = `in ${diff}d`;                 badgeBg = 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' }
+
+  const sendWhatsApp = () => {
+    let templates = {}
+    try { templates = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+    const defaults = {
+      followup: 'Hello {name},\n\nThis is a reminder that your follow-up at {clinic} is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!',
+      missed:   'Hello {name},\n\nWe noticed your follow-up scheduled on *{date}* was {days} day(s) ago. Please visit us at {clinic} soon.\n\nThank you!',
+      today:    'Hello {name},\n\nYour follow-up at {clinic} is *today*. Please visit us at your earliest convenience.\n\nThank you!',
+      tomorrow: 'Hello {name},\n\nJust a reminder — your follow-up at {clinic} is *tomorrow, {date}*.\n\nThank you!',
+    }
+    const tmpl = templates[waKey]?.template || defaults[waKey]
+    const clinicName = doctor?.clinicName || 'our clinic'
+    const msg = tmpl
+      .replace(/\{name\}/g, entry.patientName || 'Patient')
+      .replace(/\{clinic\}/g, clinicName)
+      .replace(/\{date\}/g, entry.dueDate)
+      .replace(/\{days\}/g, String(Math.abs(diff)))
+    const cc = (templates.countryCode || '+91').replace(/\D/g, '')
+    const ph = (phone || entry.phone || '').replace(/\D/g, '').replace(/^0/, '')
+    const full = ph ? `${cc}${ph}` : ''
+    window.open(full ? `https://wa.me/${full}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  return (
+    <div className={`flex items-center gap-4 px-4 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
+      ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{entry.dueDate}</p>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
+          {entry.source === 'standalone' && (
+            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Reminder</span>
+          )}
+          {entry.source === 'visit' && (
+            <span className="text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 px-1.5 py-0.5 rounded">Visit follow-up</span>
+          )}
+        </div>
+        {entry.note && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{entry.note}</p>}
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button onClick={sendWhatsApp}
+          className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
+          {WA_ICON} Remind
+        </button>
+        {entry.source === 'standalone' && entry.status === 'pending' && onMarkDone && (
+          <button onClick={() => onMarkDone(entry.id)}
+            className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+            </svg>
+            Done
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────── Main Page ─────────────── */
 export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
-  const { patient, loading } = usePatient(id)
-  const { visits, reload: reloadVisits } = useVisits(id)
+  const { doctor } = useAuth()
+  const { patient, loading, update } = usePatient(id)
+  const { visits, update: updateVisit, reload: reloadVisits } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
+  const { followups, markDone } = useFollowUps()
   const [tab, setTab]            = useState(0)
   const [showVisitModal, setShowVisitModal] = useState(false)
   const [showEditModal, setShowEditModal]   = useState(false)
+
+  // Merge visit-based + standalone follow-ups for this patient
+  const patientFollowUps = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+
+    const visitBased = visits
+      .filter(v => v.followUpDate)
+      .map(v => ({
+        id:      v.id,
+        dueDate: v.followUpDate,
+        note:    v.chiefComplaint,
+        source:  'visit',
+        status:  'pending',
+        phone:   '',
+      }))
+
+    const standalone = followups
+      .filter(f => f.patientId === id && f.status === 'pending')
+      .map(f => ({
+        id:      f.id,
+        dueDate: f.dueDate,
+        note:    f.note,
+        source:  'standalone',
+        status:  f.status,
+        phone:   f.phone || '',
+      }))
+
+    // Deduplicate: prefer standalone over visit-based for same date
+    const seen = new Set()
+    const merged = [...standalone]
+    standalone.forEach(e => seen.add(`${e.dueDate}`))
+    visitBased.forEach(e => {
+      if (!seen.has(e.dueDate)) { seen.add(e.dueDate); merged.push(e) }
+    })
+
+    return merged.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  }, [visits, followups, id])
 
   if (loading) return (
     <AppLayout title="Patient Profile">
@@ -464,6 +869,15 @@ export default function PatientProfilePage() {
   )
 
   const age = getPatientAge(patient)
+  const today    = new Date().toISOString().slice(0, 10)
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+
+  const overdueFollowUps  = patientFollowUps.filter(e => e.dueDate < today)
+  const todayFollowUps    = patientFollowUps.filter(e => e.dueDate === today)
+  const tomorrowFollowUps = patientFollowUps.filter(e => e.dueDate === tomorrow)
+  const upcomingFollowUps = patientFollowUps.filter(e => e.dueDate > tomorrow)
+
+  const followUpDueCount = overdueFollowUps.length + todayFollowUps.length
 
   return (
     <AppLayout
@@ -505,12 +919,27 @@ export default function PatientProfilePage() {
                 #{patient.patientNumber}
               </span>
             )}
+            {followUpDueCount > 0 && (
+              <span className="bg-red-500/80 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                {followUpDueCount} follow-up{followUpDueCount !== 1 ? 's' : ''} due
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
             {age && <span>{age} years old</span>}
             <span className="capitalize">{patient.gender}</span>
             {patient.bloodType && <span className="font-semibold text-white">{patient.bloodType}</span>}
-            {patient.phone && <span>📞 {patient.phone}</span>}
+            {patient.phone && (
+              <span className="flex items-center gap-1.5">
+                📞 {patient.phone}
+                {patient.phone && (
+                  <a href={`https://wa.me/${patient.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                    className="ml-1 inline-flex items-center gap-1 bg-green-500/80 hover:bg-green-500 px-2 py-0.5 rounded-full text-white text-xs font-medium transition-colors">
+                    {WA_ICON} WhatsApp
+                  </a>
+                )}
+              </span>
+            )}
             {patient.email && <span>✉️ {patient.email}</span>}
           </div>
         </div>
@@ -518,15 +947,22 @@ export default function PatientProfilePage() {
           <span>{visits.length} visit{visits.length !== 1 ? 's' : ''}</span>
           <span>{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
           <span>{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
+          <span>{patientFollowUps.length} follow-up{patientFollowUps.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit overflow-x-auto">
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
+              ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
             {t}
+            {t === 'Follow-ups' && followUpDueCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                {followUpDueCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -612,22 +1048,105 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      {/* Tab 1: Visits */}
+      {/* Tab 1: Follow-ups */}
       {tab === 1 && (
+        <div className="space-y-4">
+          {patientFollowUps.length === 0 ? (
+            <EmptyState
+              title="No follow-ups scheduled"
+              description="Follow-up dates are set when recording a visit. You can also set a reminder from the patient list."
+              action={() => setShowVisitModal(true)}
+              actionLabel="Record Visit with Follow-up"
+            />
+          ) : (
+            <>
+              {/* Summary row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Overdue',  count: overdueFollowUps.length,  color: 'text-red-600 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800' },
+                  { label: 'Today',    count: todayFollowUps.length,    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800' },
+                  { label: 'Tomorrow', count: tomorrowFollowUps.length, color: 'text-yellow-600 dark:text-yellow-400',  bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800' },
+                  { label: 'Upcoming', count: upcomingFollowUps.length, color: 'text-primary-600 dark:text-primary-400', bg: 'bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-800' },
+                ].map(s => (
+                  <div key={s.label} className={`rounded-xl border p-3 text-center ${s.bg}`}>
+                    <p className={`text-xl font-bold ${s.color}`}>{s.count}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Overdue */}
+              {overdueFollowUps.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-800 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-900/20 flex items-center justify-between">
+                    <h3 className="font-semibold text-red-700 dark:text-red-300">Overdue</h3>
+                    <span className="text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-full border border-red-200 dark:border-red-700">{overdueFollowUps.length}</span>
+                  </div>
+                  <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                    {overdueFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}
+                  </div>
+                </div>
+              )}
+
+              {/* Today */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Today</h3>
+                  <span className="text-xs font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2.5 py-1 rounded-full border border-orange-200 dark:border-orange-700">{todayFollowUps.length}</span>
+                </div>
+                {todayFollowUps.length === 0
+                  ? <div className="px-4 py-6 text-center text-sm text-gray-400">No follow-ups today.</div>
+                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{todayFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}</div>
+                }
+              </div>
+
+              {/* Tomorrow */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Tomorrow</h3>
+                  <span className="text-xs font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 px-2.5 py-1 rounded-full border border-yellow-200 dark:border-yellow-700">{tomorrowFollowUps.length}</span>
+                </div>
+                {tomorrowFollowUps.length === 0
+                  ? <div className="px-4 py-6 text-center text-sm text-gray-400">No follow-ups tomorrow.</div>
+                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{tomorrowFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}</div>
+                }
+              </div>
+
+              {/* Upcoming */}
+              {upcomingFollowUps.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Upcoming</h3>
+                    <span className="text-xs font-bold bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 px-2.5 py-1 rounded-full border border-primary-200 dark:border-primary-700">{upcomingFollowUps.length}</span>
+                  </div>
+                  <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                    {upcomingFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Visits */}
+      {tab === 2 && (
         <div>
           {visits.length === 0 ? (
             <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
               action={() => setShowVisitModal(true)} actionLabel="Record Visit"/>
           ) : (
             <div className="space-y-4">
-              {visits.map(visit => <VisitCard key={visit.id} visit={visit}/>)}
+              {visits.map(visit => (
+                <VisitCard key={visit.id} visit={visit} onUpdate={updateVisit} patientId={id} patientName={`${patient.firstName} ${patient.lastName}`}/>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Tab 2: Appointments */}
-      {tab === 2 && (
+      {/* Tab 3: Appointments */}
+      {tab === 3 && (
         <div>
           {appointments.length === 0 ? (
             <EmptyState title="No appointments" description="This patient has no appointments scheduled."
@@ -658,8 +1177,8 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      {/* Tab 3: Billing */}
-      {tab === 3 && (
+      {/* Tab 4: Billing */}
+      {tab === 4 && (
         <div>
           {invoices.length === 0 ? (
             <EmptyState title="No invoices" description="No billing history for this patient."
@@ -669,22 +1188,38 @@ export default function PatientProfilePage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                    {['Invoice #', 'Date', 'Amount', 'Status'].map(h => (
+                    {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status'].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {invoices.map(inv => (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber}</td>
+                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/billing/${inv.id}`)}>
+                      <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{inv.issueDate}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">
+                        {inv.lineItems?.[0]?.description || '—'}
+                        {inv.lineItems?.length > 1 && <span className="text-gray-400 ml-1">+{inv.lineItems.length - 1}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 capitalize">{inv.paymentMethod?.replace('_',' ') || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
-                      <td className="px-4 py-3"><Badge label={inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/></td>
+                      <td className="px-4 py-3">
+                        <Badge label={inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30 flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {invoices.filter(i => i.status === 'paid').length} paid · {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} pending
+                </span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                  Total: {formatCurrency(invoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total || 0), 0))} collected
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -695,7 +1230,9 @@ export default function PatientProfilePage() {
         onClose={() => setShowVisitModal(false)}
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
+        patientPhone={patient.phone}
         onSave={reloadVisits}
+        doctor={doctor}
       />
 
       <EditPatientModal
