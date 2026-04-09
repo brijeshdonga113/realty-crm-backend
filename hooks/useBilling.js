@@ -41,15 +41,23 @@ export function useBilling() {
 }
 
 export function usePatientInvoices(patientId) {
+  const { doctor } = useAuth()
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
-    if (!patientId) return
-    billingService.getForPatient(patientId)
-      .then(setInvoices)
-      .finally(() => setLoading(false))
-  }, [patientId])
+    if (!patientId || !doctor) return
+    setLoading(true)
+    // Use live subscription so new invoices appear immediately
+    const unsub = dataStore.subscribe('invoices', (data) => {
+      const filtered = data
+        .filter(inv => inv.patientId === patientId)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      setInvoices(filtered)
+      setLoading(false)
+    })
+    return () => unsub()
+  }, [patientId, doctor])
 
   return { invoices, loading }
 }
