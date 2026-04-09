@@ -79,6 +79,4 @@ export function getInvoiceStatusMeta(status) {
   return INVOICE_STATUSES.find(s => s.value === status) ?? INVOICE_STATUSES[0]
 }
 
-export function formatCurrency(amount, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(amount)
-}
+export { formatCurrency } from '@/lib/preferences'

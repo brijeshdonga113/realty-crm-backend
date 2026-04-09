@@ -12,7 +12,8 @@ import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { formatCurrency, PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { usePreferences } from '@/hooks/usePreferences'
 import { billingService } from '@/services/billingService'
 
 const REFERRAL_SOURCES = [
@@ -176,6 +177,7 @@ function InfoRow({ label, value }) {
 
 /* ─────────────── VisitCard with edit ─────────────── */
 function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
+  const { formatCurrency, formatDate } = usePreferences()
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -260,7 +262,7 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                 : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
             }`}>
-              {linkedInvoice.status === 'paid' ? '₹ Paid' : '₹ Due'} · {formatCurrency(linkedInvoice.total)}
+              {linkedInvoice.status === 'paid' ? 'Paid' : 'Due'} · {formatCurrency(linkedInvoice.total)}
             </span>
           </div>
         )}
@@ -849,6 +851,7 @@ export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { doctor } = useAuth()
+  const { formatCurrency, formatDate } = usePreferences()
   const { patient, loading, update } = usePatient(id)
   const { visits, update: updateVisit, reload: reloadVisits } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
@@ -1250,7 +1253,7 @@ export default function PatientProfilePage() {
                     <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
                       onClick={() => router.push(`/billing/${inv.id}`)}>
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{inv.issueDate}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">
                         {inv.lineItems?.[0]?.description || '—'}
                         {inv.lineItems?.length > 1 && <span className="text-gray-400 ml-1">+{inv.lineItems.length - 1}</span>}

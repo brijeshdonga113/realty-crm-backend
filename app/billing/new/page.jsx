@@ -5,7 +5,8 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
 import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
-import { createLineItem, calculateInvoiceTotals, formatCurrency } from '@/models/Invoice'
+import { createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const COMMON_ITEMS = [
   { description: 'Consultation', unitPrice: 500 },
@@ -24,6 +25,7 @@ function NewInvoiceForm() {
   const { add }      = useBilling()
   const { patients } = usePatients()
   const { doctor }   = useAuth()
+  const { formatCurrency } = usePreferences()
 
   const [loading, setLoading]   = useState(false)
   const [errors, setErrors]     = useState({})

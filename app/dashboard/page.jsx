@@ -7,7 +7,7 @@ import { useReports } from '@/hooks/useReports'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { useFollowUps } from '@/hooks/useFollowUps'
-import { formatCurrency } from '@/models/Invoice'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const SPECIALIZATION_LABELS = {
   general: 'General Practitioner', cardiology: 'Cardiology', dermatology: 'Dermatology',
@@ -44,6 +44,7 @@ function StatCard({ label, value, sub, color, icon }) {
 export default function DashboardPage() {
   const { doctor }    = useAuth()
   const router        = useRouter()
+  const { formatCurrency, formatDate } = usePreferences()
   const { stats, loading: reportLoading } = useReports()
   const { appointments } = useAppointments()
   const { patients }     = usePatients()
@@ -144,7 +145,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-teal-100 text-xs font-semibold uppercase tracking-wider mb-1">Today's Revenue</p>
                 <p className="text-3xl font-bold">
-                  ₹ {(stats?.billing?.todayRevenue ?? 0).toLocaleString('en-IN')}
+                  {formatCurrency(stats?.billing?.todayRevenue ?? 0)}
                 </p>
                 <p className="text-teal-100 text-xs mt-1">
                   Total: {formatCurrency(stats?.billing?.totalRevenue ?? 0)} · {stats?.billing?.pending ?? 0} pending
@@ -263,7 +264,7 @@ export default function DashboardPage() {
                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
                         <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Scheduled follow-up'}</p>
                       </div>
-                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex-shrink-0">{f.dueDate}</p>
+                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex-shrink-0">{formatDate(f.dueDate)}</p>
                     </div>
                   ))}
                 </div>
@@ -298,9 +299,9 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{v.chiefComplaint || 'Visit recorded'}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{v.visitDate}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(v.visitDate)}</p>
                     {v.followUpDate && (
-                      <p className="text-xs text-orange-500 font-medium mt-0.5">Follow-up {v.followUpDate}</p>
+                      <p className="text-xs text-orange-500 font-medium mt-0.5">Follow-up {formatDate(v.followUpDate)}</p>
                     )}
                   </div>
                 </div>

@@ -31,8 +31,8 @@ function InvoicePrint({ invoice, doctor }) {
         </div>
         <div className="text-right">
           <p className="text-xl font-bold text-gray-900">{invoice.invoiceNumber}</p>
-          <p className="text-gray-500 text-xs mt-1">Issue: {invoice.issueDate}</p>
-          {invoice.dueDate && <p className="text-gray-500 text-xs">Due: {invoice.dueDate}</p>}
+          <p className="text-gray-500 text-xs mt-1">Issue: {formatDate(invoice.issueDate)}</p>
+          {invoice.dueDate && <p className="text-gray-500 text-xs">Due: {formatDate(invoice.dueDate)}</p>}
         </div>
       </div>
 
@@ -81,16 +81,17 @@ function InvoicePrint({ invoice, doctor }) {
   )
 }
 
-function buildWhatsAppMessage(inv) {
-  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${formatCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
+function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
+  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
   return encodeURIComponent(
-    `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${inv.issueDate} is ready.\n\n${items}\n\n*Total: ${formatCurrency(inv.total)}*\n\nThank you!`
+    `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
   )
 }
 
 export default function BillingPage() {
   const router = useRouter()
   const { doctor } = useAuth()
+  const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, remove } = useBilling()
   const [filterStatus, setFilterStatus] = useState('all')
   const [printInvoice, setPrintInvoice] = useState(null)
@@ -181,7 +182,7 @@ export default function BillingPage() {
                     <p className="text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber}</p>
                   </td>
                   <td className="px-4 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{inv.patientName}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{inv.issueDate}</td>
+                  <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{formatDate(inv.issueDate)}</td>
                   <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{inv.lineItems?.length ?? 0} item{inv.lineItems?.length !== 1 ? 's' : ''}</td>
                   <td className="px-4 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3.5">
@@ -201,7 +202,7 @@ export default function BillingPage() {
                       </button>
                       {inv.patientPhone && (
                         <a
-                          href={`https://wa.me/${inv.patientPhone.replace(/\D/g, '')}?text=${buildWhatsAppMessage(inv)}`}
+                          href={`https://wa.me/${inv.patientPhone.replace(/\D/g, '')}?text=${buildWhatsAppMessage(inv, formatCurrency, formatDate)}`}
                           target="_blank" rel="noopener noreferrer"
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
                           title="Send via WhatsApp"

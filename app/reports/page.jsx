@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useReports, computeRevenueForRange } from '@/hooks/useReports'
-import { formatCurrency } from '@/models/Invoice'
+import { usePreferences } from '@/hooks/usePreferences'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ function periodRange(period) {
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
-function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
+function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '', fmtCurrency }) {
   if (!data?.length) return (
     <div className="h-40 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">No data yet</div>
   )
@@ -62,7 +62,7 @@ function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '' }) {
         return (
           <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
             <span className={`text-xs font-medium truncate w-full text-center ${c.label}`}>
-              {unit === 'currency' ? formatCurrency(item[valueKey]) : item[valueKey]}
+              {unit === 'currency' && fmtCurrency ? fmtCurrency(item[valueKey]) : item[valueKey]}
             </span>
             <div className={`w-full ${c.bar} rounded-t-lg transition-all`} style={{ height: `${h}%` }}/>
             <span className="text-xs text-gray-400 dark:text-gray-500 truncate w-full text-center">{item[labelKey]}</span>
@@ -129,6 +129,7 @@ const PERIODS = [
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const { formatCurrency } = usePreferences()
   const { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown,
           rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()
 
@@ -239,7 +240,7 @@ export default function ReportsPage() {
             </div>
           </div>
           <BarChart data={revenueView === '12m' ? yearlyRevenue : monthlyRevenue}
-            valueKey="revenue" labelKey="label" color="green" unit="currency"/>
+            valueKey="revenue" labelKey="label" color="green" unit="currency" fmtCurrency={formatCurrency}/>
         </div>
 
         {/* ── Patient Growth ───────────────────────────────────────────────── */}

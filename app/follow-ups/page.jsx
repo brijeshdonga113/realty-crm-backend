@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -45,6 +46,7 @@ function sendWhatsApp(entry, doctor, templateKey) {
 }
 
 function FollowUpRow({ entry, router, doctor, onMarkDone }) {
+  const { formatDate } = usePreferences()
   const diff      = daysBetween(entry.dueDate || entry.followUpDate)
   const isOverdue = diff < 0
   const isToday   = diff === 0
@@ -73,7 +75,7 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
         </p>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs text-gray-500 dark:text-gray-400">{date}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(date)}</span>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
         {/* WhatsApp */}
         <button onClick={() => sendWhatsApp(entry, doctor, waKey)}

@@ -8,15 +8,13 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const STATUS_COLOR = { scheduled: 'teal', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+// formatDate is now provided by usePreferences()
 
 function formatTime(timeStr) {
   if (!timeStr) return ''
@@ -113,6 +111,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
 export default function AppointmentsPage() {
   const router  = useRouter()
   const { doctor } = useAuth()
+  const { formatDate } = usePreferences()
   const { appointments, loading, update, remove } = useAppointments()
 
   const [view, setView]                 = useState('list')

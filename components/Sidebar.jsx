@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { dataStore } from '@/lib/dataStore'
-import { formatCurrency } from '@/models/Invoice'
+import { formatCurrency as fmtCurrencyLib } from '@/lib/preferences'
 
 function useTodayRevenue(doctor) {
   const [revenue, setRevenue] = useState(null)
@@ -219,7 +219,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
               </p>
               <p className="text-xs text-primary-300 truncate">
                 {todayRevenue !== null
-                  ? <>Today: <span className="text-green-400 font-semibold">{formatCurrency(todayRevenue)}</span></>
+                  ? <>Today: <span className="text-green-400 font-semibold">{fmtCurrencyLib(todayRevenue, doctor?.currency ?? 'INR')}</span></>
                   : <span className="capitalize">{doctor?.specialization?.replace(/_/g, ' ')}</span>
                 }
               </p>
