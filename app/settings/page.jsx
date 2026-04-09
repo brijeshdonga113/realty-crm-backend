@@ -214,6 +214,81 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* ── Regional Preferences ─────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Regional Preferences</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Date format and currency used across the entire app.</p>
+          </div>
+
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="form-label">Date Format</label>
+                <div className="relative">
+                  <select
+                    value={prefForm.dateFormat}
+                    onChange={e => setPrefForm(p => ({ ...p, dateFormat: e.target.value }))}
+                    className="input-field appearance-none pr-9"
+                  >
+                    {DATE_FORMATS.map(f => (
+                      <option key={f.value} value={f.value}>{f.label} — e.g. {f.example}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Currency</label>
+                <div className="relative">
+                  <select
+                    value={prefForm.currency}
+                    onChange={e => setPrefForm(p => ({ ...p, currency: e.target.value }))}
+                    className="input-field appearance-none pr-9"
+                  >
+                    {CURRENCIES.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-2.5">
+              <span className="font-medium text-gray-600 dark:text-gray-300">Preview:</span>
+              <span>{fmtDatePreview('2026-04-09', prefForm.dateFormat)}</span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span>{fmtCurrencyPreview(1234.5, prefForm.currency)}</span>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            {prefSaved
+              ? <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  Preferences saved.
+                </p>
+              : <span/>
+            }
+            <button onClick={handlePrefSave} disabled={prefSaving}
+              className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              {prefSaving
+                ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                : 'Save Preferences'
+              }
+            </button>
+          </div>
+        </div>
+
         {/* Profile & clinic section */}
         <form onSubmit={handleSave} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">

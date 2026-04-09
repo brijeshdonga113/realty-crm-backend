@@ -7,11 +7,13 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
-import { formatCurrency, INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
+import { INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
+import { usePreferences } from '@/hooks/usePreferences'
 
 const STATUS_COLOR = { draft: 'orange', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
 function InvoicePrint({ invoice, doctor }) {
+  const { formatCurrency, formatDate } = usePreferences()
   const clinicName  = invoice.clinicName  || doctor?.clinicName  || 'Clinic'
   const doctorName  = invoice.doctorName  || (doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '')
   const doctorPhone = invoice.doctorPhone || doctor?.phone || ''
