@@ -6,17 +6,26 @@ import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
+import { useAuth } from '@/context/AuthContext'
 import { formatCurrency, INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
 
 const STATUS_COLOR = { draft: 'gray', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
-function InvoicePrint({ invoice }) {
+function InvoicePrint({ invoice, doctor }) {
+  const clinicName  = invoice.clinicName  || doctor?.clinicName  || 'Clinic'
+  const doctorName  = invoice.doctorName  || (doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '')
+  const doctorPhone = invoice.doctorPhone || doctor?.phone || ''
+  const doctorEmail = invoice.doctorEmail || doctor?.email || ''
+
   return (
     <div id="invoice-print" className="p-8 font-sans text-sm text-gray-800 bg-white" style={{ maxWidth: 680, margin: '0 auto' }}>
       <div className="flex justify-between items-start mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-primary-600">ClinicCRM</h1>
-          <p className="text-gray-500 text-xs mt-1">Medical Invoice</p>
+          <h1 className="text-2xl font-bold text-primary-600">{clinicName}</h1>
+          {doctorName  && <p className="text-gray-600 text-xs mt-0.5">{doctorName}</p>}
+          {doctorPhone && <p className="text-gray-500 text-xs">{doctorPhone}</p>}
+          {doctorEmail && <p className="text-gray-500 text-xs">{doctorEmail}</p>}
+          <p className="text-gray-400 text-xs mt-1">Medical Invoice</p>
         </div>
         <div className="text-right">
           <p className="text-xl font-bold text-gray-900">{invoice.invoiceNumber}</p>
@@ -79,6 +88,7 @@ function buildWhatsAppMessage(inv) {
 
 export default function BillingPage() {
   const router = useRouter()
+  const { doctor } = useAuth()
   const { invoices, loading, markPaid, remove } = useBilling()
   const [filterStatus, setFilterStatus] = useState('all')
   const [printInvoice, setPrintInvoice] = useState(null)
@@ -242,7 +252,7 @@ export default function BillingPage() {
       <Modal open={!!printInvoice} onClose={() => setPrintInvoice(null)} title="Invoice Preview" size="lg">
         {printInvoice && (
           <>
-            <InvoicePrint invoice={printInvoice}/>
+            <InvoicePrint invoice={printInvoice} doctor={doctor}/>
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700 mt-4">
               <button onClick={() => setPrintInvoice(null)}
                 className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">

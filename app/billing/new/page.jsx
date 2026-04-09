@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
 import { usePatients } from '@/hooks/usePatients'
+import { useAuth } from '@/context/AuthContext'
 import { createLineItem, calculateInvoiceTotals, formatCurrency } from '@/models/Invoice'
 
 const COMMON_ITEMS = [
@@ -22,6 +23,7 @@ function NewInvoiceForm() {
   const searchParams = useSearchParams()
   const { add }      = useBilling()
   const { patients } = usePatients()
+  const { doctor }   = useAuth()
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
@@ -78,8 +80,12 @@ function NewInvoiceForm() {
         patientName:  selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
         patientPhone: selectedPatient?.phone ?? '',
         lineItems,
-        taxRate: Number(form.taxRate) / 100,
-        discount: Number(form.discount),
+        taxRate:      Number(form.taxRate) / 100,
+        discount:     Number(form.discount),
+        clinicName:   doctor?.clinicName ?? '',
+        doctorName:   doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
+        doctorPhone:  doctor?.phone ?? '',
+        doctorEmail:  doctor?.email ?? '',
       })
       router.push('/billing')
     } finally {
