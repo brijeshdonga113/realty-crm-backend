@@ -730,7 +730,6 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
           <div className="flex items-center justify-between mb-3">
             <p className="font-semibold text-gray-900 dark:text-white text-sm">Payment Collection <span className="text-red-500">*</span></p>
             <span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">Required</span>
-            </label>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
