@@ -178,7 +178,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
             if (visibleItems.length === 0) return null
             return (
               <div key={section.label}>
-                <p className="px-3 mb-1.5 text-[10px] font-bold text-primary-400 uppercase tracking-widest">
+                <p className="px-3 mb-1.5 text-[10px] font-bold text-white/50 uppercase tracking-widest">
                   {section.label}
                 </p>
                 <div className="space-y-0.5">
@@ -188,7 +188,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
                       <Link key={item.href} href={item.href} onClick={handleNavClick}
                         className={active
                           ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-600 text-white font-semibold text-sm'
-                          : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-primary-200 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
+                          : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/75 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
                         }
                       >
                         {item.icon}
