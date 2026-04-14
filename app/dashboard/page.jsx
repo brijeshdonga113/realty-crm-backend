@@ -110,10 +110,14 @@ export default function DashboardPage() {
                 : 'Loading your clinic overview…'}
             </p>
           </div>
-          <div className="hidden sm:block text-right">
-            <p className="text-primary-200 text-xs font-medium uppercase tracking-wide">Specialization</p>
-            <p className="text-white font-semibold mt-0.5">{specLabel}</p>
-          </div>
+          {specLabel && (
+            <div className="hidden sm:flex items-center gap-2 bg-white/15 rounded-xl px-4 py-2 flex-shrink-0">
+              <svg className="w-4 h-4 text-primary-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <span className="text-white font-semibold text-sm">{specLabel}</span>
+            </div>
+          )}
         </div>
 
         {/* Stat cards */}
@@ -152,23 +156,6 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* Today's Revenue — full width highlight, clickable */}
-            <Link href="/billing" className="block bg-gradient-to-r from-teal-500 to-teal-600 rounded-xl p-5 flex items-center justify-between text-white hover:from-teal-600 hover:to-teal-700 transition-all">
-              <div>
-                <p className="text-teal-100 text-xs font-semibold uppercase tracking-wider mb-1">Today's Revenue</p>
-                <p className="text-3xl font-bold">
-                  {formatCurrency(stats?.billing?.todayRevenue ?? 0)}
-                </p>
-                <p className="text-teal-100 text-xs mt-1">
-                  Total: {formatCurrency(stats?.billing?.totalRevenue ?? 0)} · {stats?.billing?.pending ?? 0} pending · <span className="underline opacity-80">View billing →</span>
-                </p>
-              </div>
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-            </Link>
           </>
         )}
 
