@@ -1,8 +1,10 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { useReports, computeRevenueForRange } from '@/hooks/useReports'
+import { useReports } from '@/hooks/useReports'
 import { usePreferences } from '@/hooks/usePreferences'
+import { useAuth } from '@/context/AuthContext'
+import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,65 @@ function periodRange(period) {
     default:
       return { from: '2000-01-01', to: today }
   }
+}
+
+function computeMonthlyData(items, dateKey, valueKey, from, to) {
+  const start = new Date(from + 'T00:00:00')
+  const end   = new Date(to   + 'T00:00:00')
+  const months = []
+  const d = new Date(start.getFullYear(), start.getMonth(), 1)
+  while (d <= end) {
+    const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label  = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    const value  = items
+      .filter(item => (item[dateKey] ?? '').startsWith(prefix))
+      .reduce((s, item) => s + (valueKey === 'count' ? 1 : (item[valueKey] ?? 0)), 0)
+    months.push({ label, [valueKey === 'count' ? 'count' : valueKey]: value })
+    d.setMonth(d.getMonth() + 1)
+  }
+  return months
+}
+
+function computeReferralForPeriod(patients, from, to, doctorSources) {
+  const LABELS = buildLabelMap(getReferralSources(doctorSources))
+  const filtered = patients.filter(p => {
+    const d = (p.createdAt ?? '').slice(0, 10)
+    return d >= from && d <= to
+  })
+  const counts = {}
+  filtered.forEach(p => {
+    const key = p.referralSource || ''
+    counts[key] = (counts[key] ?? 0) + 1
+  })
+  return Object.entries(counts)
+    .map(([key, count]) => ({ key, label: LABELS[key] ?? (key || 'Unknown'), count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+// Simple period filter bar (compact)
+const PERIOD_OPTS = [
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: '3m',         label: '3M' },
+  { value: '6m',         label: '6M' },
+  { value: 'this_year',  label: 'This Year' },
+  { value: 'all',        label: 'All Time' },
+]
+
+function SectionFilter({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {PERIOD_OPTS.map(p => (
+        <button key={p.value} onClick={() => onChange(p.value)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
+            ${value === p.value
+              ? 'bg-primary-500 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+          {p.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 // ─── Chart components ─────────────────────────────────────────────────────────
@@ -130,13 +191,16 @@ const PERIODS = [
 
 export default function ReportsPage() {
   const { formatCurrency } = usePreferences()
-  const { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown,
-          rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()
+  const { doctor } = useAuth()
+  const { stats, rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()
 
   const [period,      setPeriod]      = useState('this_month')
   const [customFrom,  setCustomFrom]  = useState(firstOfYear)
   const [customTo,    setCustomTo]    = useState(today)
-  const [revenueView, setRevenueView] = useState('6m')
+  // Per-section filters
+  const [incomePeriod,  setIncomePeriod]  = useState('6m')
+  const [patientPeriod, setPatientPeriod] = useState('6m')
+  const [sourcePeriod,  setSourcePeriod]  = useState('all')
 
   // Resolve date range for the active period
   const { from, to } = useMemo(() => {
@@ -166,6 +230,23 @@ export default function ReportsPage() {
       completed:    appointments.filter(a => a.status === 'completed').length,
     }
   }, [rawPatients, rawVisits, rawAppointments, rawInvoices, from, to])
+
+  // Section-specific computed data
+  const incomeRange   = useMemo(() => periodRange(incomePeriod),  [incomePeriod])
+  const patientRange  = useMemo(() => periodRange(patientPeriod), [patientPeriod])
+  const sourceRange   = useMemo(() => periodRange(sourcePeriod),  [sourcePeriod])
+
+  const incomeChartData  = useMemo(() =>
+    computeMonthlyData(rawInvoices.filter(i => i.status === 'paid'), 'issueDate', 'revenue', incomeRange.from, incomeRange.to),
+    [rawInvoices, incomeRange])
+
+  const patientChartData = useMemo(() =>
+    computeMonthlyData(rawPatients, 'createdAt', 'count', patientRange.from, patientRange.to),
+    [rawPatients, patientRange])
+
+  const sourceChartData  = useMemo(() =>
+    computeReferralForPeriod(rawPatients, sourceRange.from, sourceRange.to, doctor?.referralSources),
+    [rawPatients, sourceRange, doctor])
 
   if (loading) return (
     <AppLayout title="Reports & Analytics">
@@ -222,41 +303,49 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* ── Revenue chart with toggle ────────────────────────────────────── */}
+        {/* ── Revenue chart with section filter ────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Revenue Overview</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500">Paid invoices only</p>
-            </div>
-            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg w-fit">
-              {[['6m','6 Months'],['12m','12 Months']].map(([v, l]) => (
-                <button key={v} onClick={() => setRevenueView(v)}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors
-                    ${revenueView === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
-                  {l}
-                </button>
-              ))}
+              <h3 className="font-semibold text-gray-900 dark:text-white">Income / Revenue</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Paid invoices by month</p>
             </div>
           </div>
-          <BarChart data={revenueView === '12m' ? yearlyRevenue : monthlyRevenue}
+          <div className="mb-4">
+            <SectionFilter value={incomePeriod} onChange={setIncomePeriod} />
+          </div>
+          <BarChart data={incomeChartData}
             valueKey="revenue" labelKey="label" color="green" unit="currency" fmtCurrency={formatCurrency}/>
         </div>
 
-        {/* ── Patient Growth ───────────────────────────────────────────────── */}
+        {/* ── Patient Growth with section filter ──────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Patient Registrations</h3>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">New patients per month (last 6 months)</p>
-          <BarChart data={patientGrowth} valueKey="count" labelKey="label" color="blue"/>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Patient Registrations</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500">New patients registered per month</p>
+            </div>
+          </div>
+          <div className="mb-4">
+            <SectionFilter value={patientPeriod} onChange={setPatientPeriod} />
+          </div>
+          <BarChart data={patientChartData} valueKey="count" labelKey="label" color="blue"/>
         </div>
 
         {/* ── Referral breakdown + Appointment breakdown ───────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Patient Sources</h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">Where your patients are coming from</p>
-            <HorizontalBar items={referralBreakdown} totalKey="count" labelKey="label"/>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Patient Sources</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Where patients are coming from</p>
+              </div>
+            </div>
+            <div className="mb-4">
+              <SectionFilter value={sourcePeriod} onChange={setSourcePeriod} />
+            </div>
+            <HorizontalBar items={sourceChartData} totalKey="count" labelKey="label"/>
           </div>
 
           {stats && (

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
+import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -39,14 +40,15 @@ const DEFAULT_TEMPLATES = {
 
 const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}']
 
-function TemplateCard({ id, config, value, onChange, onReset }) {
+function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
   const [preview, setPreview] = useState(false)
   const { doctor } = useAuth()
 
-  const previewMsg = (value || '').
-    replace(/\{name\}/g, 'Patient Name')
+  const sampleDate = fmtDate('2026-01-05', dateFormat || 'DD/MM/YYYY')
+  const previewMsg = (value || '')
+    .replace(/\{name\}/g, 'Patient Name')
     .replace(/\{clinic\}/g, doctor?.clinicName || 'Clinic Name')
-    .replace(/\{date\}/g, 'Jan 5, 2026')
+    .replace(/\{date\}/g, sampleDate)
     .replace(/\{time\}/g, '10:30 AM')
     .replace(/\{days\}/g, '3')
 
@@ -102,8 +104,10 @@ function TemplateCard({ id, config, value, onChange, onReset }) {
 }
 
 export default function WhatsAppTemplatesPage() {
-  const [templates, setTemplates] = useState({})
+  const { doctor } = useAuth()
+  const [templates, setTemplates]   = useState({})
   const [countryCode, setCountryCode] = useState('+91')
+  const [dateFormat, setDateFormat]   = useState(doctor?.dateFormat ?? 'DD/MM/YYYY')
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -111,8 +115,9 @@ export default function WhatsAppTemplatesPage() {
       const stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
       setTemplates(stored)
       setCountryCode(stored.countryCode || '+91')
+      setDateFormat(stored.dateFormat || doctor?.dateFormat || 'DD/MM/YYYY')
     } catch {}
-  }, [])
+  }, [doctor])
 
   const handleChange = (id, value) => {
     setSaved(false)
@@ -125,7 +130,7 @@ export default function WhatsAppTemplatesPage() {
   }
 
   const handleSave = () => {
-    const toStore = { ...templates, countryCode }
+    const toStore = { ...templates, countryCode, dateFormat }
     localStorage.setItem('whatsapp_templates', JSON.stringify(toStore))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -155,12 +160,12 @@ export default function WhatsAppTemplatesPage() {
     >
       <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* Country code */}
+        {/* WhatsApp Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">WhatsApp Settings</h3>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Default country code used when sending messages</p>
-          <div className="flex items-center gap-3 max-w-xs">
-            <div className="flex-1">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Configure how messages are sent and how dates appear</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
               <label className="form-label">Country Code</label>
               <input
                 value={countryCode}
@@ -168,12 +173,26 @@ export default function WhatsAppTemplatesPage() {
                 placeholder="+91"
                 className="input-field"
               />
+              <p className="text-xs text-gray-400 mt-1">Preview: {countryCode}9876543210</p>
             </div>
-            <div className="flex-1">
-              <label className="form-label">Preview</label>
+            <div>
+              <label className="form-label">Date Format in Messages</label>
+              <select
+                value={dateFormat}
+                onChange={e => { setDateFormat(e.target.value); setSaved(false) }}
+                className="input-field"
+              >
+                {DATE_FORMATS.map(f => (
+                  <option key={f.value} value={f.value}>{f.label} — {f.example}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Date Preview</label>
               <div className="input-field bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm">
-                {countryCode}9876543210
+                {fmtDate('2026-01-05', dateFormat)}
               </div>
+              <p className="text-xs text-gray-400 mt-1">How {'{'}date{'}'} will appear in messages</p>
             </div>
           </div>
         </div>
@@ -206,6 +225,7 @@ export default function WhatsAppTemplatesPage() {
             value={getValue(id)}
             onChange={handleChange}
             onReset={handleReset}
+            dateFormat={dateFormat}
           />
         ))}
 

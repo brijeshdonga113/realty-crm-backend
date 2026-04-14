@@ -12,10 +12,11 @@ import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { PAYMENT_METHODS, createLineItem, INVOICE_STATUSES } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
+import { patientService } from '@/services/patientService'
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -166,8 +167,8 @@ function InfoRow({ label, value }) {
   )
 }
 
-/* ─────────────── VisitCard with edit ─────────────── */
-function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
+/* ─────────────── VisitCard with edit + delete ─────────────── */
+function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState(false)
@@ -237,7 +238,19 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
             </span>
           </div>
         </div>
-        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{visit.chiefComplaint || 'No complaint noted'}</p>
+        {/* Timeline */}
+        <div className="space-y-1.5 mt-1">
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide w-20 flex-shrink-0 pt-0.5">Complaint</span>
+            <p className="text-sm text-gray-700 dark:text-gray-300 font-medium flex-1">{visit.chiefComplaint || 'No complaint noted'}</p>
+          </div>
+          {visit.treatment && (
+            <div className="flex items-start gap-2">
+              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide w-20 flex-shrink-0 pt-0.5">Treatment</span>
+              <p className="text-sm text-gray-600 dark:text-gray-400 flex-1 line-clamp-2">{visit.treatment}</p>
+            </div>
+          )}
+        </div>
         {visit.diagnosis?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {visit.diagnosis.slice(0, 3).map(d => <Badge key={d} label={d} color="teal" />)}
@@ -361,9 +374,18 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
                 </div>
               </div>
             )}
-            <div className="flex justify-end pt-2 border-t dark:border-gray-700">
+            <div className="flex justify-between items-center pt-2 border-t dark:border-gray-700">
+              {onDelete && (
+                <button onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) { onDelete(visit.id); setOpen(false) } }}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm font-medium rounded-lg transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                  Delete Visit
+                </button>
+              )}
               <button onClick={openEdit}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors ml-auto">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                 </svg>
@@ -450,15 +472,16 @@ function VisitCard({ visit, onUpdate, patientId, patientName, linkedInvoice }) {
 function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, add, doctor }) {
   const { formatDateFull } = usePreferences()
   const [loading, setLoading] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [customDays, setCustomDays] = useState('')
   const [form, setForm] = useState({
+    visitDate: new Date().toISOString().slice(0, 10),
     chiefComplaint: '', history: '', findings: '', diagnosis: [],
     treatment: '', prescriptions: [], labOrders: [], followUpDate: '',
     notes: '',
     vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
   })
   const [payment, setPayment] = useState({
-    record: false,
     amount: '',
     method: 'cash',
     description: 'Consultation Fee',
@@ -472,26 +495,31 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
   const addFollowUpDays = (days) => {
-    const d = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+    const base = form.visitDate ? new Date(form.visitDate) : new Date()
+    const d = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10)
     set('followUpDate', d)
   }
 
   const resetForm = () => {
-    setForm({ chiefComplaint: '', history: '', findings: '', diagnosis: [], treatment: '', prescriptions: [], labOrders: [], followUpDate: '', notes: '',
+    setForm({ visitDate: new Date().toISOString().slice(0, 10), chiefComplaint: '', history: '', findings: '', diagnosis: [], treatment: '', prescriptions: [], labOrders: [], followUpDate: '', notes: '',
       vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' } })
-    setPayment({ record: false, amount: '', method: 'cash', description: 'Consultation Fee', status: 'paid' })
+    setPayment({ amount: '', method: 'cash', description: 'Consultation Fee', status: 'paid' })
     setDiagInput(''); setLabInput(''); setCustomDays('')
     setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+    setSaveError('')
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (!form.followUpDate) { setSaveError('A follow-up date is required.'); return }
+    if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required.'); return }
+    setSaveError('')
     setLoading(true)
     try {
       const visit = await add({
         patientId,
         patientName,
-        visitDate: new Date().toISOString(),
+        visitDate: form.visitDate ? new Date(form.visitDate).toISOString() : new Date().toISOString(),
         chiefComplaint: form.chiefComplaint,
         history: form.history,
         examination: { vitalSigns: form.vitalSigns, findings: form.findings },
@@ -503,24 +531,22 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
         notes: form.notes,
       })
 
-      if (payment.record && Number(payment.amount) > 0) {
-        await billingService.create({
-          patientId,
-          patientName,
-          issueDate:     new Date().toISOString().slice(0, 10),
-          lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
-          status:        payment.status,
-          paymentMethod: payment.method,
-          paymentDate:   payment.status === 'paid' ? new Date().toISOString().slice(0, 10) : null,
-          taxRate:       0,
-          discount:      0,
-          visitId:       visit.id,
-          clinicName:    doctor?.clinicName ?? '',
-          doctorName:    doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
-          doctorPhone:   doctor?.phone ?? '',
-          doctorEmail:   doctor?.email ?? '',
-        })
-      }
+      await billingService.create({
+        patientId,
+        patientName,
+        issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
+        lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
+        status:        payment.status,
+        paymentMethod: payment.method,
+        paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
+        taxRate:       0,
+        discount:      0,
+        visitId:       visit.id,
+        clinicName:    doctor?.clinicName ?? '',
+        doctorName:    doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
+        doctorPhone:   doctor?.phone ?? '',
+        doctorEmail:   doctor?.email ?? '',
+      })
 
       resetForm()
       onClose()
@@ -536,6 +562,17 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
   return (
     <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Record Visit" size="xl">
       <form onSubmit={handleSave} className="space-y-5">
+        <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">Visit Date</label>
+          <input
+            type="date"
+            value={form.visitDate}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={e => set('visitDate', e.target.value)}
+            className="input-field text-sm py-1.5 flex-1"
+          />
+          <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">Defaults to today; change for past visits</span>
+        </div>
         <div>
           <label className="form-label">Chief Complaint *</label>
           <input value={form.chiefComplaint} onChange={e => set('chiefComplaint', e.target.value)}
@@ -688,60 +725,52 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
           )}
         </div>
 
-        {/* Payment */}
+        {/* Payment — required */}
         <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-gray-900 dark:text-white text-sm">Payment Collection</p>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-              <input type="checkbox" checked={payment.record}
-                onChange={e => setPayment(p => ({ ...p, record: e.target.checked }))}
-                className="w-4 h-4 rounded border-gray-300 text-primary-600"/>
-              Record payment
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">Payment Collection <span className="text-red-500">*</span></p>
+            <span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">Required</span>
             </label>
           </div>
-          {payment.record && (
-            <>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="form-label">Amount (₹)</label>
-                  <input type="number" min="0" value={payment.amount}
-                    onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
-                    placeholder="0" className="input-field"/>
-                </div>
-                <div>
-                  <label className="form-label">Method</label>
-                  <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
-                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Description</label>
-                  <input value={payment.description} onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
-                    placeholder="Consultation Fee" className="input-field"/>
-                </div>
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
-                    <option value="paid">Paid</option>
-                    <option value="draft">Due / Unpaid</option>
-                  </select>
-                </div>
-              </div>
-              {Number(payment.amount) > 0 && (
-                <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${
-                  payment.status === 'paid'
-                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800'
-                    : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800'
-                }`}>
-                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
-                    {payment.status === 'paid' ? 'Amount collected' : 'Amount due'}
-                  </span>
-                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                    ₹{Number(payment.amount).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
-            </>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="form-label">Amount (₹) <span className="text-red-500">*</span></label>
+              <input type="number" min="0" value={payment.amount}
+                onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
+                placeholder="0" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Method</label>
+              <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Description</label>
+              <input value={payment.description} onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
+                placeholder="Consultation Fee" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Payment Status</label>
+              <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
+                <option value="paid">Paid</option>
+                <option value="draft">Due / Unpaid</option>
+              </select>
+            </div>
+          </div>
+          {Number(payment.amount) > 0 && (
+            <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${
+              payment.status === 'paid'
+                ? 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800'
+            }`}>
+              <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                {payment.status === 'paid' ? 'Amount collected' : 'Amount due'}
+              </span>
+              <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                ₹{Number(payment.amount).toLocaleString('en-IN')}
+              </span>
+            </div>
           )}
         </div>
 
@@ -751,12 +780,17 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
             placeholder="Additional notes..." className="input-field resize-none"/>
         </div>
 
+        {saveError && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+            {saveError}
+          </div>
+        )}
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={() => { resetForm(); onClose() }}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button type="submit" disabled={loading || !form.chiefComplaint.trim()}
+          <button type="submit" disabled={loading || !form.chiefComplaint.trim() || !form.followUpDate || !payment.amount || Number(payment.amount) <= 0}
             className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
             {loading ? 'Saving…' : 'Save Visit'}
           </button>
@@ -791,10 +825,12 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
     }
     const tmpl = templates[waKey]?.template || defaults[waKey]
     const clinicName = doctor?.clinicName || 'our clinic'
+    // Use the date formatted according to the WhatsApp date format setting
+    const formattedDate = formatDate(entry.dueDate)
     const msg = tmpl
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
-      .replace(/\{date\}/g, entry.dueDate)
+      .replace(/\{date\}/g, formattedDate)
       .replace(/\{days\}/g, String(Math.abs(diff)))
     const cc = (templates.countryCode || '+91').replace(/\D/g, '')
     const ph = (phone || entry.phone || '').replace(/\D/g, '').replace(/^0/, '')
@@ -845,13 +881,15 @@ export default function PatientProfilePage() {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const referralSources = useReferralSources()
   const { patient, loading, update } = usePatient(id)
-  const { visits, update: updateVisit, add: addVisit } = useVisits(id)
+  const { visits, update: updateVisit, add: addVisit, remove: removeVisit } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
   const [tab, setTab]            = useState(0)
-  const [showVisitModal, setShowVisitModal] = useState(false)
-  const [showEditModal, setShowEditModal]   = useState(false)
+  const [showVisitModal, setShowVisitModal]   = useState(false)
+  const [showEditModal, setShowEditModal]     = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting]               = useState(false)
 
   // Merge visit-based + standalone follow-ups for this patient
   const patientName = patient ? `${patient.firstName} ${patient.lastName}` : ''
@@ -935,6 +973,13 @@ export default function PatientProfilePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
             Edit
+          </button>
+          <button onClick={() => setShowDeleteModal(true)}
+            className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Delete
           </button>
           <button onClick={() => setShowVisitModal(true)}
             className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
@@ -1183,6 +1228,7 @@ export default function PatientProfilePage() {
                   key={visit.id}
                   visit={visit}
                   onUpdate={updateVisit}
+                  onDelete={removeVisit}
                   patientId={id}
                   patientName={`${patient.firstName} ${patient.lastName}`}
                   linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
@@ -1254,7 +1300,7 @@ export default function PatientProfilePage() {
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 capitalize">{inv.paymentMethod?.replace('_',' ') || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3">
-                        <Badge label={inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
+                        <Badge label={INVOICE_STATUSES.find(s => s.value === inv.status)?.label ?? inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
                       </td>
                     </tr>
                   ))}
@@ -1292,6 +1338,27 @@ export default function PatientProfilePage() {
           setShowEditModal(false)
         }}
       />
+
+      {/* Delete Patient Modal */}
+      <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
+          Are you sure you want to permanently delete <span className="font-semibold text-gray-900 dark:text-white">{patient.firstName} {patient.lastName}</span>?
+        </p>
+        <p className="text-xs text-red-600 dark:text-red-400 mb-6">All visits, appointments, and billing records will be removed. This cannot be undone.</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={() => setShowDeleteModal(false)}
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button disabled={deleting} onClick={async () => {
+            setDeleting(true)
+            try { await patientService.remove(id); router.push('/patients') } catch { setDeleting(false) }
+          }}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+            {deleting ? 'Deleting…' : 'Delete Patient'}
+          </button>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }

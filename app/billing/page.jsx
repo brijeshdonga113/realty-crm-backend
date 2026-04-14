@@ -186,7 +186,7 @@ export default function BillingPage() {
                   <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{inv.lineItems?.length ?? 0} item{inv.lineItems?.length !== 1 ? 's' : ''}</td>
                   <td className="px-4 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3.5">
-                    <Badge label={inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
+                    <Badge label={INVOICE_STATUSES.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">

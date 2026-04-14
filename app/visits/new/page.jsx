@@ -83,6 +83,8 @@ function VisitEntryForm() {
 
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
+    if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
+    if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
     setSaving(true)
     setSaveError('')
     try {
@@ -109,7 +111,7 @@ function VisitEntryForm() {
         await appointmentService.update(appointmentId, { status: 'completed' })
       }
 
-      if (payment.record && Number(payment.amount) > 0) {
+      if (Number(payment.amount) > 0) {
         await billingService.create({
           patientId,
           patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
@@ -142,7 +144,7 @@ function VisitEntryForm() {
     const msg  = tmpl
       .replace(/\{name\}/g, `${patient.firstName} ${patient.lastName}`)
       .replace(/\{clinic\}/g, clinicName)
-      .replace(/\{date\}/g, savedVisit.followUpDate)
+      .replace(/\{date\}/g, formatDateFull(savedVisit.followUpDate))
     const cc   = (templates.countryCode || '+91').replace(/\D/g, '')
     const ph   = (patient.phone || '').replace(/\D/g, '').replace(/^0/, '')
     const full = ph ? `${cc}${ph}` : ''
@@ -176,7 +178,7 @@ function VisitEntryForm() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             {patient?.firstName}&apos;s visit has been saved.
             {appointmentId && ' Appointment marked as completed.'}
-            {payment.record && Number(payment.amount) > 0 && ` Payment of ₹${Number(payment.amount).toLocaleString('en-IN')} recorded.`}
+            {Number(payment.amount) > 0 && ` Payment of ₹${Number(payment.amount).toLocaleString('en-IN')} recorded.`}
           </p>
 
           {savedVisit.followUpDate && (
@@ -384,8 +386,8 @@ function VisitEntryForm() {
 
         {/* Follow-up date */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Follow-up Date</h3>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Select a quick interval or pick a custom date</p>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Follow-up Date <span className="text-red-500">*</span></h3>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Required — select a quick interval or pick a custom date</p>
           <div className="flex flex-wrap gap-2 mb-3">
             {[[7,'+7'],[10,'+10'],[15,'+15'],[21,'+21'],[30,'+30']].map(([days, label]) => (
               <button key={days} type="button" onClick={() => addFollowUpDays(days)}
@@ -432,65 +434,56 @@ function VisitEntryForm() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Payment Collection</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Record amount collected at this visit</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Payment Collection <span className="text-red-500">*</span></h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Required — enter the amount for this visit</p>
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-              <input type="checkbox" checked={payment.record}
-                onChange={e => setPayment(p => ({ ...p, record: e.target.checked }))}
-                className="w-4 h-4 rounded border-gray-300 text-primary-600"/>
-              Record payment
-            </label>
+            <span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 px-2.5 py-1 rounded-full">Required</span>
           </div>
 
-          {payment.record && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Amount (₹)</label>
-                  <input type="number" min="0" value={payment.amount}
-                    onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
-                    placeholder="0" className="input-field"/>
-                </div>
-                <div>
-                  <label className="form-label">Method</label>
-                  <select value={payment.method}
-                    onChange={e => setPayment(p => ({ ...p, method: e.target.value }))}
-                    className="input-field">
-                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Description</label>
-                  <input value={payment.description}
-                    onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
-                    placeholder="Consultation Fee" className="input-field"/>
-                </div>
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <select value={payment.status}
-                    onChange={e => setPayment(p => ({ ...p, status: e.target.value }))}
-                    className="input-field">
-                    <option value="paid">Paid</option>
-                    <option value="draft">Due / Unpaid</option>
-                  </select>
-                </div>
-              </div>
-              {Number(payment.amount) > 0 && (
-                <div className={`mt-4 rounded-xl px-4 py-3 flex items-center justify-between border ${
-                  payment.status === 'paid'
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
-                    : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
-                }`}>
-                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
-                    {payment.status === 'paid' ? 'Amount collected' : 'Amount due (unpaid)'}
-                  </span>
-                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                    ₹{Number(payment.amount).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
-            </>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Amount (₹) <span className="text-red-500">*</span></label>
+              <input type="number" min="0" value={payment.amount}
+                onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
+                placeholder="0" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Method</label>
+              <select value={payment.method}
+                onChange={e => setPayment(p => ({ ...p, method: e.target.value }))}
+                className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Description</label>
+              <input value={payment.description}
+                onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
+                placeholder="Consultation Fee" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Payment Status</label>
+              <select value={payment.status}
+                onChange={e => setPayment(p => ({ ...p, status: e.target.value }))}
+                className="input-field">
+                <option value="paid">Paid</option>
+                <option value="draft">Due / Unpaid</option>
+              </select>
+            </div>
+          </div>
+          {Number(payment.amount) > 0 && (
+            <div className={`mt-4 rounded-xl px-4 py-3 flex items-center justify-between border ${
+              payment.status === 'paid'
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
+            }`}>
+              <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                {payment.status === 'paid' ? 'Amount collected' : 'Amount due (unpaid)'}
+              </span>
+              <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                ₹{Number(payment.amount).toLocaleString('en-IN')}
+              </span>
+            </div>
           )}
         </div>
 
@@ -506,7 +499,7 @@ function VisitEntryForm() {
             Cancel
           </button>
           <button onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.amount || Number(payment.amount) <= 0}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
             {saving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

@@ -123,7 +123,7 @@ export default function PatientsPage() {
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                  {['UHID', 'Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits', '', ''].map(h => (
+                  {['UHID', 'Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits', '', '', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                   ))}
                 </tr>
@@ -202,7 +202,7 @@ export default function PatientsPage() {
                         ) : <span className="text-gray-400 text-xs">—</span>}
                       </td>
                       {/* Follow Up */}
-                      <td className="px-2 py-3.5 pr-4" onClick={e => e.stopPropagation()}>
+                      <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={e => openFollowUp(e, patient)}
                           title="Set follow-up reminder"
@@ -212,6 +212,18 @@ export default function PatientsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                           </svg>
                           Follow Up
+                        </button>
+                      </td>
+                      {/* Delete */}
+                      <td className="px-2 py-3.5 pr-4" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setDeleteId(patient.id) }}
+                          title="Delete patient"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
                         </button>
                       </td>
                     </tr>
