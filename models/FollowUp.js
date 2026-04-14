@@ -13,6 +13,7 @@ export function createFollowUp(data = {}) {
     dueDate:     data.dueDate ?? '',        // YYYY-MM-DD
     note:        data.note ?? '',
     status:      data.status ?? 'pending',  // 'pending' | 'done'
+    visitId:     data.visitId ?? null,
     notificationId: data.notificationId ?? null,
     createdAt:   data.createdAt ?? now,
     updatedAt:   now,

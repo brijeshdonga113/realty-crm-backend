@@ -890,12 +890,30 @@ export default function PatientProfilePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
 
-  // Merge visit-based + standalone follow-ups for this patient
+  // Merge follow-ups for this patient from the followups collection (includes visit-linked ones)
+  // plus a fallback for older visits that predate the auto-sync (no followup record yet).
   const patientName = patient ? `${patient.firstName} ${patient.lastName}` : ''
   const patientFollowUps = useMemo(() => {
-    // Visit-based: every visit with a followUpDate set
-    const visitBased = visits
-      .filter(v => v.followUpDate)
+    // All follow-ups from the collection for this patient (pending only)
+    const fromCollection = followups
+      .filter(f => f.patientId === id && f.status === 'pending')
+      .map(f => ({
+        id:          f.id,
+        dueDate:     f.dueDate,
+        note:        f.note,
+        patientName: f.patientName || patientName,
+        source:      f.visitId ? 'visit' : 'standalone',
+        status:      f.status,
+        phone:       f.phone || '',
+        visitId:     f.visitId ?? null,
+      }))
+
+    // Collect visit IDs already represented in the collection
+    const syncedVisitIds = new Set(fromCollection.map(f => f.visitId).filter(Boolean))
+
+    // Fallback for old visits that were created before the auto-sync existed
+    const legacy = visits
+      .filter(v => v.followUpDate && !syncedVisitIds.has(v.id))
       .map(v => ({
         id:          v.id,
         dueDate:     v.followUpDate,
@@ -904,27 +922,10 @@ export default function PatientProfilePage() {
         source:      'visit',
         status:      'pending',
         phone:       '',
+        visitId:     v.id,
       }))
 
-    // Standalone: manually created follow-up reminders for this patient
-    const standalone = followups
-      .filter(f => f.patientId === id && f.status === 'pending')
-      .map(f => ({
-        id:          f.id,
-        dueDate:     f.dueDate,
-        note:        f.note,
-        patientName: f.patientName || patientName,
-        source:      'standalone',
-        status:      f.status,
-        phone:       f.phone || '',
-      }))
-
-    // If a standalone reminder exists for the same date as a visit follow-up,
-    // prefer the standalone (hide the visit-based one for that date only).
-    const standaloneDates = new Set(standalone.map(e => e.dueDate))
-    const filteredVisitBased = visitBased.filter(e => !standaloneDates.has(e.dueDate))
-
-    return [...standalone, ...filteredVisitBased]
+    return [...fromCollection, ...legacy]
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   }, [visits, followups, id, patientName])
 

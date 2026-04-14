@@ -2,6 +2,7 @@ import { dataStore } from '@/lib/dataStore'
 import { createVisitRecord } from '@/models/VisitRecord'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
+import { followupService } from './followupService'
 
 // Visits are stored as a subcollection: patients/{patientId}/visits
 // This matches the Firestore structure: users/{doctorId}/patients/{patientId}/visits/{visitId}
@@ -39,11 +40,13 @@ export const visitService = {
     }).catch(() => {})
 
     if (saved.followUpDate) {
-      notificationService.create({
-        type:  NOTIFICATION_TYPES.FOLLOW_UP_DUE,
-        title: 'Follow-up reminder',
-        body:  `Follow-up for ${saved.patientName} due on ${saved.followUpDate}.`,
-        relatedEntity: { type: 'patient', id: saved.patientId },
+      followupService.create({
+        patientId:   saved.patientId,
+        patientName: saved.patientName,
+        dueDate:     saved.followUpDate,
+        note:        saved.chiefComplaint || '',
+        doctorId:    saved.doctorId,
+        visitId:     saved.id,
       }).catch(() => {})
     }
 
@@ -53,12 +56,46 @@ export const visitService = {
   async update(id, patch) {
     const existing = await this.getById(id)
     if (!existing) return null
-    return dataStore.update(visitPath(existing.patientId), id, patch)
+    const updated = await dataStore.update(visitPath(existing.patientId), id, patch)
+
+    // Sync linked follow-up record if followUpDate was touched
+    if ('followUpDate' in patch) {
+      const linked = await followupService.getByVisitId(id).catch(() => null)
+      const newDate = patch.followUpDate
+
+      if (newDate && linked) {
+        // Date changed — update the existing record
+        if (linked.dueDate !== newDate) {
+          followupService.update(linked.id, { dueDate: newDate }).catch(() => {})
+        }
+      } else if (newDate && !linked) {
+        // Follow-up newly added — create a record
+        followupService.create({
+          patientId:   existing.patientId,
+          patientName: existing.patientName,
+          dueDate:     newDate,
+          note:        patch.chiefComplaint ?? existing.chiefComplaint ?? '',
+          doctorId:    existing.doctorId,
+          visitId:     id,
+        }).catch(() => {})
+      } else if (!newDate && linked) {
+        // Follow-up removed — delete the record
+        followupService.remove(linked.id).catch(() => {})
+      }
+    }
+
+    return updated
   },
 
   async remove(id) {
     const existing = await this.getById(id)
     if (!existing) return false
+
+    // Remove linked follow-up record if present
+    followupService.getByVisitId(id)
+      .then(linked => { if (linked) followupService.remove(linked.id) })
+      .catch(() => {})
+
     return dataStore.remove(visitPath(existing.patientId), id)
   },
 

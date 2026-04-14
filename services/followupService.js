@@ -3,13 +3,6 @@ import { createFollowUp } from '@/models/FollowUp'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
 
-async function getVisitFollowUpDates() {
-  try {
-    const visits = await dataStore.getAllGroup('visits')
-    return visits.filter(v => v.followUpDate).map(v => v.followUpDate)
-  } catch { return [] }
-}
-
 const COLLECTION = 'followups'
 
 export const followupService = {
@@ -41,6 +34,15 @@ export const followupService = {
     return saved
   },
 
+  async getByVisitId(visitId) {
+    const all = await dataStore.getAll(COLLECTION)
+    return all.find(f => f.visitId === visitId) ?? null
+  },
+
+  async update(id, patch) {
+    return dataStore.update(COLLECTION, id, patch)
+  },
+
   async markDone(id) {
     const updated = await dataStore.update(COLLECTION, id, { status: 'done' })
     return updated
@@ -54,25 +56,17 @@ export const followupService = {
     const today    = new Date().toISOString().slice(0, 10)
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
     const twoDays  = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
-    const [standalone, visitDates] = await Promise.all([
-      dataStore.getAll(COLLECTION),
-      getVisitFollowUpDates(),
-    ])
-    const pending = standalone.filter(f => f.status === 'pending')
-
-    // Merge both sources for accurate counts
-    const allDates = [
-      ...pending.map(f => f.dueDate),
-      ...visitDates,
-    ]
+    const all = await dataStore.getAll(COLLECTION)
+    const pending = all.filter(f => f.status === 'pending')
+    const dates = pending.map(f => f.dueDate)
 
     return {
-      todayCount:     allDates.filter(d => d === today).length,
-      tomorrowCount:  allDates.filter(d => d === tomorrow).length,
-      twoDaysCount:   allDates.filter(d => d === twoDays).length,
-      overdueCount:   allDates.filter(d => d < today).length,
-      upcomingCount:  allDates.filter(d => d > tomorrow).length,
-      total:          allDates.length,
+      todayCount:     dates.filter(d => d === today).length,
+      tomorrowCount:  dates.filter(d => d === tomorrow).length,
+      twoDaysCount:   dates.filter(d => d === twoDays).length,
+      overdueCount:   dates.filter(d => d < today).length,
+      upcomingCount:  dates.filter(d => d > tomorrow).length,
+      total:          dates.length,
     }
   },
 }
