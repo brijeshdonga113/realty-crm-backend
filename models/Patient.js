@@ -70,13 +70,21 @@ export function createPatient(data = {}) {
 }
 
 export function getPatientAge(patient) {
-  if (!patient.dateOfBirth) return null
-  const dob = new Date(patient.dateOfBirth)
-  const today = new Date()
-  let age = today.getFullYear() - dob.getFullYear()
-  const m = today.getMonth() - dob.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
-  return age
+  if (patient.dateOfBirth) {
+    // Parse as local date — new Date('YYYY-MM-DD') is UTC which can shift the day in non-UTC timezones
+    const parts = patient.dateOfBirth.split('-').map(Number)
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      const dob   = new Date(parts[0], parts[1] - 1, parts[2])
+      const today = new Date()
+      let age = today.getFullYear() - dob.getFullYear()
+      const m = today.getMonth() - dob.getMonth()
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+      return age
+    }
+  }
+  // Fall back to manually entered age
+  const manual = Number(patient.ageManual)
+  return isNaN(manual) || manual <= 0 ? null : manual
 }
 
 export function getPatientFullName(patient) {

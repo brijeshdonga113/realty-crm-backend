@@ -76,7 +76,7 @@ function computeReferralForPeriod(patients, from, to, doctorSources) {
     .sort((a, b) => b.count - a.count)
 }
 
-// Simple period filter bar (compact)
+// Simple period filter bar (compact) — supports custom date range
 const PERIOD_OPTS = [
   { value: 'this_month', label: 'This Month' },
   { value: 'last_month', label: 'Last Month' },
@@ -84,11 +84,12 @@ const PERIOD_OPTS = [
   { value: '6m',         label: '6M' },
   { value: 'this_year',  label: 'This Year' },
   { value: 'all',        label: 'All Time' },
+  { value: 'custom',     label: 'Custom' },
 ]
 
-function SectionFilter({ value, onChange }) {
+function SectionFilter({ value, onChange, customFrom, customTo, onCustomFrom, onCustomTo }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {PERIOD_OPTS.map(p => (
         <button key={p.value} onClick={() => onChange(p.value)}
           className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
@@ -98,38 +99,83 @@ function SectionFilter({ value, onChange }) {
           {p.label}
         </button>
       ))}
+      {value === 'custom' && onCustomFrom && (
+        <div className="flex items-center gap-1.5 ml-1">
+          <input type="date" value={customFrom} max={customTo}
+            onChange={e => onCustomFrom(e.target.value)}
+            className="input-field py-1 text-xs w-32"/>
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={customTo} min={customFrom} max={today}
+            onChange={e => onCustomTo(e.target.value)}
+            className="input-field py-1 text-xs w-32"/>
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
-function BarChart({ data, valueKey, labelKey, color = 'blue', unit = '', fmtCurrency }) {
-  if (!data?.length) return (
-    <div className="h-40 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">No data yet</div>
+// SVG line chart with area fill
+function LineChart({ data, valueKey, labelKey, color = 'blue', fmtValue }) {
+  if (!data?.length || data.every(d => d[valueKey] === 0)) return (
+    <div className="h-52 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">No data yet</div>
   )
+
+  const W = 800, H = 180, padL = 8, padR = 8, padT = 24, padB = 32
+  const innerW = W - padL - padR
+  const innerH = H - padT - padB
   const max = Math.max(...data.map(d => d[valueKey]), 1)
+  const pts = data.map((d, i) => ({
+    x: padL + (i / Math.max(data.length - 1, 1)) * innerW,
+    y: padT + innerH - (d[valueKey] / max) * innerH,
+    v: d[valueKey],
+    l: d[labelKey],
+  }))
+
   const colors = {
-    blue:   { bar: 'bg-primary-500', label: 'text-primary-600 dark:text-primary-400' },
-    green:  { bar: 'bg-green-500',   label: 'text-green-600 dark:text-green-400' },
-    purple: { bar: 'bg-purple-500',  label: 'text-purple-600 dark:text-purple-400' },
-    orange: { bar: 'bg-orange-500',  label: 'text-orange-600 dark:text-orange-400' },
+    green:  { stroke: '#22c55e', fill: 'rgba(34,197,94,0.12)',  dot: '#16a34a', label: '#15803d' },
+    blue:   { stroke: '#6366f1', fill: 'rgba(99,102,241,0.12)', dot: '#4338ca', label: '#4338ca' },
   }
   const c = colors[color] ?? colors.blue
+
+  const polyline = pts.map(p => `${p.x},${p.y}`).join(' ')
+  const areaPath = `M${pts[0].x},${padT + innerH} ` +
+    pts.map(p => `L${p.x},${p.y}`).join(' ') +
+    ` L${pts[pts.length-1].x},${padT + innerH} Z`
+
+  // show every other label if many months
+  const step = data.length > 8 ? 2 : 1
+
   return (
-    <div className="flex items-end gap-1.5 h-40">
-      {data.map((item, i) => {
-        const h = Math.max((item[valueKey] / max) * 100, 2)
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-            <span className={`text-xs font-medium truncate w-full text-center ${c.label}`}>
-              {unit === 'currency' && fmtCurrency ? fmtCurrency(item[valueKey]) : item[valueKey]}
-            </span>
-            <div className={`w-full ${c.bar} rounded-t-lg transition-all`} style={{ height: `${h}%` }}/>
-            <span className="text-xs text-gray-400 dark:text-gray-500 truncate w-full text-center">{item[labelKey]}</span>
-          </div>
-        )
-      })}
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 280 }}>
+        {/* horizontal grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(t => (
+          <line key={t} x1={padL} x2={W - padR}
+            y1={padT + innerH - t * innerH} y2={padT + innerH - t * innerH}
+            stroke="currentColor" strokeOpacity="0.06" strokeWidth="1"/>
+        ))}
+        {/* area fill */}
+        <path d={areaPath} fill={c.fill}/>
+        {/* line */}
+        <polyline points={polyline} fill="none" stroke={c.stroke} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+        {/* dots + value labels */}
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="4" fill={c.dot}/>
+            <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="10" fill={c.label} fontWeight="600">
+              {fmtValue ? fmtValue(p.v) : p.v}
+            </text>
+          </g>
+        ))}
+        {/* x-axis labels */}
+        {pts.map((p, i) => i % step === 0 && (
+          <text key={i} x={p.x} y={H - 4} textAnchor="middle" fontSize="10" fill="#9ca3af">
+            {p.l}
+          </text>
+        ))}
+      </svg>
     </div>
   )
 }
@@ -139,16 +185,20 @@ const BAR_COLORS = ['bg-primary-500','bg-green-500','bg-orange-500','bg-purple-5
 function HorizontalBar({ items, totalKey = 'count', labelKey = 'label' }) {
   if (!items?.length) return <div className="text-sm text-gray-400 dark:text-gray-500">No data yet</div>
   const max = Math.max(...items.map(i => i[totalKey]), 1)
+  const total = items.reduce((s, i) => s + i[totalKey], 0)
   return (
     <div className="space-y-3">
       {items.map((item, idx) => (
         <div key={item.key ?? idx}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm text-gray-700 dark:text-gray-300">{item[labelKey]}</span>
-            <span className="text-sm font-bold text-gray-900 dark:text-white">{item[totalKey]}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{total > 0 ? Math.round((item[totalKey]/total)*100) : 0}%</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">{item[totalKey]}</span>
+            </div>
           </div>
-          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-            <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2 rounded-full transition-all`}
+          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5">
+            <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2.5 rounded-full transition-all`}
               style={{ width: `${(item[totalKey] / max) * 100}%` }}/>
           </div>
         </div>
@@ -201,6 +251,13 @@ export default function ReportsPage() {
   const [incomePeriod,  setIncomePeriod]  = useState('6m')
   const [patientPeriod, setPatientPeriod] = useState('6m')
   const [sourcePeriod,  setSourcePeriod]  = useState('all')
+  // Custom date ranges per section
+  const [incomeFrom,  setIncomeFrom]  = useState(firstOfYear)
+  const [incomeTo,    setIncomeTo]    = useState(today)
+  const [patientFrom, setPatientFrom] = useState(firstOfYear)
+  const [patientTo,   setPatientTo]   = useState(today)
+  const [sourceFrom,  setSourceFrom]  = useState(firstOfYear)
+  const [sourceTo,    setSourceTo]    = useState(today)
 
   // Resolve date range for the active period
   const { from, to } = useMemo(() => {
@@ -232,12 +289,12 @@ export default function ReportsPage() {
   }, [rawPatients, rawVisits, rawAppointments, rawInvoices, from, to])
 
   // Section-specific computed data
-  const incomeRange   = useMemo(() => periodRange(incomePeriod),  [incomePeriod])
-  const patientRange  = useMemo(() => periodRange(patientPeriod), [patientPeriod])
-  const sourceRange   = useMemo(() => periodRange(sourcePeriod),  [sourcePeriod])
+  const incomeRange  = useMemo(() => incomePeriod  === 'custom' ? { from: incomeFrom,  to: incomeTo  } : periodRange(incomePeriod),  [incomePeriod,  incomeFrom,  incomeTo])
+  const patientRange = useMemo(() => patientPeriod === 'custom' ? { from: patientFrom, to: patientTo } : periodRange(patientPeriod), [patientPeriod, patientFrom, patientTo])
+  const sourceRange  = useMemo(() => sourcePeriod  === 'custom' ? { from: sourceFrom,  to: sourceTo  } : periodRange(sourcePeriod),  [sourcePeriod,  sourceFrom,  sourceTo])
 
   const incomeChartData  = useMemo(() =>
-    computeMonthlyData(rawInvoices.filter(i => i.status === 'paid'), 'issueDate', 'revenue', incomeRange.from, incomeRange.to),
+    computeMonthlyData(rawInvoices.filter(i => i.status === 'paid'), 'issueDate', 'total', incomeRange.from, incomeRange.to),
     [rawInvoices, incomeRange])
 
   const patientChartData = useMemo(() =>
@@ -308,14 +365,16 @@ export default function ReportsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Income / Revenue</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500">Paid invoices by month</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Paid invoices by month — {formatCurrency(incomeChartData.reduce((s, d) => s + d.total, 0))} total</p>
             </div>
           </div>
-          <div className="mb-4">
-            <SectionFilter value={incomePeriod} onChange={setIncomePeriod} />
+          <div className="mb-5">
+            <SectionFilter value={incomePeriod} onChange={setIncomePeriod}
+              customFrom={incomeFrom} customTo={incomeTo}
+              onCustomFrom={setIncomeFrom} onCustomTo={setIncomeTo}/>
           </div>
-          <BarChart data={incomeChartData}
-            valueKey="revenue" labelKey="label" color="green" unit="currency" fmtCurrency={formatCurrency}/>
+          <LineChart data={incomeChartData} valueKey="total" labelKey="label" color="green"
+            fmtValue={v => v >= 100000 ? `${(v/100000).toFixed(1)}L` : v >= 1000 ? `${(v/1000).toFixed(1)}k` : String(v)}/>
         </div>
 
         {/* ── Patient Growth with section filter ──────────────────────────── */}
@@ -323,13 +382,15 @@ export default function ReportsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Patient Registrations</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500">New patients registered per month</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">New patients registered per month — {patientChartData.reduce((s, d) => s + d.count, 0)} total</p>
             </div>
           </div>
-          <div className="mb-4">
-            <SectionFilter value={patientPeriod} onChange={setPatientPeriod} />
+          <div className="mb-5">
+            <SectionFilter value={patientPeriod} onChange={setPatientPeriod}
+              customFrom={patientFrom} customTo={patientTo}
+              onCustomFrom={setPatientFrom} onCustomTo={setPatientTo}/>
           </div>
-          <BarChart data={patientChartData} valueKey="count" labelKey="label" color="blue"/>
+          <LineChart data={patientChartData} valueKey="count" labelKey="label" color="blue"/>
         </div>
 
         {/* ── Referral breakdown + Appointment breakdown ───────────────────── */}
@@ -343,7 +404,9 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="mb-4">
-              <SectionFilter value={sourcePeriod} onChange={setSourcePeriod} />
+              <SectionFilter value={sourcePeriod} onChange={setSourcePeriod}
+                customFrom={sourceFrom} customTo={sourceTo}
+                onCustomFrom={setSourceFrom} onCustomTo={setSourceTo}/>
             </div>
             <HorizontalBar items={sourceChartData} totalKey="count" labelKey="label"/>
           </div>

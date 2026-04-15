@@ -8,6 +8,7 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { visitService } from '@/services/visitService'
 import { appointmentService } from '@/services/appointmentService'
 import { billingService } from '@/services/billingService'
+import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS } from '@/models/Invoice'
 
@@ -145,10 +146,7 @@ function VisitEntryForm() {
       .replace(/\{name\}/g, `${patient.firstName} ${patient.lastName}`)
       .replace(/\{clinic\}/g, clinicName)
       .replace(/\{date\}/g, formatDateFull(savedVisit.followUpDate))
-    const cc   = (templates.countryCode || '+91').replace(/\D/g, '')
-    const ph   = (patient.phone || '').replace(/\D/g, '').replace(/^0/, '')
-    const full = ph ? `${cc}${ph}` : ''
-    window.open(full ? `https://wa.me/${full}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    window.open(buildWAUrl(patient.phone || '', msg), '_blank')
   }
 
   /* ───── Loading state ───── */

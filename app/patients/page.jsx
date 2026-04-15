@@ -9,6 +9,7 @@ import { usePatients } from '@/hooks/usePatients'
 import { useBilling } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
+import { buildWAUrl } from '@/lib/whatsapp'
 
 const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'teal', 'B-': 'teal', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
@@ -21,6 +22,8 @@ export default function PatientsPage() {
   const [query, setQuery]               = useState('')
   const [deleteId, setDeleteId]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [sortKey, setSortKey]           = useState(null)   // 'name' | 'age' | 'status' | 'visits' | 'uhid'
+  const [sortDir, setSortDir]           = useState('asc')
   const [followUpPatient, setFollowUpPatient] = useState(null)
   const [followUpForm, setFollowUpForm]       = useState({ dueDate: '', note: '' })
   const [followUpSaving, setFollowUpSaving]   = useState(false)
@@ -60,9 +63,26 @@ export default function PatientsPage() {
     }
   }
 
-  const filtered = filterStatus === 'all'
-    ? patients
-    : patients.filter(p => p.status === filterStatus)
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const filtered = useMemo(() => {
+    let list = filterStatus === 'all' ? patients : patients.filter(p => p.status === filterStatus)
+    if (!sortKey) return list
+    return [...list].sort((a, b) => {
+      let av, bv
+      if (sortKey === 'name')   { av = `${a.firstName} ${a.lastName}`.toLowerCase(); bv = `${b.firstName} ${b.lastName}`.toLowerCase() }
+      if (sortKey === 'age')    { av = getPatientAge(a) ?? -1; bv = getPatientAge(b) ?? -1 }
+      if (sortKey === 'status') { av = a.status ?? ''; bv = b.status ?? '' }
+      if (sortKey === 'visits') { av = billCountByPatient[a.id] ?? 0; bv = billCountByPatient[b.id] ?? 0 }
+      if (sortKey === 'uhid')   { av = a.patientNumber ?? 0; bv = b.patientNumber ?? 0 }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [patients, filterStatus, sortKey, sortDir, billCountByPatient])
 
   return (
     <AppLayout
@@ -123,15 +143,39 @@ export default function PatientsPage() {
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                  {['UHID', 'Patient', 'Age / Gender', 'Blood', 'Phone', 'Conditions', 'Status', 'Visits', '', '', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
+                  {[
+                    { label: 'UHID',        key: 'uhid',   cls: 'pl-6' },
+                    { label: 'Patient',     key: 'name' },
+                    { label: 'Age / Gender',key: 'age' },
+                    { label: 'Blood',       key: null },
+                    { label: 'Phone',       key: null },
+                    { label: 'Conditions',  key: null },
+                    { label: 'Status',      key: 'status' },
+                    { label: 'Visits',      key: 'visits' },
+                    { label: '',            key: null },
+                    { label: '',            key: null },
+                    { label: '',            key: null },
+                  ].map(({ label, key, cls }) => (
+                    <th key={label || key || Math.random()}
+                      className={`px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left ${cls ?? ''} ${key ? 'cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200' : ''}`}
+                      onClick={key ? () => handleSort(key) : undefined}>
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        {key && (
+                          <span className="flex flex-col leading-none">
+                            <svg className={`w-2.5 h-2.5 ${sortKey === key && sortDir === 'asc' ? 'text-primary-500' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l8 8H4z"/></svg>
+                            <svg className={`w-2.5 h-2.5 ${sortKey === key && sortDir === 'desc' ? 'text-primary-500' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 24 24"><path d="M12 20l-8-8h16z"/></svg>
+                          </span>
+                        )}
+                      </span>
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                 {filtered.map(patient => {
                   const visitCount = billCountByPatient[patient.id] ?? 0
-                  const waPhone = (patient.phone || '').replace(/\D/g, '').replace(/^0/, '')
+                  const waPhone = patient.phone
                   return (
                     <tr key={patient.id}
                       className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors"
@@ -191,7 +235,7 @@ export default function PatientsPage() {
                       {/* WhatsApp direct */}
                       <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
                         {waPhone ? (
-                          <a href={`https://wa.me/91${waPhone}`} target="_blank" rel="noopener noreferrer"
+                          <a href={buildWAUrl(waPhone)} target="_blank" rel="noopener noreferrer"
                             title="Open WhatsApp chat"
                             className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">

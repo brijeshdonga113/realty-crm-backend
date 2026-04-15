@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
@@ -9,6 +9,7 @@ import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
 import { INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
+import { buildWAUrl } from '@/lib/whatsapp'
 
 const STATUS_COLOR = { draft: 'orange', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
@@ -88,8 +89,9 @@ function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
   )
 }
 
-export default function BillingPage() {
-  const router = useRouter()
+function BillingPageInner() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
   const { doctor } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, remove } = useBilling()
@@ -97,6 +99,14 @@ export default function BillingPage() {
   const [printInvoice, setPrintInvoice] = useState(null)
   const [payModal, setPayModal]         = useState(null)
   const [payMethod, setPayMethod]       = useState('cash')
+
+  // Auto-open invoice modal when navigated from patient profile (?invoice=<id>)
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoice')
+    if (!invoiceId || !invoices.length) return
+    const found = invoices.find(inv => inv.id === invoiceId)
+    if (found) setPrintInvoice(found)
+  }, [searchParams, invoices])
 
   const filtered = filterStatus === 'all' ? invoices : invoices.filter(inv => inv.status === filterStatus)
 
@@ -202,7 +212,7 @@ export default function BillingPage() {
                       </button>
                       {inv.patientPhone && (
                         <a
-                          href={`https://wa.me/${inv.patientPhone.replace(/\D/g, '')}?text=${buildWhatsAppMessage(inv, formatCurrency, formatDate)}`}
+                          href={buildWAUrl(inv.patientPhone, buildWhatsAppMessage(inv, formatCurrency, formatDate))}
                           target="_blank" rel="noopener noreferrer"
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
                           title="Send via WhatsApp"
@@ -264,7 +274,7 @@ export default function BillingPage() {
               <div className="flex items-center gap-2">
                 {printInvoice.patientPhone && (
                   <a
-                    href={`https://wa.me/${printInvoice.patientPhone.replace(/\D/g, '')}?text=${buildWhatsAppMessage(printInvoice, formatCurrency, formatDate)}`}
+                    href={buildWAUrl(printInvoice.patientPhone, buildWhatsAppMessage(printInvoice, formatCurrency, formatDate))}
                     target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                     title="Send invoice via WhatsApp"
@@ -288,5 +298,13 @@ export default function BillingPage() {
         )}
       </Modal>
     </AppLayout>
+  )
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense>
+      <BillingPageInner />
+    </Suspense>
   )
 }

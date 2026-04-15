@@ -17,6 +17,7 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
+import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -831,10 +832,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
       .replace(/\{clinic\}/g, clinicName)
       .replace(/\{date\}/g, formattedDate)
       .replace(/\{days\}/g, String(Math.abs(diff)))
-    const cc = (templates.countryCode || '+91').replace(/\D/g, '')
-    const ph = (phone || entry.phone || '').replace(/\D/g, '').replace(/^0/, '')
-    const full = ph ? `${cc}${ph}` : ''
-    window.open(full ? `https://wa.me/${full}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    window.open(buildWAUrl(phone || entry.phone || '', msg), '_blank')
   }
 
   return (
@@ -1019,7 +1017,7 @@ export default function PatientProfilePage() {
               <span className="flex items-center gap-1.5">
                 📞 {patient.phone}
                 {patient.phone && (
-                  <a href={`https://wa.me/${patient.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                  <a href={buildWAUrl(patient.phone)} target="_blank" rel="noopener noreferrer"
                     className="ml-1 inline-flex items-center gap-1 bg-green-500/80 hover:bg-green-500 px-2 py-0.5 rounded-full text-white text-xs font-medium transition-colors">
                     {WA_ICON} WhatsApp
                   </a>
@@ -1290,7 +1288,7 @@ export default function PatientProfilePage() {
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {invoices.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/billing/${inv.id}`)}>
+                      onClick={() => router.push(`/billing?invoice=${inv.id}`)}>
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
 import { getPatientAge } from '@/models/Patient'
+import { buildWAUrl } from '@/lib/whatsapp'
 
 function exportCSV(patients) {
   const headers = ['Name', 'Phone', 'Email', 'City', 'Address', 'Age', 'Gender', 'Blood Type', 'Conditions', 'Status']
@@ -130,8 +131,7 @@ export default function ContactsPage() {
                   const initials = `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase()
                   const city     = p.address?.city || ''
                   const address  = [p.address?.street, city, p.address?.state].filter(Boolean).join(', ')
-                  const phone    = (p.phone || '').replace(/\D/g, '')
-                  const waPhone  = phone ? `91${phone.replace(/^0/,'')}` : ''
+                  const waPhone  = p.phone || ''
                   return (
                     <tr key={p.id}
                       className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
@@ -150,7 +150,7 @@ export default function ContactsPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-700 dark:text-gray-300">{p.phone || '—'}</span>
                           {waPhone && (
-                            <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer"
+                            <a href={buildWAUrl(waPhone)} target="_blank" rel="noreferrer"
                               onClick={e => e.stopPropagation()}
                               className="text-green-500 hover:text-green-600 transition-colors">
                               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">

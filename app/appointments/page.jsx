@@ -9,6 +9,7 @@ import { useAppointments } from '@/hooks/useAppointments'
 import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
 import { usePreferences } from '@/hooks/usePreferences'
+import { buildWAUrl } from '@/lib/whatsapp'
 
 const STATUS_COLOR = { scheduled: 'teal', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -169,10 +170,7 @@ export default function AppointmentsPage() {
 
   const handleWhatsApp = () => {
     if (!remindAppt) return
-    const msg  = encodeURIComponent(getReminderMessage(remindAppt))
-    const phone = remindPhone.replace(/\D/g, '')
-    const url  = phone ? `https://wa.me/${phone}?text=${msg}` : `https://wa.me/?text=${msg}`
-    window.open(url, '_blank')
+    window.open(buildWAUrl(remindPhone, getReminderMessage(remindAppt)), '_blank')
   }
 
   return (

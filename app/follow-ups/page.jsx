@@ -6,6 +6,7 @@ import { visitService } from '@/services/visitService'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
+import { buildWAUrl } from '@/lib/whatsapp'
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -39,10 +40,7 @@ function sendWhatsApp(entry, doctor, templateKey) {
     .replace(/\{date\}/g,  entry.dueDate || entry.followUpDate || '')
     .replace(/\{days\}/g,  String(Math.abs(diff)))
 
-  const cc = (templates.countryCode || '+91').replace(/\D/g, '')
-  const ph = (entry.phone || '').replace(/\D/g, '').replace(/^0/, '')
-  const full = ph ? `${cc}${ph}` : ''
-  window.open(full ? `https://wa.me/${full}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  window.open(buildWAUrl(entry.phone || '', msg), '_blank')
 }
 
 function FollowUpRow({ entry, router, doctor, onMarkDone }) {
