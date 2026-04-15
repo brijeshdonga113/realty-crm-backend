@@ -4,6 +4,7 @@ import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
 import { visitService } from './visitService'
 import {
+  isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
   createCalendarEvent,
   updateCalendarEvent,
@@ -14,8 +15,9 @@ const COLLECTION = 'appointments'
 
 // Fire-and-forget Google Calendar sync — never blocks the main action
 async function gcalSync(fn) {
+  if (typeof window === 'undefined' || !isGoogleCalendarEnabled) return
   try {
-    if (typeof window !== 'undefined' && isGoogleCalendarConnected()) await fn()
+    await fn()
   } catch (e) {
     console.warn('Google Calendar sync failed:', e.message)
   }
@@ -123,6 +125,27 @@ export const appointmentService = {
       if (appt?.googleEventId) await deleteCalendarEvent(appt.googleEventId)
     })
     return dataStore.remove(COLLECTION, id)
+  },
+
+  // Backfill all appointments that are missing a googleEventId
+  async syncAllToGoogleCalendar(onProgress) {
+    const all = await dataStore.getAll(COLLECTION)
+    const pending = all.filter(a => !a.googleEventId && a.status !== 'cancelled')
+    let synced = 0
+    let failed = 0
+    for (const appt of pending) {
+      try {
+        const googleEventId = await createCalendarEvent(appt)
+        if (googleEventId) {
+          await dataStore.update(COLLECTION, appt.id, { googleEventId })
+          synced++
+        }
+      } catch {
+        failed++
+      }
+      if (onProgress) onProgress({ synced, failed, total: pending.length })
+    }
+    return { synced, failed, total: pending.length }
   },
 
   async getStats() {

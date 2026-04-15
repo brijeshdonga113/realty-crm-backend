@@ -14,6 +14,7 @@ import {
   connectGoogleCalendar,
   disconnectGoogleCalendar,
 } from '@/lib/googleCalendar'
+import { appointmentService } from '@/services/appointmentService'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -46,6 +47,8 @@ export default function SettingsPage() {
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalLoading, setGcalLoading]     = useState(false)
   const [gcalError, setGcalError]         = useState('')
+  const [gcalSyncing, setGcalSyncing]     = useState(false)
+  const [gcalSyncResult, setGcalSyncResult] = useState(null)
 
   useEffect(() => { setGcalConnected(isGoogleCalendarConnected()) }, [])
 
@@ -65,6 +68,21 @@ export default function SettingsPage() {
   const handleGcalDisconnect = () => {
     disconnectGoogleCalendar()
     setGcalConnected(false)
+    setGcalSyncResult(null)
+  }
+
+  const handleGcalSyncAll = async () => {
+    setGcalSyncing(true)
+    setGcalSyncResult(null)
+    setGcalError('')
+    try {
+      const result = await appointmentService.syncAllToGoogleCalendar()
+      setGcalSyncResult(result)
+    } catch (err) {
+      setGcalError(err.message)
+    } finally {
+      setGcalSyncing(false)
+    }
   }
 
   const [prefForm, setPrefForm]   = useState({
@@ -562,18 +580,45 @@ export default function SettingsPage() {
                 </p>
               </div>
             ) : gcalConnected ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 bg-green-500 rounded-full"/>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Connected</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">New appointments will sync automatically.</p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 bg-green-500 rounded-full"/>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">Connected</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">New appointments will sync automatically.</p>
+                    </div>
                   </div>
+                  <button onClick={handleGcalDisconnect}
+                    className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 dark:border-red-700 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
+                    Disconnect
+                  </button>
                 </div>
-                <button onClick={handleGcalDisconnect}
-                  className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 dark:border-red-700 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
-                  Disconnect
-                </button>
+                <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Sync existing appointments</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Push all past appointments that aren't on Google Calendar yet.</p>
+                  </div>
+                  <button onClick={handleGcalSyncAll} disabled={gcalSyncing}
+                    className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0 ml-4">
+                    {gcalSyncing ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Syncing…
+                      </>
+                    ) : 'Sync Now'}
+                  </button>
+                </div>
+                {gcalSyncResult && (
+                  <div className={`rounded-lg px-4 py-3 text-sm ${gcalSyncResult.failed > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'}`}>
+                    {gcalSyncResult.total === 0
+                      ? 'All appointments are already synced to Google Calendar.'
+                      : `Synced ${gcalSyncResult.synced} of ${gcalSyncResult.total} appointments.${gcalSyncResult.failed > 0 ? ` ${gcalSyncResult.failed} failed.` : ''}`}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-between">
@@ -607,11 +652,12 @@ export default function SettingsPage() {
 
             {gcalConnected && (
               <div className="mt-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-lg px-4 py-3">
-                <p className="text-xs font-semibold text-primary-800 dark:text-primary-300 mb-1">What syncs automatically</p>
-                <ul className="text-xs text-primary-700 dark:text-primary-400 space-y-0.5">
+                <p className="text-xs font-semibold text-primary-800 dark:text-primary-300 mb-1.5">What syncs automatically</p>
+                <ul className="text-xs text-primary-700 dark:text-primary-400 space-y-1">
                   <li>✓ New appointment → creates event in Google Calendar</li>
                   <li>✓ Status/time change → updates the event</li>
                   <li>✓ Appointment deleted → removes from Google Calendar</li>
+                  <li className="text-primary-500 dark:text-primary-500">↑ Use "Sync Now" above to push older appointments that were created before connecting.</li>
                 </ul>
               </div>
             )}
