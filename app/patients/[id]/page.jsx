@@ -186,6 +186,9 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
       treatment:      visit.treatment || '',
       notes:          visit.notes || '',
       followUpDate:   visit.followUpDate || '',
+      paymentAmount:  linkedInvoice ? String(linkedInvoice.total ?? '') : '',
+      paymentMethod:  linkedInvoice?.paymentMethod || 'cash',
+      paymentStatus:  linkedInvoice?.status || 'paid',
     })
     setEditing(true)
   }
@@ -203,6 +206,13 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
         notes:          editForm.notes,
         followUpDate:   editForm.followUpDate || null,
       })
+      if (linkedInvoice && editForm.paymentAmount) {
+        await billingService.update(linkedInvoice.id, {
+          total:         Number(editForm.paymentAmount),
+          paymentMethod: editForm.paymentMethod,
+          status:        editForm.paymentStatus,
+        })
+      }
       setEditing(false)
       setOpen(false)
     } catch (err) {
@@ -452,6 +462,46 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
               <textarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
                 rows={2} className="input-field resize-none"/>
             </div>
+            {linkedInvoice && (
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payment</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="form-label">Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.paymentAmount}
+                      onChange={e => setEditForm(f => ({...f, paymentAmount: e.target.value}))}
+                      className="input-field"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Method</label>
+                    <select
+                      value={editForm.paymentMethod}
+                      onChange={e => setEditForm(f => ({...f, paymentMethod: e.target.value}))}
+                      className="input-field"
+                    >
+                      {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Status</label>
+                    <select
+                      value={editForm.paymentStatus}
+                      onChange={e => setEditForm(f => ({...f, paymentStatus: e.target.value}))}
+                      className="input-field"
+                    >
+                      <option value="paid">Paid</option>
+                      <option value="draft">Unpaid</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
               <button onClick={() => setEditing(false)}
                 className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
