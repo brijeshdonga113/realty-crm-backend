@@ -25,12 +25,12 @@ export function useVisits(patientId) {
   }, [doctor])
 
   const update = useCallback(async (id, patch) => {
-    return visitService.update(id, patch)
-  }, [])
+    return visitService.update(id, patch, patientId ?? null)
+  }, [patientId])
 
   const remove = useCallback(async (id) => {
-    return visitService.remove(id)
-  }, [])
+    return visitService.remove(id, patientId ?? null)
+  }, [patientId])
 
   return { visits, loading, add, update, remove }
 }

@@ -53,8 +53,11 @@ export const visitService = {
     return saved
   },
 
-  async update(id, patch) {
-    const existing = await this.getById(id)
+  async update(id, patch, patientId = null) {
+    // Use direct path when patientId is known to avoid a collectionGroup index query
+    const existing = patientId
+      ? await dataStore.getById(visitPath(patientId), id)
+      : await this.getById(id)
     if (!existing) return null
     const updated = await dataStore.update(visitPath(existing.patientId), id, patch)
 
@@ -87,8 +90,11 @@ export const visitService = {
     return updated
   },
 
-  async remove(id) {
-    const existing = await this.getById(id)
+  async remove(id, patientId = null) {
+    // Use direct path when patientId is known to avoid a collectionGroup index query
+    const existing = patientId
+      ? await dataStore.getById(visitPath(patientId), id)
+      : await this.getById(id)
     if (!existing) return false
 
     // Remove linked follow-up record if present
