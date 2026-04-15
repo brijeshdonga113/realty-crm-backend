@@ -12,7 +12,6 @@ import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
 
 const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'teal', 'B-': 'teal', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
-const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -75,8 +74,7 @@ export default function PatientsPage() {
       let av, bv
       if (sortKey === 'name')   { av = `${a.firstName} ${a.lastName}`.toLowerCase(); bv = `${b.firstName} ${b.lastName}`.toLowerCase() }
       if (sortKey === 'age')    { av = getPatientAge(a) ?? -1; bv = getPatientAge(b) ?? -1 }
-      if (sortKey === 'status') { av = a.status ?? ''; bv = b.status ?? '' }
-      if (sortKey === 'visits') { av = billCountByPatient[a.id] ?? 0; bv = billCountByPatient[b.id] ?? 0 }
+if (sortKey === 'visits') { av = billCountByPatient[a.id] ?? 0; bv = billCountByPatient[b.id] ?? 0 }
       if (sortKey === 'uhid')   { av = a.patientNumber ?? 0; bv = b.patientNumber ?? 0 }
       if (av < bv) return sortDir === 'asc' ? -1 : 1
       if (av > bv) return sortDir === 'asc' ? 1 : -1
@@ -149,8 +147,7 @@ export default function PatientsPage() {
                     { label: 'Age / Gender',key: 'age' },
                     { label: 'Blood',       key: null },
                     { label: 'Phone',       key: null },
-                    { label: 'Conditions',  key: null },
-                    { label: 'Status',      key: 'status' },
+                    { label: 'Invoice',     key: null },
                     { label: 'Visits',      key: 'visits' },
                     { label: '',            key: null },
                     { label: '',            key: null },
@@ -206,19 +203,16 @@ export default function PatientsPage() {
                           : <span className="text-gray-400 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">{patient.phone || '—'}</td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex flex-wrap gap-1">
-                          {patient.chronicConditions?.slice(0, 2).map(c => (
-                            <Badge key={c} label={c} color="orange" />
-                          ))}
-                          {patient.chronicConditions?.length > 2 && (
-                            <Badge label={`+${patient.chronicConditions.length - 2}`} color="gray" />
-                          )}
-                          {!patient.chronicConditions?.length && <span className="text-gray-400 text-xs">None</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
+                      <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => { e.stopPropagation(); router.push(`/billing/new?patientId=${patient.id}`) }}
+                          title="Create invoice"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                          </svg>
+                          Invoice
+                        </button>
                       </td>
                       <td className="px-4 py-3.5 text-center">
                         {visitCount > 0 ? (
