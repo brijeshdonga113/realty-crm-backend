@@ -58,6 +58,7 @@ export default function SettingsPage() {
     try {
       await connectGoogleCalendar()
       setGcalConnected(true)
+      updateProfile({ googleCalendarConnected: true }).catch(() => {})
     } catch (err) {
       setGcalError(err.message)
     } finally {
@@ -69,6 +70,7 @@ export default function SettingsPage() {
     disconnectGoogleCalendar()
     setGcalConnected(false)
     setGcalSyncResult(null)
+    updateProfile({ googleCalendarConnected: false }).catch(() => {})
   }
 
   const handleGcalSyncAll = async () => {

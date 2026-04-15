@@ -2,6 +2,19 @@ import { dataStore } from '@/lib/dataStore'
 import { createFollowUp } from '@/models/FollowUp'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
+import {
+  isGoogleCalendarEnabled,
+  isGoogleCalendarConnected,
+  createFollowUpEvent,
+  updateFollowUpEvent,
+  deleteCalendarEvent,
+} from '@/lib/googleCalendar'
+
+async function gcalSync(fn) {
+  if (typeof window === 'undefined' || !isGoogleCalendarEnabled) return
+  if (!isGoogleCalendarConnected()) return
+  try { await fn() } catch (e) { console.warn('GCal follow-up sync failed:', e.message) }
+}
 
 const COLLECTION = 'followups'
 
@@ -19,17 +32,20 @@ export const followupService = {
 
   async create(data) {
     const followup = createFollowUp(data)
-
-    // Create the follow-up record first
     const saved = await dataStore.create(COLLECTION, followup)
 
-    // Fire-and-forget — never let notification failure block follow-up creation
     notificationService.create({
       type:  NOTIFICATION_TYPES.FOLLOW_UP_DUE,
       title: `Follow-up: ${saved.patientName}`,
       body:  `${saved.note || 'Scheduled follow-up'} — due on ${saved.dueDate}`,
       relatedEntity: { type: 'followup', id: saved.id },
     }).catch(() => {})
+
+    // Sync to Google Calendar
+    gcalSync(async () => {
+      const googleEventId = await createFollowUpEvent(saved)
+      if (googleEventId) await dataStore.update(COLLECTION, saved.id, { googleEventId })
+    })
 
     return saved
   },
@@ -40,15 +56,27 @@ export const followupService = {
   },
 
   async update(id, patch) {
-    return dataStore.update(COLLECTION, id, patch)
+    const updated = await dataStore.update(COLLECTION, id, patch)
+    gcalSync(async () => {
+      if (updated.googleEventId) await updateFollowUpEvent(updated.googleEventId, updated)
+    })
+    return updated
   },
 
   async markDone(id) {
     const updated = await dataStore.update(COLLECTION, id, { status: 'done' })
+    // Remove from calendar when marked done
+    gcalSync(async () => {
+      if (updated.googleEventId) await deleteCalendarEvent(updated.googleEventId)
+    })
     return updated
   },
 
   async remove(id) {
+    const existing = await dataStore.getById(COLLECTION, id)
+    gcalSync(async () => {
+      if (existing?.googleEventId) await deleteCalendarEvent(existing.googleEventId)
+    })
     return dataStore.remove(COLLECTION, id)
   },
 

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase'
+import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 
 const AuthContext = createContext(null)
 
@@ -20,10 +21,11 @@ function buildDoctorProfile(uid, data) {
     clinicName:     data.clinicName     ?? '',
     colorTheme:     data.colorTheme     ?? null,
     darkMode:       data.darkMode       ?? null,
-    dateFormat:       data.dateFormat       ?? 'DD/MM/YYYY',
-    currency:         data.currency         ?? 'INR',
-    referralSources:  data.referralSources  ?? null,
-    createdAt:        data.createdAt        ?? new Date().toISOString(),
+    dateFormat:         data.dateFormat         ?? 'DD/MM/YYYY',
+    currency:           data.currency           ?? 'INR',
+    referralSources:    data.referralSources    ?? null,
+    googleCalendarConnected: data.googleCalendarConnected ?? false,
+    createdAt:          data.createdAt          ?? new Date().toISOString(),
   }
 }
 
@@ -77,6 +79,8 @@ export function AuthProvider({ children }) {
               firstName: user.displayName?.split(' ')[0] ?? '',
               lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
             })
+            // Restore Google Calendar connection flag from profile
+            restoreGoogleCalendarConnection(resolved.googleCalendarConnected)
             saveSessionLocally(resolved)
             setDoctor(resolved)
           } catch {
