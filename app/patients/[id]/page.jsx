@@ -585,6 +585,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
       await billingService.create({
         patientId,
         patientName,
+        patientPhone:  patientPhone || '',
         issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
         lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
         status:        payment.status,
