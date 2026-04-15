@@ -83,7 +83,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel — form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900">
         <div className="w-full max-w-md">
 
           {/* Mobile logo */}
@@ -94,14 +94,14 @@ export default function LoginPage() {
                   d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-primary-700 text-lg font-bold">ClinicCRM</span>
+            <span className="text-primary-700 dark:text-primary-400 text-lg font-bold">ClinicCRM</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back, Doctor</h2>
-          <p className="text-gray-500 text-sm mb-8">Sign in to access your clinic dashboard</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Welcome back, Doctor</h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Sign in to access your clinic dashboard</p>
 
           {error && (
-            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
               <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
@@ -125,8 +125,8 @@ export default function LoginPage() {
 
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <button type="button" className="text-xs text-primary-600 hover:underline">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                <button type="button" className="text-xs text-primary-600 dark:text-primary-400 hover:underline">
                   Forgot password?
                 </button>
               </div>
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   {showPassword ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,9 +172,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
+          <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             New to ClinicCRM?{' '}
-            <Link href="/signup" className="text-primary-600 font-medium hover:underline">
+            <Link href="/signup" className="text-primary-600 dark:text-primary-400 font-medium hover:underline">
               Create an account
             </Link>
           </p>
