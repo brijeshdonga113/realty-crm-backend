@@ -16,6 +16,7 @@ const COLLECTION = 'appointments'
 // Fire-and-forget Google Calendar sync — never blocks the main action
 async function gcalSync(fn) {
   if (typeof window === 'undefined' || !isGoogleCalendarEnabled) return
+  if (!isGoogleCalendarConnected()) return  // user hasn't authorized — skip silently
   try {
     await fn()
   } catch (e) {
