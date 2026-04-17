@@ -15,6 +15,7 @@ import {
   disconnectGoogleCalendar,
 } from '@/lib/googleCalendar'
 import { appointmentService } from '@/services/appointmentService'
+import { sendWhatsAppMessage } from '@/lib/whatsappApi'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -51,6 +52,60 @@ export default function SettingsPage() {
   const [gcalSyncResult, setGcalSyncResult] = useState(null)
 
   useEffect(() => { setGcalConnected(isGoogleCalendarConnected()) }, [])
+
+  const [waForm, setWaForm] = useState({
+    phoneNumberId: doctor?.whatsapp?.phoneNumberId ?? '',
+    accessToken:   doctor?.whatsapp?.accessToken   ?? '',
+  })
+  const [waSaving,      setWaSaving]      = useState(false)
+  const [waSaved,       setWaSaved]       = useState(false)
+  const [waError,       setWaError]       = useState('')
+  const [waTesting,     setWaTesting]     = useState(false)
+  const [waTestPhone,   setWaTestPhone]   = useState('')
+  const [waTestResult,  setWaTestResult]  = useState(null)
+  const waConnected = !!(doctor?.whatsapp?.phoneNumberId && doctor?.whatsapp?.accessToken)
+
+  const handleWaSave = async () => {
+    if (!waForm.phoneNumberId.trim() || !waForm.accessToken.trim()) {
+      setWaError('Both Phone Number ID and Access Token are required.')
+      return
+    }
+    setWaSaving(true)
+    setWaError('')
+    setWaSaved(false)
+    try {
+      await updateProfile({ whatsapp: { phoneNumberId: waForm.phoneNumberId.trim(), accessToken: waForm.accessToken.trim() } })
+      setWaSaved(true)
+      setTimeout(() => setWaSaved(false), 3000)
+    } catch (err) {
+      setWaError(err.message)
+    } finally {
+      setWaSaving(false)
+    }
+  }
+
+  const handleWaDisconnect = async () => {
+    await updateProfile({ whatsapp: null }).catch(() => {})
+    setWaForm({ phoneNumberId: '', accessToken: '' })
+    setWaTestResult(null)
+    setWaError('')
+  }
+
+  const handleWaTest = async () => {
+    if (!waTestPhone.trim()) { setWaError('Enter a phone number to test.'); return }
+    setWaTesting(true)
+    setWaTestResult(null)
+    setWaError('')
+    try {
+      const testDoctor = { whatsapp: { phoneNumberId: waForm.phoneNumberId.trim(), accessToken: waForm.accessToken.trim() } }
+      await sendWhatsAppMessage(testDoctor, waTestPhone.trim(), `Hello from ${doctor?.clinicName || 'ClinicCRM'}! Your WhatsApp Business API is connected successfully.`)
+      setWaTestResult({ ok: true, msg: 'Test message sent successfully!' })
+    } catch (err) {
+      setWaTestResult({ ok: false, msg: err.message })
+    } finally {
+      setWaTesting(false)
+    }
+  }
 
   const handleGcalConnect = async () => {
     setGcalLoading(true)
@@ -663,6 +718,124 @@ export default function SettingsPage() {
                 </ul>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ── WhatsApp Business API ────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
+            <svg className="w-5 h-5 flex-shrink-0 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <div>
+              <h2 className="font-semibold text-gray-900 dark:text-white">WhatsApp Business API</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Send appointment reminders & invoices directly from your clinic's WhatsApp number.</p>
+            </div>
+            {waConnected && <span className="ml-auto flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400"><span className="w-2 h-2 bg-green-500 rounded-full"/>Connected</span>}
+          </div>
+
+          <div className="p-6 space-y-5">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-1">
+              <p className="font-semibold">Setup steps:</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-400">
+                <li>Go to developers.facebook.com → My Apps → WhatsApp → API Setup</li>
+                <li>Copy your <strong>Phone Number ID</strong> and generate a permanent <strong>System User Access Token</strong></li>
+                <li>Paste both below and click Save</li>
+              </ol>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">Phone Number ID</label>
+                <input
+                  type="text"
+                  value={waForm.phoneNumberId}
+                  onChange={e => { setWaForm(f => ({ ...f, phoneNumberId: e.target.value })); setWaError(''); setWaSaved(false) }}
+                  placeholder="e.g. 1037599946110530"
+                  className="input-field font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Found on the API Setup page under your WhatsApp Business number.</p>
+              </div>
+              <div>
+                <label className="form-label">Access Token</label>
+                <input
+                  type="password"
+                  value={waForm.accessToken}
+                  onChange={e => { setWaForm(f => ({ ...f, accessToken: e.target.value })); setWaError(''); setWaSaved(false) }}
+                  placeholder="EAA9FAN2Up3UBRC9Hi0aFTS…"
+                  className="input-field font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Use a permanent System User token, not the temporary test token (which expires in 24 hrs).</p>
+              </div>
+            </div>
+
+            {waConnected && (
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Send a test message</p>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={waTestPhone}
+                    onChange={e => { setWaTestPhone(e.target.value); setWaTestResult(null) }}
+                    placeholder="91XXXXXXXXXX (with country code)"
+                    className="input-field flex-1 text-sm"
+                  />
+                  <button onClick={handleWaTest} disabled={waTesting}
+                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0">
+                    {waTesting ? (
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    ) : 'Send Test'}
+                  </button>
+                </div>
+                {waTestResult && (
+                  <p className={`text-xs px-3 py-2 rounded-lg ${waTestResult.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
+                    {waTestResult.msg}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {waError && (
+              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-2">{waError}</p>
+            )}
+
+            {waConnected && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-lg px-4 py-3">
+                <p className="text-xs font-semibold text-green-800 dark:text-green-300 mb-1.5">What you can send via API</p>
+                <ul className="text-xs text-green-700 dark:text-green-400 space-y-1">
+                  <li>✓ Appointment reminders — directly from the Appointments page</li>
+                  <li>✓ Follow-up reminders — from the Follow-ups page</li>
+                  <li>✓ Invoice notifications — from the Billing page</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div>
+              {waConnected && (
+                <button onClick={handleWaDisconnect} className="text-sm text-red-500 hover:text-red-700 font-medium border border-red-200 dark:border-red-700 hover:border-red-300 px-4 py-1.5 rounded-lg transition-colors">
+                  Disconnect
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {waSaved && (
+                <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  Saved!
+                </span>
+              )}
+              <button onClick={handleWaSave} disabled={waSaving}
+                className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                {waSaving ? (
+                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                ) : 'Save Credentials'}
+              </button>
+            </div>
           </div>
         </div>
 
