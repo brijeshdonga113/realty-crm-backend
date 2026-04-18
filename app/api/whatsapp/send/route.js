@@ -1,7 +1,7 @@
 export async function POST(request) {
-  const { phoneNumberId, accessToken, to, message } = await request.json()
+  const { to, message } = await request.json()
 
-  if (!phoneNumberId || !accessToken || !to || !message) {
+  if (!to || !message) {
     return Response.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
@@ -10,30 +10,32 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid phone number' }, { status: 400 })
   }
 
+  const endpoint = process.env.WATI_API_ENDPOINT
+  const token    = process.env.WATI_API_TOKEN
+
+  if (!endpoint || !token) {
+    return Response.json({ error: 'WATI not configured on server' }, { status: 500 })
+  }
+
   const res = await fetch(
-    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+    `${endpoint}/api/v1/sendSessionMessage/${phone}`,
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: phone,
-        type: 'text',
-        text: { body: message, preview_url: false },
-      }),
+      body: JSON.stringify({ messageText: message }),
     }
   )
 
   const data = await res.json()
   if (!res.ok) {
     return Response.json(
-      { error: data.error?.message || 'WhatsApp API error' },
+      { error: data.errors?.[0] || data.message || 'WATI API error' },
       { status: res.status }
     )
   }
 
-  return Response.json({ success: true, messageId: data.messages?.[0]?.id })
+  return Response.json({ success: true })
 }
