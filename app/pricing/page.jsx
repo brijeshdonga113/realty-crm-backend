@@ -58,7 +58,7 @@ export default function PricingPage() {
       if (apiErr) throw new Error(apiErr)
 
       const options = {
-        key:             process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_Sep33i5fn1eA0x',
         subscription_id: subscriptionId,
         name:            'ClinicCRM',
         description:     plan === 'yearly' ? 'Yearly Plan — ₹5,000/year' : 'Monthly Plan — ₹600/month',
