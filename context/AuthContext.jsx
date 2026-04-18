@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
+import { initTrial } from '@/lib/subscription'
 
 const AuthContext = createContext(null)
 
@@ -25,8 +26,9 @@ function buildDoctorProfile(uid, data) {
     currency:           data.currency           ?? 'INR',
     referralSources:    data.referralSources    ?? null,
     googleCalendarConnected: data.googleCalendarConnected ?? false,
-    whatsapp: data.whatsapp ?? null,
-    createdAt:          data.createdAt          ?? new Date().toISOString(),
+    whatsapp:     data.whatsapp     ?? null,
+    subscription: data.subscription ?? null,
+    createdAt:    data.createdAt    ?? new Date().toISOString(),
   }
 }
 
@@ -103,7 +105,7 @@ export function AuthProvider({ children }) {
 
     const cred    = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
     const uid     = cred.user.uid
-    const profile = buildDoctorProfile(uid, doctorData)
+    const profile = buildDoctorProfile(uid, { ...doctorData, subscription: initTrial() })
 
     await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
     await fbUpdateProfile(cred.user, { displayName: `${doctorData.firstName} ${doctorData.lastName}` })

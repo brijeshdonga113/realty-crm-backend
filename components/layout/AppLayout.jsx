@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/hooks/useTheme'
 import Sidebar from '@/components/Sidebar'
 import { useNotifications } from '@/hooks/useNotifications'
+import { useSubscription } from '@/hooks/useSubscription'
+import { SubscriptionBanner } from '@/components/ui/SubscriptionBanner'
 
 function ThemeToggle() {
   const { dark, toggle } = useTheme()
@@ -34,6 +36,7 @@ export function AppLayout({ children, title, action }) {
   const router   = useRouter()
   const pathname = usePathname()
   const { unreadCount } = useNotifications()
+  const { isReadOnly } = useSubscription()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Close sidebar on route change
@@ -87,7 +90,15 @@ export function AppLayout({ children, title, action }) {
             </div>
             {/* Desktop: action + theme in same row */}
             <div className="hidden lg:flex items-center gap-2">
-              {action}
+              {isReadOnly && action ? (
+                <button onClick={() => router.push('/pricing')}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-medium rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  Subscribe to unlock
+                </button>
+              ) : action}
               <ThemeToggle />
             </div>
             {/* Mobile: theme toggle only in row 1 */}
@@ -98,10 +109,20 @@ export function AppLayout({ children, title, action }) {
           {/* Row 2: action buttons — mobile only */}
           {action && (
             <div className="lg:hidden flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-              {action}
+              {isReadOnly ? (
+                <button onClick={() => router.push('/pricing')}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-medium rounded-lg">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  Subscribe to unlock
+                </button>
+              ) : action}
             </div>
           )}
         </header>
+
+        <SubscriptionBanner />
 
         {/* Page content */}
         <div className="flex-1 p-4 lg:p-8">
