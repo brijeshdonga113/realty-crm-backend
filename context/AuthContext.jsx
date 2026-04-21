@@ -26,7 +26,6 @@ function buildDoctorProfile(uid, data) {
     currency:           data.currency           ?? 'INR',
     referralSources:    data.referralSources    ?? null,
     googleCalendarConnected: data.googleCalendarConnected ?? false,
-    whatsapp:     data.whatsapp     ?? null,
     subscription: data.subscription ?? null,
     createdAt:    data.createdAt    ?? new Date().toISOString(),
   }
