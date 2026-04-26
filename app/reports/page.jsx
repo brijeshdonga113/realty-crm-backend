@@ -276,15 +276,22 @@ export default function ReportsPage() {
     const appointments = rawAppointments.filter(a => inRange(a.date ?? ''))
     const paidInvoices = rawInvoices.filter(i => i.status === 'paid' && inRange(i.issueDate ?? ''))
     const dueInvoices  = rawInvoices.filter(i => ['draft', 'sent'].includes(i.status) && inRange(i.issueDate ?? ''))
+    const overdueInvoices = rawInvoices.filter(i => i.status === 'overdue' && inRange(i.issueDate ?? ''))
 
     return {
-      patients:     patients.length,
-      visits:       visits.length,
-      revenue:      paidInvoices.reduce((s, i) => s + i.total, 0),
-      pending:      dueInvoices.length,
+      patients:      patients.length,
+      activePatients: patients.filter(p => p.status === 'active').length,
+      visits:        visits.length,
+      revenue:       paidInvoices.reduce((s, i) => s + i.total, 0),
+      paidCount:     paidInvoices.length,
+      pending:       dueInvoices.length,
       pendingAmount: dueInvoices.reduce((s, i) => s + i.total, 0),
-      appointments: appointments.length,
-      completed:    appointments.filter(a => a.status === 'completed').length,
+      overdueCount:  overdueInvoices.length,
+      totalInvoices: paidInvoices.length + dueInvoices.length + overdueInvoices.length,
+      appointments:  appointments.length,
+      completed:     appointments.filter(a => a.status === 'completed').length,
+      noShow:        appointments.filter(a => a.status === 'no_show').length,
+      upcoming:      appointments.filter(a => a.status === 'scheduled').length,
     }
   }, [rawPatients, rawVisits, rawAppointments, rawInvoices, from, to])
 
@@ -411,15 +418,15 @@ export default function ReportsPage() {
             <HorizontalBar items={sourceChartData} totalKey="count" labelKey="label"/>
           </div>
 
-          {stats && (
+          {filteredStats && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Appointment Breakdown</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Scheduled',  value: stats.appointments.upcomingCount,  color: 'bg-primary-500' },
-                  { label: 'Completed',  value: stats.appointments.completedCount, color: 'bg-green-500' },
-                  { label: 'No Shows',   value: stats.appointments.noShowCount,    color: 'bg-yellow-400' },
-                  { label: 'Total',      value: stats.appointments.total,          color: 'bg-gray-300 dark:bg-gray-500' },
+                  { label: 'Scheduled',  value: filteredStats.upcoming,   color: 'bg-primary-500' },
+                  { label: 'Completed',  value: filteredStats.completed,   color: 'bg-green-500' },
+                  { label: 'No Shows',   value: filteredStats.noShow,      color: 'bg-yellow-400' },
+                  { label: 'Total',      value: filteredStats.appointments, color: 'bg-gray-300 dark:bg-gray-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
@@ -427,14 +434,14 @@ export default function ReportsPage() {
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">{item.value}</span>
                   </div>
                 ))}
-                {stats.appointments.total > 0 && (
+                {filteredStats.appointments > 0 && (
                   <div className="mt-2">
                     <div className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">
-                      No-show rate: {((stats.appointments.noShowCount / stats.appointments.total) * 100).toFixed(1)}%
+                      No-show rate: {((filteredStats.noShow / filteredStats.appointments) * 100).toFixed(1)}%
                     </div>
                     <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
                       <div className="bg-yellow-400 h-2 rounded-full transition-all"
-                        style={{ width: `${(stats.appointments.noShowCount / stats.appointments.total) * 100}%` }}/>
+                        style={{ width: `${(filteredStats.noShow / filteredStats.appointments) * 100}%` }}/>
                     </div>
                   </div>
                 )}
@@ -444,19 +451,17 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Patient Analytics + Billing Summary ─────────────────────────── */}
-        {stats && (
+        {filteredStats && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Patient Analytics</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Total Registered',     value: stats.patients.total,           color: 'bg-primary-500' },
-                  { label: 'Active Patients',       value: stats.patients.active,          color: 'bg-green-500' },
-                  { label: 'Registered This Month', value: stats.patients.thisMonth,       color: 'bg-teal-500' },
-                  { label: 'Follow-ups Scheduled',  value: stats.followups.total,          color: 'bg-orange-400' },
-                  { label: 'Follow-ups Overdue',    value: stats.followups.overdueCount,   color: 'bg-red-500' },
-                  { label: 'Appointments No-Show',  value: stats.appointments.noShowCount, color: 'bg-yellow-400' },
+                  { label: 'New Patients (period)',  value: filteredStats.patients,       color: 'bg-primary-500' },
+                  { label: 'Active Patients',         value: filteredStats.activePatients, color: 'bg-green-500' },
+                  { label: 'Visits',                  value: filteredStats.visits,         color: 'bg-teal-500' },
+                  { label: 'Appointments No-Show',    value: filteredStats.noShow,         color: 'bg-yellow-400' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
@@ -471,9 +476,9 @@ export default function ReportsPage() {
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Billing Summary</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Paid Invoices',    value: stats.billing.paid,    amount: stats.billing.totalRevenue,  color: 'bg-green-500' },
-                  { label: 'Due / Pending',    value: stats.billing.pending, amount: stats.billing.pendingAmount, color: 'bg-orange-400' },
-                  { label: 'Overdue',          value: stats.billing.overdue, amount: 0,                           color: 'bg-red-500' },
+                  { label: 'Paid Invoices',  value: filteredStats.paidCount,    amount: filteredStats.revenue,        color: 'bg-green-500' },
+                  { label: 'Due / Pending',  value: filteredStats.pending,       amount: filteredStats.pendingAmount,  color: 'bg-orange-400' },
+                  { label: 'Overdue',        value: filteredStats.overdueCount,  amount: 0,                            color: 'bg-red-500' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
@@ -485,8 +490,7 @@ export default function ReportsPage() {
                 ))}
                 <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Total invoices: <span className="font-semibold text-gray-800 dark:text-gray-200">{stats.billing.total}</span>
-                    &nbsp;·&nbsp;Today's revenue: <span className="font-semibold text-green-700 dark:text-green-400">{formatCurrency(stats.billing.todayRevenue)}</span>
+                    Total invoices in period: <span className="font-semibold text-gray-800 dark:text-gray-200">{filteredStats.totalInvoices}</span>
                   </p>
                 </div>
               </div>

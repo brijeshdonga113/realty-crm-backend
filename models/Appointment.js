@@ -27,6 +27,7 @@ export function createAppointment(data = {}) {
     doctorId:        data.doctorId ?? '',
     patientId:       data.patientId ?? '',
     patientName:     data.patientName ?? '',   // denormalized
+    patientPhone:    data.patientPhone ?? '',  // denormalized for quick WhatsApp access
     date:            data.date ?? '',           // YYYY-MM-DD
     time:            data.time ?? '',           // HH:MM
     durationMinutes: data.durationMinutes ?? 30,

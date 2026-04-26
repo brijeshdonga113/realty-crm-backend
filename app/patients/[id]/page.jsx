@@ -18,6 +18,15 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
+import { formatDate as fmtDateLib } from '@/lib/preferences'
+
+function getWADateFormat(fallback) {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
+    return s.dateFormat || fallback
+  } catch { return fallback }
+}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -853,7 +862,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
 
 /* ─────────────── FollowUpRow for patient profile tab ─────────────── */
 function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
-  const { formatDate } = usePreferences()
+  const { formatDate, dateFormat } = usePreferences()
   const diff = daysBetween(entry.dueDate)
   const isOverdue = diff < 0
   const isToday   = diff === 0
@@ -876,8 +885,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
     }
     const tmpl = templates[waKey]?.template || defaults[waKey]
     const clinicName = doctor?.clinicName || 'our clinic'
-    // Use the date formatted according to the WhatsApp date format setting
-    const formattedDate = formatDate(entry.dueDate)
+    const formattedDate = fmtDateLib(entry.dueDate, getWADateFormat(dateFormat))
     const msg = tmpl
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
