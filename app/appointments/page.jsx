@@ -11,6 +11,15 @@ import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { isWhatsAppApiConnected, sendWhatsAppMessage } from '@/lib/whatsappApi'
+import { formatDate as fmtDateLib } from '@/lib/preferences'
+
+function getWADateFormat(fallback) {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
+    return s.dateFormat || fallback
+  } catch { return fallback }
+}
 
 const STATUS_COLOR = { scheduled: 'teal', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -113,7 +122,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
 export default function AppointmentsPage() {
   const router  = useRouter()
   const { doctor } = useAuth()
-  const { formatDate, formatDateFull } = usePreferences()
+  const { formatDate, formatDateFull, dateFormat } = usePreferences()
   const { appointments, loading, update, remove } = useAppointments()
 
   const [view, setView]                 = useState('list')
@@ -150,11 +159,25 @@ export default function AppointmentsPage() {
     setEditAppt(null)
   }
 
-  // WhatsApp reminder message
+  // WhatsApp reminder message — uses WhatsApp Templates date format setting
   const getReminderMessage = (appt) => {
     const clinicName = doctor?.clinicName || 'our clinic'
-    const date = formatDate(appt.date)
+    const waFmt = getWADateFormat(dateFormat)
+    let tmpl = null
+    try {
+      const stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
+      tmpl = stored.appointment?.template || null
+    } catch {}
+    const date = fmtDateLib(appt.date, waFmt)
     const time = formatTime(appt.time)
+    if (tmpl) {
+      return tmpl
+        .replace(/\{name\}/g,   appt.patientName || '')
+        .replace(/\{clinic\}/g, clinicName)
+        .replace(/\{date\}/g,   date)
+        .replace(/\{time\}/g,   time)
+        .replace(/\{days\}/g,   '')
+    }
     return `Hello ${appt.patientName},\n\nThis is a reminder for your appointment at ${clinicName} on *${date}* at *${time}*.\n\nPlease arrive 5 minutes early. If you need to reschedule, please contact us.\n\nThank you!`
   }
 

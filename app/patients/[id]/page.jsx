@@ -18,6 +18,15 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
+import { formatDate as fmtDateLib, formatDateFull as fmtDateFullLib } from '@/lib/preferences'
+
+function getWADateFormat(fallback) {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
+    return s.dateFormat || fallback
+  } catch { return fallback }
+}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -520,10 +529,12 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
 }
 
 /* ─────────────── AddVisitModal with payment + billing ─────────────── */
-function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, add, doctor }) {
-  const { formatDateFull } = usePreferences()
+function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, patientNumber, add, doctor }) {
+  const { formatDateFull, dateFormat } = usePreferences()
   const [loading, setLoading] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [savedVisit, setSavedVisit] = useState(null)
+  const [nameCopied, setNameCopied] = useState(false)
   const [customDays, setCustomDays] = useState('')
   const [form, setForm] = useState({
     visitDate: new Date().toISOString().slice(0, 10),
@@ -558,6 +569,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
     setDiagInput(''); setLabInput(''); setCustomDays('')
     setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
     setSaveError('')
+    setSavedVisit(null)
+    setNameCopied(false)
   }
 
   const handleSave = async (e) => {
@@ -600,8 +613,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
         doctorEmail:   doctor?.email ?? '',
       })
 
-      resetForm()
-      onClose()
+      setSavedVisit(visit)
     } catch (err) {
       alert(err?.message || 'Failed to save visit')
     } finally {
@@ -609,7 +621,81 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
     }
   }
 
+  const openWhatsApp = () => {
+    if (!savedVisit) return
+    let stored = {}
+    try { stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+    const tmpl = stored.followup?.template ||
+      'Hello {name},\n\nThank you for visiting {clinic} today! 🙏\n\nYour follow-up is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!'
+    const clinicName = doctor?.clinicName || 'our clinic'
+    const waFmt = getWADateFormat(dateFormat)
+    const msg = tmpl
+      .replace(/\{name\}/g,   patientName)
+      .replace(/\{clinic\}/g, clinicName)
+      .replace(/\{date\}/g,   fmtDateFullLib(savedVisit.followUpDate, waFmt))
+      .replace(/\{days\}/g,   '')
+    window.open(buildWAUrl(patientPhone || '', msg), '_blank')
+  }
+
   if (!open) return null
+
+  // ── Success state ──
+  if (savedVisit) {
+    const contactName = patientNumber ? `${patientName} ${patientNumber}` : patientName
+    const copyName = () => {
+      navigator.clipboard.writeText(contactName)
+      setNameCopied(true)
+      setTimeout(() => setNameCopied(false), 2000)
+    }
+    return (
+      <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Visit Recorded" size="md">
+        <div className="space-y-5 py-2">
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+              <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p className="font-bold text-gray-900 dark:text-white text-lg">Visit Saved!</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{patientName}&apos;s visit and payment have been recorded.</p>
+          </div>
+
+          {savedVisit.followUpDate && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 rounded-xl p-4">
+              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-1">Follow-up Scheduled</p>
+              <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">{formatDateFull(savedVisit.followUpDate)}</p>
+              {patientPhone && (
+                <button onClick={openWhatsApp}
+                  className="mt-3 w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors">
+                  {WA_ICON}
+                  Send Follow-up Reminder via WhatsApp
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Save Contact As</p>
+            <div className="flex items-center gap-2">
+              <span className="flex-1 font-mono text-sm font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
+                {contactName}
+              </span>
+              <button onClick={copyName}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${nameCopied ? 'bg-green-50 border-green-300 text-green-700' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                {nameCopied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Copy and save this as the contact name in your phone.</p>
+          </div>
+
+          <button onClick={() => { resetForm(); onClose() }}
+            className="w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors">
+            Done — View Patient Profile
+          </button>
+        </div>
+      </Modal>
+    )
+  }
 
   return (
     <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Record Visit" size="xl">
@@ -853,7 +939,7 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, ad
 
 /* ─────────────── FollowUpRow for patient profile tab ─────────────── */
 function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
-  const { formatDate } = usePreferences()
+  const { formatDate, dateFormat } = usePreferences()
   const diff = daysBetween(entry.dueDate)
   const isOverdue = diff < 0
   const isToday   = diff === 0
@@ -876,8 +962,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
     }
     const tmpl = templates[waKey]?.template || defaults[waKey]
     const clinicName = doctor?.clinicName || 'our clinic'
-    // Use the date formatted according to the WhatsApp date format setting
-    const formattedDate = formatDate(entry.dueDate)
+    const formattedDate = fmtDateLib(entry.dueDate, getWADateFormat(dateFormat))
     const msg = tmpl
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
@@ -1112,6 +1197,8 @@ export default function PatientProfilePage() {
               <InfoRow label="National ID" value={patient.nationalId} />
               <InfoRow label="Phone" value={patient.phone} />
               <InfoRow label="Alt Phone" value={patient.alternatePhone} />
+              <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
+              {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
             </div>
             <InfoRow label="Email" value={patient.email} />
             <InfoRow label="Address" value={patient.address} />
@@ -1374,6 +1461,7 @@ export default function PatientProfilePage() {
         patientId={id}
         patientName={`${patient.firstName} ${patient.lastName}`}
         patientPhone={patient.phone}
+        patientNumber={patient.patientNumber}
         add={addVisit}
         doctor={doctor}
       />

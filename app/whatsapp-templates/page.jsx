@@ -39,6 +39,7 @@ const DEFAULT_TEMPLATES = {
 }
 
 const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}']
+const EMOJIS = ['😊', '👋', '🏥', '📅', '⏰', '💊', '❤️', '✅', '🙏', '📞', '💉', '🩺']
 
 function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
   const [preview, setPreview] = useState(false)
@@ -88,15 +89,28 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
             placeholder={config.template}
           />
         )}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {VARIABLES.map(v => (
-            <button key={v} type="button"
-              onClick={() => onChange(id, (value || '') + v)}
-              className="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-300 rounded transition-colors">
-              {v}
-            </button>
-          ))}
-          <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 self-center">Click to insert variable</span>
+        <div className="mt-2 space-y-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {VARIABLES.map(v => (
+              <button key={v} type="button"
+                onClick={() => onChange(id, (value || '') + v)}
+                className="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-300 rounded transition-colors">
+                {v}
+              </button>
+            ))}
+            <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 self-center">variables</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {EMOJIS.map(e => (
+              <button key={e} type="button"
+                onClick={() => onChange(id, (value || '') + e)}
+                className="text-base px-1.5 py-0.5 bg-gray-50 dark:bg-gray-700/60 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors"
+                title={`Insert ${e}`}>
+                {e}
+              </button>
+            ))}
+            <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 self-center">emojis</span>
+          </div>
         </div>
       </div>
     </div>

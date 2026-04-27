@@ -47,7 +47,8 @@ function NewAppointmentForm() {
     try {
       await add({
         ...form,
-        patientName: selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
+        patientName:  selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
+        patientPhone: selectedPatient?.phone ?? '',
         durationMinutes: Number(form.durationMinutes),
       })
       router.push('/appointments')
