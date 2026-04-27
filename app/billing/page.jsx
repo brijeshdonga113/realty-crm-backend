@@ -94,11 +94,47 @@ function BillingPageInner() {
   const searchParams = useSearchParams()
   const { doctor } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
-  const { invoices, loading, markPaid, remove } = useBilling()
+  const { invoices, loading, markPaid, update, remove } = useBilling()
   const [filterStatus, setFilterStatus] = useState('all')
   const [printInvoice, setPrintInvoice] = useState(null)
   const [payModal, setPayModal]         = useState(null)
   const [payMethod, setPayMethod]       = useState('cash')
+  const [editInvoice, setEditInvoice]   = useState(null)
+  const [editForm, setEditForm]         = useState({ description: '', amount: '', method: 'cash', status: 'paid' })
+  const [editSaving, setEditSaving]     = useState(false)
+
+  const openEdit = (inv) => {
+    setEditInvoice(inv)
+    setEditForm({
+      description: inv.lineItems?.[0]?.description || '',
+      amount:      String(inv.total ?? ''),
+      method:      inv.paymentMethod || 'cash',
+      status:      inv.status || 'paid',
+    })
+  }
+
+  const handleEdit = async () => {
+    if (!editInvoice) return
+    setEditSaving(true)
+    try {
+      const newTotal = Number(editForm.amount)
+      await update(editInvoice.id, {
+        lineItems:     editInvoice.lineItems?.length
+          ? [{ ...editInvoice.lineItems[0], description: editForm.description, unitPrice: newTotal, quantity: 1, total: newTotal }]
+          : editInvoice.lineItems,
+        total:         newTotal,
+        subtotal:      newTotal,
+        status:        editForm.status,
+        paymentMethod: editForm.method,
+        paymentDate:   editForm.status === 'paid' ? (editInvoice.paymentDate || editInvoice.issueDate) : null,
+      })
+      setEditInvoice(null)
+    } catch (err) {
+      alert(err?.message || 'Failed to update invoice')
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   // Auto-open invoice modal when navigated from patient profile (?invoice=<id>)
   useEffect(() => {
@@ -206,6 +242,10 @@ function BillingPageInner() {
                           Mark Paid
                         </button>
                       )}
+                      <button onClick={() => openEdit(inv)}
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:underline font-medium">
+                        Edit
+                      </button>
                       <button onClick={() => setPrintInvoice(inv)}
                         className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
                         Print
@@ -257,6 +297,46 @@ function BillingPageInner() {
           <button onClick={async () => { await markPaid(payModal, payMethod); setPayModal(null) }}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
             Confirm Payment
+          </button>
+        </div>
+      </Modal>
+
+      {/* Edit Invoice modal */}
+      <Modal open={!!editInvoice} onClose={() => setEditInvoice(null)} title="Edit Invoice" size="sm">
+        {editInvoice && (
+          <div className="space-y-4 mb-5">
+            <div>
+              <label className="form-label">Description</label>
+              <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Consultation Fee" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Amount</label>
+              <input type="number" min="0" value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Payment Method</label>
+              <select value={editForm.method} onChange={e => setEditForm(f => ({ ...f, method: e.target.value }))} className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Status</label>
+              <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} className="input-field">
+                {INVOICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end">
+          <button onClick={() => setEditInvoice(null)}
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleEdit} disabled={editSaving}
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+            {editSaving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </Modal>
