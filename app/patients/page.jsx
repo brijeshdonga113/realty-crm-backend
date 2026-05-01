@@ -10,8 +10,7 @@ import { useBilling } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
-
-const BLOOD_COLORS = { 'A+': 'red', 'A-': 'red', 'B+': 'teal', 'B-': 'teal', 'AB+': 'purple', 'AB-': 'purple', 'O+': 'green', 'O-': 'green' }
+import { getReferralSources } from '@/lib/referralSources'
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -26,6 +25,12 @@ export default function PatientsPage() {
   const [followUpPatient, setFollowUpPatient] = useState(null)
   const [followUpForm, setFollowUpForm]       = useState({ dueDate: '', note: '' })
   const [followUpSaving, setFollowUpSaving]   = useState(false)
+
+  const sourceLabelMap = useMemo(() => {
+    const map = {}
+    getReferralSources().forEach(s => { map[s.value] = s.label })
+    return map
+  }, [])
 
   // Build a map of patientId → total bill count
   const billCountByPatient = useMemo(() => {
@@ -145,7 +150,7 @@ if (sortKey === 'visits') { av = billCountByPatient[a.id] ?? 0; bv = billCountBy
                     { label: 'UHID',        key: 'uhid',   cls: 'pl-6' },
                     { label: 'Patient',     key: 'name' },
                     { label: 'Age / Gender',key: 'age' },
-                    { label: 'Blood',       key: null },
+                    { label: 'Source',      key: null },
                     { label: 'Phone',       key: null },
                     { label: 'Invoice',     key: null },
                     { label: 'Visits',      key: 'visits' },
@@ -198,8 +203,8 @@ if (sortKey === 'visits') { av = billCountByPatient[a.id] ?? 0; bv = billCountBy
                         {getPatientAge(patient) ? `${getPatientAge(patient)} yrs` : '—'} / {patient.gender}
                       </td>
                       <td className="px-4 py-3.5">
-                        {patient.bloodType
-                          ? <Badge label={patient.bloodType} color={BLOOD_COLORS[patient.bloodType] ?? 'gray'} />
+                        {patient.referralSource
+                          ? <Badge label={sourceLabelMap[patient.referralSource] ?? patient.referralSource} color="blue" />
                           : <span className="text-gray-400 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">{patient.phone || '—'}</td>

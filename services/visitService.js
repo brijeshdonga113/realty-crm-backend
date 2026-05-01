@@ -47,6 +47,7 @@ export const visitService = {
         note:        saved.chiefComplaint || '',
         doctorId:    saved.doctorId,
         visitId:     saved.id,
+        phone:       saved.patientPhone || '',
       }).catch(() => {})
     }
 
@@ -80,6 +81,7 @@ export const visitService = {
           note:        patch.chiefComplaint ?? existing.chiefComplaint ?? '',
           doctorId:    existing.doctorId,
           visitId:     id,
+          phone:       existing.patientPhone || '',
         }).catch(() => {})
       } else if (!newDate && linked) {
         // Follow-up removed — delete the record
