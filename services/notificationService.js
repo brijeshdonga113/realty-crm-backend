@@ -19,7 +19,18 @@ export const notificationService = {
   },
 
   async create(data) {
-    const notification = createNotification(data)
+    let createdByRole = 'doctor'
+    let createdByUid  = null
+    try {
+      const session = JSON.parse(localStorage.getItem('clinic_crm_doctor') ?? 'null')
+      if (session?._role === 'receptionist') {
+        createdByRole = 'receptionist'
+        createdByUid  = session._receptionistUid ?? null
+      } else {
+        createdByUid = session?.id ?? null
+      }
+    } catch {}
+    const notification = createNotification({ ...data, createdByRole, createdByUid })
     return dataStore.create(COLLECTION, notification)
   },
 

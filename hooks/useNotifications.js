@@ -9,18 +9,23 @@ export function useNotifications() {
   const [unreadCount, setUnreadCount]     = useState(0)
   const [loading, setLoading]             = useState(true)
 
+  const isReceptionist = doctor?._role === 'receptionist'
+
   const load = useCallback(async () => {
     if (!doctor) return
     setLoading(true)
     try {
-      const all   = await notificationService.getAll()
-      const count = all.filter(n => !n.read).length
-      setNotifications(all)
-      setUnreadCount(count)
+      const all     = await notificationService.getAll()
+      // Receptionists only see notifications they triggered
+      const visible = isReceptionist
+        ? all.filter(n => doctor._receptionistUid && n.createdByUid === doctor._receptionistUid)
+        : all
+      setNotifications(visible)
+      setUnreadCount(visible.filter(n => !n.read).length)
     } finally {
       setLoading(false)
     }
-  }, [doctor])
+  }, [doctor, isReceptionist])
 
   useEffect(() => { load() }, [load])
 
@@ -30,11 +35,13 @@ export function useNotifications() {
     setUnreadCount(prev => Math.max(0, prev - 1))
   }, [])
 
+  // Only marks the notifications visible to the current user (safe for both roles)
   const markAllRead = useCallback(async () => {
-    await notificationService.markAllRead()
+    const unread = notifications.filter(n => !n.read)
+    await Promise.all(unread.map(n => notificationService.markRead(n.id)))
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
     setUnreadCount(0)
-  }, [])
+  }, [notifications])
 
   const remove = useCallback(async (id) => {
     await notificationService.remove(id)

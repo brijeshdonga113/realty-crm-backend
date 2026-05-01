@@ -17,16 +17,16 @@ export const NOTIFICATION_TYPES = {
 }
 
 const TYPE_META = {
-  appointment_new:       { icon: '📅', color: 'blue' },
-  appointment_reminder:  { icon: '⏰', color: 'yellow' },
-  appointment_cancelled: { icon: '❌', color: 'red' },
-  invoice_created:       { icon: '🧾', color: 'blue' },
-  invoice_paid:          { icon: '✅', color: 'green' },
-  invoice_overdue:       { icon: '⚠️', color: 'red' },
-  patient_new:           { icon: '👤', color: 'teal' },
-  visit_completed:       { icon: '🏥', color: 'green' },
-  follow_up_due:         { icon: '📋', color: 'purple' },
-  system:                { icon: 'ℹ️', color: 'gray' },
+  appointment_new:       { icon: '📅', color: 'blue',   group: 'Appointments' },
+  appointment_reminder:  { icon: '⏰', color: 'yellow', group: 'Appointments' },
+  appointment_cancelled: { icon: '❌', color: 'red',    group: 'Appointments' },
+  invoice_created:       { icon: '🧾', color: 'blue',   group: 'Billing' },
+  invoice_paid:          { icon: '✅', color: 'green',  group: 'Billing' },
+  invoice_overdue:       { icon: '⚠️', color: 'red',   group: 'Billing' },
+  patient_new:           { icon: '👤', color: 'teal',   group: 'Patients' },
+  visit_completed:       { icon: '🏥', color: 'green',  group: 'Visits' },
+  follow_up_due:         { icon: '📋', color: 'purple', group: 'Follow-ups' },
+  system:                { icon: 'ℹ️', color: 'gray',   group: 'System' },
 }
 
 export function createNotification(data = {}) {
