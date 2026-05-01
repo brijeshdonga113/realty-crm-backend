@@ -1,11 +1,10 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
-import { dataStore } from '@/lib/dataStore'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
@@ -60,7 +59,7 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
   const isToday   = diff === 0
   const date      = entry.dueDate || entry.followUpDate
   const initials  = (entry.patientName || '').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || '?'
-  const isStandalone = !!entry.dueDate  // standalone followup (vs visit-based)
+  const isStandalone = entry.source !== 'visit'
 
   let badge, badgeBg
   if (isOverdue)    { badge = `${Math.abs(diff)}d overdue`; badgeBg = 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' }
@@ -144,46 +143,24 @@ export default function FollowUpsPage() {
   const router = useRouter()
   const { doctor } = useAuth()
   const { formatDateFull } = usePreferences()
-  const { followups, markDone } = useFollowUps()     // standalone follow-ups
+  const { followups, loading, markDone } = useFollowUps()
   const { patients }            = usePatients()
 
-  const [visitFollowUps, setVisitFollowUps] = useState([])
-  const [visitLoading,   setVisitLoading]   = useState(true)
-  const [filterDate,     setFilterDate]     = useState('')
-  const [viewMode,       setViewMode]       = useState('all') // 'all' | 'missed'
+  const [filterDate, setFilterDate] = useState('')
+  const [viewMode,   setViewMode]   = useState('all') // 'all' | 'missed'
 
-  // Real-time subscription so new visits/follow-ups appear instantly
-  useEffect(() => {
-    if (!doctor) return
-    setVisitLoading(true)
-    const unsub = dataStore.subscribeGroup('visits', (all) => {
-      setVisitFollowUps(all.filter(v => v.followUpDate))
-      setVisitLoading(false)
-    })
-    return () => unsub()
-  }, [doctor])
-
-  // Build patientId → phone map from live patients list (covers old records missing patientPhone)
+  // Build patientId → phone map so phone is always current even for old records
   const patientPhoneMap = useMemo(() => {
     const map = {}
     patients.forEach(p => { map[p.id] = p.phone || '' })
     return map
   }, [patients])
 
-  // Merge both sources into a unified list
+  // followups collection already contains both standalone and visit-linked entries
+  // (visitService.create writes to followupService with visitId set)
+  // No collectionGroup query needed — avoids the Firestore index requirement
   const allEntries = useMemo(() => {
-    const visitBased = visitFollowUps.map(v => ({
-      id:          v.id,
-      patientId:   v.patientId,
-      patientName: v.patientName,
-      dueDate:     v.followUpDate,
-      note:        v.chiefComplaint,
-      phone:       patientPhoneMap[v.patientId] || v.patientPhone || '',
-      status:      'pending',
-      source:      'visit',
-    }))
-
-    const standalone = followups
+    return followups
       .filter(f => f.status === 'pending')
       .map(f => ({
         id:          f.id,
@@ -193,21 +170,10 @@ export default function FollowUpsPage() {
         note:        f.note,
         phone:       patientPhoneMap[f.patientId] || f.phone || '',
         status:      f.status,
-        source:      'standalone',
+        source:      f.visitId ? 'visit' : 'standalone',
       }))
-
-    // Merge deduplicating by patientId+date (prefer standalone over visit-based)
-    const seen = new Set()
-    const merged = [...standalone]
-    // Add standalone keys first so visitBased duplicates are skipped
-    standalone.forEach(e => seen.add(`${e.patientId}_${e.dueDate}`))
-    visitBased.forEach(e => {
-      const key = `${e.patientId}_${e.dueDate}`
-      if (!seen.has(key)) { seen.add(key); merged.push(e) }
-    })
-
-    return merged.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-  }, [visitFollowUps, followups])
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  }, [followups, patientPhoneMap])
 
   const today    = new Date().toISOString().slice(0, 10)
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
@@ -226,7 +192,6 @@ export default function FollowUpsPage() {
 
   const totalDue = overdue.length + todayF.length
 
-  const loading = visitLoading
 
   return (
     <AppLayout
