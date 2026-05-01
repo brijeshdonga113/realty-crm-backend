@@ -10,6 +10,10 @@ const AuthContext = createContext(null)
 // Profile lives at users/{uid}/profile/doctor
 const profileDocPath = (uid) => ['users', uid, 'profile', 'doctor']
 
+// Prevents onAuthStateChanged from overwriting the session during signup
+// (race: the auth event fires before the Firestore record is written)
+let _suppressNextAuthEvent = false
+
 function generateInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
@@ -95,6 +99,11 @@ export function AuthProvider({ children }) {
     let unsubscribe
     import('firebase/auth').then(({ onAuthStateChanged }) => {
       unsubscribe = onAuthStateChanged(auth, async (user) => {
+        // Skip if signup is in progress — the signup function handles setDoctor itself
+        if (_suppressNextAuthEvent) {
+          _suppressNextAuthEvent = false
+          return
+        }
         if (user) {
           try {
             // Doctor profile check first — existing doctors always have this
@@ -139,18 +148,25 @@ export function AuthProvider({ children }) {
     const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile } = await import('firebase/auth')
     const { doc, setDoc } = await import('firebase/firestore')
 
-    const cred       = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
-    const uid        = cred.user.uid
-    const inviteCode = generateInviteCode()
-    const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial() })
+    _suppressNextAuthEvent = true
+    try {
+      const cred       = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
+      const uid        = cred.user.uid
+      const inviteCode = generateInviteCode()
+      const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial() })
 
-    await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
-    await setDoc(doc(db, 'inviteCodes', inviteCode), { doctorId: uid, createdAt: new Date().toISOString() })
-    await fbUpdateProfile(cred.user, { displayName: `${doctorData.firstName} ${doctorData.lastName}` })
+      await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
+      await setDoc(doc(db, 'inviteCodes', inviteCode), { doctorId: uid, createdAt: new Date().toISOString() })
+      await fbUpdateProfile(cred.user, { displayName: `${doctorData.firstName} ${doctorData.lastName}` })
 
-    saveSessionLocally(profile)
-    setDoctor(profile)
-    return profile
+      saveSessionLocally(profile)
+      setDoctor(profile)
+      setLoading(false)
+      return profile
+    } catch (err) {
+      _suppressNextAuthEvent = false
+      throw err
+    }
   }
 
   const signupReceptionist = async (name, email, password, rawInviteCode) => {
@@ -163,31 +179,38 @@ export function AuthProvider({ children }) {
     if (!inviteSnap.exists()) throw new Error('Invalid invite code. Please check with your doctor.')
     const { doctorId } = inviteSnap.data()
 
-    const cred = await createUserWithEmailAndPassword(auth, email, password)
-    const uid  = cred.user.uid
-
+    _suppressNextAuthEvent = true
     try {
-      await fbUpdateProfile(cred.user, { displayName: name })
-      await setDoc(doc(db, 'receptionists', uid), {
-        name, email, doctorId, role: 'receptionist', createdAt: new Date().toISOString(),
-      })
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
+      const uid  = cred.user.uid
+
+      try {
+        await fbUpdateProfile(cred.user, { displayName: name })
+        await setDoc(doc(db, 'receptionists', uid), {
+          name, email, doctorId, role: 'receptionist', createdAt: new Date().toISOString(),
+        })
+      } catch (err) {
+        // Roll back the Auth account so the user can retry with the same email
+        await deleteUser(cred.user).catch(() => {})
+        throw err
+      }
+
+      const doctorProfile = await loadFirebaseProfile(doctorId)
+      const sessionProfile = {
+        ...doctorProfile,
+        _role: 'receptionist',
+        _receptionistUid: uid,
+        _receptionistName: name,
+        _receptionistEmail: email,
+      }
+      saveSessionLocally(sessionProfile)
+      setDoctor(sessionProfile)
+      setLoading(false)
+      return sessionProfile
     } catch (err) {
-      // Roll back the Auth account so the user can retry with the same email
-      await deleteUser(cred.user).catch(() => {})
+      _suppressNextAuthEvent = false
       throw err
     }
-
-    const doctorProfile = await loadFirebaseProfile(doctorId)
-    const sessionProfile = {
-      ...doctorProfile,
-      _role: 'receptionist',
-      _receptionistUid: uid,
-      _receptionistName: name,
-      _receptionistEmail: email,
-    }
-    saveSessionLocally(sessionProfile)
-    setDoctor(sessionProfile)
-    return sessionProfile
   }
 
   const login = async (email, password) => {

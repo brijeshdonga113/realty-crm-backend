@@ -33,7 +33,7 @@ const SPECIALIZATIONS = [
 ]
 
 export default function SettingsPage() {
-  const { doctor, updateProfile, generateReceptionistCode } = useAuth()
+  const { doctor, updateProfile, generateReceptionistCode, isReceptionist } = useAuth()
   const { dark, toggle, colorTheme, setTheme } = useTheme()
 
   const [form, setForm] = useState({
@@ -227,7 +227,8 @@ export default function SettingsPage() {
     try {
       {
         const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth')
-        const cred = EmailAuthProvider.credential(doctor.email, pwForm.current)
+        const accountEmail = isReceptionist ? (doctor._receptionistEmail ?? doctor.email) : doctor.email
+        const cred = EmailAuthProvider.credential(accountEmail, pwForm.current)
         await reauthenticateWithCredential(auth.currentUser, cred)
         await updatePassword(auth.currentUser, pwForm.next)
       }
@@ -243,7 +244,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppLayout title="Settings">
+    <AppLayout title={isReceptionist ? 'My Preferences' : 'Settings'}>
       <div className="max-w-2xl space-y-8">
 
         {/* ── Appearance ───────────────────────────────────────────────────── */}
@@ -307,6 +308,8 @@ export default function SettingsPage() {
 
           </div>
         </div>
+
+        {!isReceptionist && <>
 
         {/* ── Regional Preferences ─────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -755,6 +758,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        </>} {/* end !isReceptionist */}
+
         {/* Change password section */}
         <form onSubmit={handlePasswordChange} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
@@ -820,6 +825,7 @@ export default function SettingsPage() {
           </div>
         </form>
 
+        {!isReceptionist && <>
         {/* ── Receptionist Access ──────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
@@ -893,6 +899,8 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        </>} {/* end !isReceptionist */}
 
       </div>
     </AppLayout>

@@ -95,7 +95,10 @@ function BillingPageInner() {
   const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, update, remove } = useBilling()
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus,    setFilterStatus]    = useState('all')
+  const [filterDateFrom,  setFilterDateFrom]  = useState('')
+  const [filterDateTo,    setFilterDateTo]    = useState('')
+  const [filterCreatedBy, setFilterCreatedBy] = useState('all')
   const [printInvoice, setPrintInvoice] = useState(null)
   const [payModal, setPayModal]         = useState(null)
   const [payMethod, setPayMethod]       = useState('cash')
@@ -146,10 +149,25 @@ function BillingPageInner() {
 
   // Receptionists only see invoices they created
   const visibleInvoices = isReceptionist
-    ? invoices.filter(inv => inv.createdBy?.uid === doctor?._receptionistUid)
+    ? invoices.filter(inv => doctor?._receptionistUid && inv.createdBy?.uid === doctor._receptionistUid)
     : invoices
 
-  const filtered = filterStatus === 'all' ? visibleInvoices : visibleInvoices.filter(inv => inv.status === filterStatus)
+  const hasActiveFilters = filterStatus !== 'all' || filterDateFrom || filterDateTo || filterCreatedBy !== 'all'
+
+  const filtered = visibleInvoices.filter(inv => {
+    if (filterStatus !== 'all' && inv.status !== filterStatus) return false
+    if (filterDateFrom && inv.issueDate < filterDateFrom) return false
+    if (filterDateTo   && inv.issueDate > filterDateTo)   return false
+    if (!isReceptionist && filterCreatedBy !== 'all' && inv.createdBy?.role !== filterCreatedBy) return false
+    return true
+  })
+
+  const clearFilters = () => {
+    setFilterStatus('all')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterCreatedBy('all')
+  }
 
   const stats = visibleInvoices.reduce((acc, inv) => {
     if (inv.status === 'paid')    acc.revenue += inv.total
@@ -193,12 +211,44 @@ function BillingPageInner() {
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="flex justify-end mb-4">
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field w-40">
-          <option value="all">All Invoices</option>
-          {INVOICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 mb-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">From</label>
+            <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="input-field py-2 text-sm"/>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">To</label>
+            <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="input-field py-2 text-sm"/>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[140px]">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</label>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field py-2 text-sm">
+              <option value="all">All Statuses</option>
+              {INVOICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          {!isReceptionist && (
+            <div className="flex flex-col gap-1 min-w-[140px]">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Created By</label>
+              <select value={filterCreatedBy} onChange={e => setFilterCreatedBy(e.target.value)} className="input-field py-2 text-sm">
+                <option value="all">All</option>
+                <option value="doctor">Doctor</option>
+                <option value="receptionist">Receptionist</option>
+              </select>
+            </div>
+          )}
+          {hasActiveFilters && (
+            <button onClick={clearFilters}
+              className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -291,13 +341,15 @@ function BillingPageInner() {
                           WA
                         </a>
                       )}
-                      <button onClick={() => remove(inv.id)}
-                        className="text-gray-400 hover:text-red-500 transition-colors p-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                      </button>
+                      {!isReceptionist && (
+                        <button onClick={() => remove(inv.id)}
+                          className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
