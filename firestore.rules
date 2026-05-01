@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Doctor clinic data ────────────────────────────────────────────────
+    // All patient records, appointments, invoices, etc. live under users/{userId}
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Invite codes ──────────────────────────────────────────────────────
+    // Doctors write their own code; any authenticated user can read to validate
+    match /inviteCodes/{code} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.data.doctorId == request.auth.uid;
+    }
+
+    // ── Receptionist records ──────────────────────────────────────────────
+    // Each user can only read/write their own receptionist document
+    match /receptionists/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Top-level collections (blockedSlots, followups, appointments, etc.)
+    // Scoped by doctorId field — only the owning doctor can access
+    match /{collection}/{docId} {
+      allow read, write: if request.auth != null
+                         && (resource == null
+                             || resource.data.doctorId == request.auth.uid)
+                         && (request.resource == null
+                             || request.resource.data.doctorId == request.auth.uid);
+    }
+  }
+}
