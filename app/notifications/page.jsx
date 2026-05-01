@@ -1,44 +1,12 @@
 'use client'
+import { useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
 import { getNotificationMeta } from '@/models/Notification'
 
-const GROUP_ORDER = ['Appointments', 'Follow-ups', 'Billing', 'Patients', 'Visits', 'System']
-
-const GROUP_ICONS = {
-  Appointments: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-    </svg>
-  ),
-  'Follow-ups': (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-    </svg>
-  ),
-  Billing: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
-    </svg>
-  ),
-  Patients: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-    </svg>
-  ),
-  Visits: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-    </svg>
-  ),
-  System: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
-  ),
-}
+const GROUP_ORDER = ['All', 'Appointments', 'Follow-ups', 'Billing', 'Patients', 'Visits', 'System']
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -48,16 +16,6 @@ function timeAgo(dateStr) {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24)  return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
-}
-
-function groupByType(notifications) {
-  const map = {}
-  for (const n of notifications) {
-    const group = getNotificationMeta(n.type).group ?? 'System'
-    if (!map[group]) map[group] = []
-    map[group].push(n)
-  }
-  return GROUP_ORDER.filter(g => map[g]?.length).map(g => [g, map[g]])
 }
 
 function NotificationItem({ n, onMarkRead, onMarkFollowUpDone, onRemove, canDelete }) {
@@ -124,19 +82,37 @@ export default function NotificationsPage() {
   const { notifications, loading, markRead, markAllRead, remove } = useNotifications()
   const { markDone } = useFollowUps()
   const { isReceptionist } = useAuth()
-  const unread = notifications.filter(n => !n.read)
-  const groups = groupByType(notifications)
+  const [activeTab, setActiveTab] = useState('All')
 
   const handleMarkFollowUpDone = async (n) => {
     await markDone(n.relatedEntity.id)
     await markRead(n.id)
   }
 
+  // Unread count per group for badge display
+  const unreadByGroup = notifications.reduce((acc, n) => {
+    const group = getNotificationMeta(n.type).group ?? 'System'
+    if (!n.read) {
+      acc['All'] = (acc['All'] ?? 0) + 1
+      acc[group] = (acc[group] ?? 0) + 1
+    }
+    return acc
+  }, {})
+
+  // Only show tabs that have notifications
+  const activeTabs = GROUP_ORDER.filter(g =>
+    g === 'All' ? notifications.length > 0 : notifications.some(n => (getNotificationMeta(n.type).group ?? 'System') === g)
+  )
+
+  const visibleNotifications = activeTab === 'All'
+    ? notifications
+    : notifications.filter(n => (getNotificationMeta(n.type).group ?? 'System') === activeTab)
+
   return (
     <AppLayout
       title="Notifications"
       action={
-        unread.length > 0 ? (
+        notifications.some(n => !n.read) ? (
           <button onClick={markAllRead}
             className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline px-3 py-1.5">
             Mark all as read
@@ -164,39 +140,40 @@ export default function NotificationsPage() {
           <p className="text-xs text-gray-400 mt-1">No notifications yet.</p>
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto space-y-6">
-          {groups.map(([label, items]) => {
-            const groupUnread = items.filter(n => !n.read).length
-            return (
-              <div key={label}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                    {GROUP_ICONS[label]}
-                    {label}
+        <div className="max-w-2xl mx-auto">
+          {/* Tab bar */}
+          <div className="flex gap-1 mb-5 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl overflow-x-auto">
+            {activeTabs.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
+                  ${activeTab === tab
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                {tab}
+                {unreadByGroup[tab] > 0 && (
+                  <span className="bg-accent-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                    {unreadByGroup[tab]}
                   </span>
-                  {groupUnread > 0 && (
-                    <span className="text-xs font-bold bg-accent-500 text-white px-1.5 py-0.5 rounded-full leading-none">
-                      {groupUnread}
-                    </span>
-                  )}
-                  <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700"/>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{items.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {items.map(n => (
-                    <NotificationItem
-                      key={n.id}
-                      n={n}
-                      onMarkRead={markRead}
-                      onMarkFollowUpDone={handleMarkFollowUpDone}
-                      onRemove={remove}
-                      canDelete={!isReceptionist}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Notification list */}
+          <div className="space-y-1">
+            {visibleNotifications.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-10">No notifications in this category.</p>
+            ) : visibleNotifications.map(n => (
+              <NotificationItem
+                key={n.id}
+                n={n}
+                onMarkRead={markRead}
+                onMarkFollowUpDone={handleMarkFollowUpDone}
+                onRemove={remove}
+                canDelete={!isReceptionist}
+              />
+            ))}
+          </div>
         </div>
       )}
     </AppLayout>
