@@ -1,10 +1,11 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { visitService } from '@/services/visitService'
 import { useFollowUps } from '@/hooks/useFollowUps'
+import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
+import { dataStore } from '@/lib/dataStore'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
@@ -144,24 +145,30 @@ export default function FollowUpsPage() {
   const { doctor } = useAuth()
   const { formatDateFull } = usePreferences()
   const { followups, markDone } = useFollowUps()     // standalone follow-ups
+  const { patients }            = usePatients()
 
   const [visitFollowUps, setVisitFollowUps] = useState([])
   const [visitLoading,   setVisitLoading]   = useState(true)
   const [filterDate,     setFilterDate]     = useState('')
   const [viewMode,       setViewMode]       = useState('all') // 'all' | 'missed'
 
-  const load = useCallback(async () => {
+  // Real-time subscription so new visits/follow-ups appear instantly
+  useEffect(() => {
     if (!doctor) return
     setVisitLoading(true)
-    try {
-      const all = await visitService.getAll()
+    const unsub = dataStore.subscribeGroup('visits', (all) => {
       setVisitFollowUps(all.filter(v => v.followUpDate))
-    } finally {
       setVisitLoading(false)
-    }
+    })
+    return () => unsub()
   }, [doctor])
 
-  useEffect(() => { load() }, [load])
+  // Build patientId → phone map from live patients list (covers old records missing patientPhone)
+  const patientPhoneMap = useMemo(() => {
+    const map = {}
+    patients.forEach(p => { map[p.id] = p.phone || '' })
+    return map
+  }, [patients])
 
   // Merge both sources into a unified list
   const allEntries = useMemo(() => {
@@ -171,7 +178,7 @@ export default function FollowUpsPage() {
       patientName: v.patientName,
       dueDate:     v.followUpDate,
       note:        v.chiefComplaint,
-      phone:       v.patientPhone || '',
+      phone:       patientPhoneMap[v.patientId] || v.patientPhone || '',
       status:      'pending',
       source:      'visit',
     }))
@@ -184,7 +191,7 @@ export default function FollowUpsPage() {
         patientName: f.patientName,
         dueDate:     f.dueDate,
         note:        f.note,
-        phone:       f.phone || '',
+        phone:       patientPhoneMap[f.patientId] || f.phone || '',
         status:      f.status,
         source:      'standalone',
       }))
