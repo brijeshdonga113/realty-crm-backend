@@ -23,6 +23,7 @@ export function createVisitRecord(data = {}) {
     patientName:   data.patientName ?? '',
     appointmentId: data.appointmentId ?? null,
     visitDate:     data.visitDate ?? now,
+    patientPhone:  data.patientPhone ?? '',
 
     chiefComplaint: data.chiefComplaint ?? '',
     history:        data.history ?? '',

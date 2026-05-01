@@ -7,6 +7,15 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
+import { formatDate as fmtDateLib } from '@/lib/preferences'
+
+function getWADateFormat() {
+  if (typeof window === 'undefined') return 'DD/MM/YYYY'
+  try {
+    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
+    return s.dateFormat || 'DD/MM/YYYY'
+  } catch { return 'DD/MM/YYYY' }
+}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -37,7 +46,7 @@ function sendWhatsApp(entry, doctor, templateKey) {
   const msg = tmpl
     .replace(/\{name\}/g, entry.patientName || 'Patient')
     .replace(/\{clinic\}/g, clinicName)
-    .replace(/\{date\}/g,  entry.dueDate || entry.followUpDate || '')
+    .replace(/\{date\}/g,  fmtDateLib(entry.dueDate || entry.followUpDate || '', getWADateFormat()))
     .replace(/\{days\}/g,  String(Math.abs(diff)))
 
   window.open(buildWAUrl(entry.phone || '', msg), '_blank')
@@ -75,6 +84,17 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(date)}</span>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
+        {/* Set Appointment */}
+        {entry.patientId && (
+          <button onClick={() => router.push(`/appointments/new?patientId=${entry.patientId}`)}
+            title="Set appointment"
+            className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-1 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Appt
+          </button>
+        )}
         {/* WhatsApp */}
         <button onClick={() => sendWhatsApp(entry, doctor, waKey)}
           title="Send WhatsApp reminder"
@@ -151,7 +171,7 @@ export default function FollowUpsPage() {
       patientName: v.patientName,
       dueDate:     v.followUpDate,
       note:        v.chiefComplaint,
-      phone:       '',
+      phone:       v.patientPhone || '',
       status:      'pending',
       source:      'visit',
     }))

@@ -92,6 +92,7 @@ function VisitEntryForm() {
       const visit = await visitService.create({
         patientId,
         patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+        patientPhone:  patient?.phone || '',
         appointmentId: appointmentId || null,
         visitDate:     form.visitDate
           ? new Date(form.visitDate).toISOString()
