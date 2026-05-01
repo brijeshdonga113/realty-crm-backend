@@ -1,16 +1,29 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { APPOINTMENT_TYPES } from '@/models/Appointment'
 
+function toMins(t) {
+  if (!t) return 0
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+function fmt12(t) {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  return `${((h % 12) || 12)}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
 function NewAppointmentForm() {
-  const router       = useRouter()
-  const searchParams = useSearchParams()
-  const { add }      = useAppointments()
-  const { patients } = usePatients()
+  const router            = useRouter()
+  const searchParams      = useSearchParams()
+  const { add, appointments } = useAppointments()
+  const { patients }      = usePatients()
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
@@ -27,6 +40,19 @@ function NewAppointmentForm() {
   })
 
   const selectedPatient = patients.find(p => p.id === form.patientId)
+
+  const clashes = useMemo(() => {
+    if (!form.date || !form.time) return []
+    const newStart = toMins(form.time)
+    const newEnd   = newStart + (Number(form.durationMinutes) || 30)
+    return appointments.filter(a => {
+      if (a.date !== form.date) return false
+      if (a.status === 'cancelled') return false
+      const aStart = toMins(a.time || '00:00')
+      const aEnd   = aStart + (Number(a.durationMinutes) || 30)
+      return newStart < aEnd && newEnd > aStart
+    })
+  }, [appointments, form.date, form.time, form.durationMinutes])
 
   const set = (k, v) => { setForm(p => ({...p, [k]: v})); setErrors(e => ({...e, [k]: ''})) }
 
@@ -98,6 +124,34 @@ function NewAppointmentForm() {
               {errors.time && <p className="error-text">{errors.time}</p>}
             </div>
           </div>
+
+          {/* Clash warning */}
+          {clashes.length > 0 && (
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
+                ⚠ {clashes.length} appointment{clashes.length > 1 ? 's' : ''} already scheduled in this slot
+              </p>
+              <ul className="space-y-1">
+                {clashes.map(a => {
+                  const aStart = fmt12(a.time)
+                  const aEndMins = toMins(a.time) + (Number(a.durationMinutes) || 30)
+                  const aEnd = fmt12(`${String(Math.floor(aEndMins / 60)).padStart(2,'0')}:${String(aEndMins % 60).padStart(2,'0')}`)
+                  return (
+                    <li key={a.id} className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <span className="font-medium">{a.patientName}</span>
+                      <span className="text-amber-500 dark:text-amber-500">·</span>
+                      <span>{aStart} – {aEnd}</span>
+                      {a.type && <span className="text-xs text-amber-500 dark:text-amber-500 capitalize">({a.type})</span>}
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">You can still save — adjust time or duration to avoid overlap.</p>
+            </div>
+          )}
 
           {/* Type + Duration */}
           <div className="grid grid-cols-2 gap-4">
