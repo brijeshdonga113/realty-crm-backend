@@ -92,7 +92,7 @@ function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
 function BillingPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { doctor } = useAuth()
+  const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, update, remove } = useBilling()
   const [filterStatus, setFilterStatus] = useState('all')
@@ -144,9 +144,14 @@ function BillingPageInner() {
     if (found) setPrintInvoice(found)
   }, [searchParams, invoices])
 
-  const filtered = filterStatus === 'all' ? invoices : invoices.filter(inv => inv.status === filterStatus)
+  // Receptionists only see invoices they created
+  const visibleInvoices = isReceptionist
+    ? invoices.filter(inv => inv.createdBy?.uid === doctor?._receptionistUid)
+    : invoices
 
-  const stats = invoices.reduce((acc, inv) => {
+  const filtered = filterStatus === 'all' ? visibleInvoices : visibleInvoices.filter(inv => inv.status === filterStatus)
+
+  const stats = visibleInvoices.reduce((acc, inv) => {
     if (inv.status === 'paid')    acc.revenue += inv.total
     if (inv.status === 'overdue') acc.overdue += inv.total
     if (['draft','sent'].includes(inv.status)) acc.pending += inv.total
@@ -216,7 +221,7 @@ function BillingPageInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                {['Invoice #', 'Patient', 'Date', 'Items', 'Total', 'Status', 'Actions'].map(h => (
+                {['Invoice #', 'Patient', 'Date', 'Items', 'Total', 'Status', ...(isReceptionist ? [] : ['Created By']), 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                 ))}
               </tr>
@@ -234,6 +239,29 @@ function BillingPageInner() {
                   <td className="px-4 py-3.5">
                     <Badge label={INVOICE_STATUSES.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
                   </td>
+                  {!isReceptionist && (
+                    <td className="px-4 py-3.5">
+                      {inv.createdBy ? (
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full
+                          ${inv.createdBy.role === 'receptionist'
+                            ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                            : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'}`}>
+                          {inv.createdBy.role === 'receptionist' ? (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                          )}
+                          {inv.createdBy.role === 'receptionist' ? 'Receptionist' : 'Doctor'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       {inv.status !== 'paid' && inv.status !== 'cancelled' && (
