@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { usePatients } from '@/hooks/usePatients'
 import { useBilling } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { getReferralSources } from '@/lib/referralSources'
@@ -17,6 +18,7 @@ export default function PatientsPage() {
   const { patients, loading, remove, search } = usePatients()
   const { invoices } = useBilling()
   const { add: addFollowUp } = useFollowUps()
+  const { blockedSlots }     = useBlockedSlots()
   const [query, setQuery]               = useState('')
   const [deleteId, setDeleteId]         = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -463,6 +465,14 @@ export default function PatientsPage() {
                 onChange={e => setFollowUpForm(f => ({ ...f, dueDate: e.target.value }))}
                 className="input-field"
               />
+              {followUpForm.dueDate && blockedSlots.some(b => b.date === followUpForm.dueDate) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  You are blocked on this day — consider picking another date.
+                </p>
+              )}
             </div>
             <div>
               <label className="form-label">Reminder Note <span className="text-gray-400 font-normal">(optional)</span></label>

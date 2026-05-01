@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useFollowUps } from '@/hooks/useFollowUps'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -18,38 +19,66 @@ function formatTime(t) {
   return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
+const LOCK_ICON = (
+  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+  </svg>
+)
+
 export default function CalendarPage() {
   const router  = useRouter()
   const { doctor } = useAuth()
   const { formatDateFull } = usePreferences()
   const { appointments } = useAppointments()
   const { followups }    = useFollowUps()
+  const { blockedSlots, add: addBlock, remove: removeBlock } = useBlockedSlots()
 
   const [visitFollowUps, setVisitFollowUps] = useState([])
   const [calYear,  setCalYear]  = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
-  const [filter,   setFilter]   = useState('all')  // all | appointments | follow_ups | new_cases
+  const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(new Date().toISOString().slice(0,10))
+
+  // Block time modal state
+  const [blockOpen,    setBlockOpen]    = useState(false)
+  const [blockSaving,  setBlockSaving]  = useState(false)
+  const [blockForm,    setBlockForm]    = useState({ date: '', allDay: true, startTime: '09:00', endTime: '17:00', reason: '' })
+
+  const openBlock = () => {
+    setBlockForm({ date: selected, allDay: true, startTime: '09:00', endTime: '17:00', reason: '' })
+    setBlockOpen(true)
+  }
+
+  const handleAddBlock = async () => {
+    if (!blockForm.date) return
+    setBlockSaving(true)
+    try {
+      await addBlock({
+        date:      blockForm.date,
+        allDay:    blockForm.allDay,
+        startTime: blockForm.allDay ? '' : blockForm.startTime,
+        endTime:   blockForm.allDay ? '' : blockForm.endTime,
+        reason:    blockForm.reason.trim(),
+      })
+      setBlockOpen(false)
+    } finally {
+      setBlockSaving(false)
+    }
+  }
 
   const load = useCallback(async () => {
     if (!doctor) return
     try {
       const all = await visitService.getAll()
       setVisitFollowUps(all.filter(v => v.followUpDate).map(v => ({
-        id:          v.id,
-        patientId:   v.patientId,
-        patientName: v.patientName,
-        date:        v.followUpDate,
-        type:        'follow_up',
-        source:      'visit',
-        note:        v.chiefComplaint,
+        id: v.id, patientId: v.patientId, patientName: v.patientName,
+        date: v.followUpDate, type: 'follow_up', source: 'visit', note: v.chiefComplaint,
       })))
     } catch {}
   }, [doctor])
 
   useEffect(() => { load() }, [load])
 
-  // Unified events map by date
   const eventsByDate = useMemo(() => {
     const map = {}
     const addEvent = (dateStr, event) => {
@@ -73,18 +102,28 @@ export default function CalendarPage() {
       })
     }
 
-    return map
-  }, [appointments, followups, visitFollowUps, filter])
+    // Always show blocked slots regardless of filter
+    blockedSlots.forEach(b => {
+      addEvent(b.date, { ...b, _kind: 'blocked' })
+    })
 
-  const today      = new Date().toISOString().slice(0, 10)
-  const firstDay   = new Date(calYear, calMonth, 1).getDay()
+    return map
+  }, [appointments, followups, visitFollowUps, blockedSlots, filter])
+
+  // Build a Set of blocked dates for fast grid lookup
+  const blockedDates = useMemo(() => new Set(blockedSlots.map(b => b.date)), [blockedSlots])
+
+  const today       = new Date().toISOString().slice(0, 10)
+  const firstDay    = new Date(calYear, calMonth, 1).getDay()
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
 
   const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) } else setCalMonth(m => m - 1) }
   const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) } else setCalMonth(m => m + 1) }
   const goToday   = () => { setCalYear(new Date().getFullYear()); setCalMonth(new Date().getMonth()); setSelected(today) }
 
-  const selectedEvents = eventsByDate[selected] ?? []
+  const selectedEvents  = eventsByDate[selected] ?? []
+  const selectedBlocks  = selectedEvents.filter(e => e._kind === 'blocked')
+  const selectedOthers  = selectedEvents.filter(e => e._kind !== 'blocked')
 
   const kindColor = (kind, status) => {
     if (kind === 'followup' || kind === 'visit_followup') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
@@ -111,6 +150,12 @@ export default function CalendarPage() {
             className="px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
             Today
           </button>
+          {/* Block time button */}
+          <button onClick={openBlock}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors">
+            {LOCK_ICON}
+            Block Time
+          </button>
         </div>
       }
     >
@@ -118,7 +163,6 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         <div className="xl:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
             <button onClick={prevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
               <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,35 +177,48 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
             {DAYS.map(d => (
               <div key={d} className="py-2 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">{d}</div>
             ))}
           </div>
 
-          {/* Days grid */}
           <div className="grid grid-cols-7">
             {Array.from({ length: firstDay }).map((_, i) => (
               <div key={`e${i}`} className="h-24 border-b border-r border-gray-50 dark:border-gray-700"/>
             ))}
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-              const dateStr  = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-              const events   = eventsByDate[dateStr] ?? []
-              const isToday  = dateStr === today
-              const isSel    = dateStr === selected
+              const dateStr   = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+              const events    = eventsByDate[dateStr] ?? []
+              const isToday   = dateStr === today
+              const isSel     = dateStr === selected
+              const isBlocked = blockedDates.has(dateStr)
               const apptCount = events.filter(e => e._kind === 'appointment').length
               const fuCount   = events.filter(e => e._kind === 'followup' || e._kind === 'visit_followup').length
               return (
                 <div key={day} onClick={() => setSelected(dateStr)}
                   className={`h-24 border-b border-r border-gray-50 dark:border-gray-700 p-1.5 cursor-pointer transition-colors
-                    ${isSel ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'}
+                    ${isSel     ? 'bg-primary-50 dark:bg-primary-900/20'   : ''}
+                    ${isBlocked && !isSel ? 'bg-red-50/60 dark:bg-red-900/10' : ''}
+                    ${!isSel && !isBlocked ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}
                     ${(firstDay + day - 1) % 7 === 6 ? 'border-r-0' : ''}`}>
-                  <span className={`text-xs font-semibold inline-flex w-6 h-6 items-center justify-center rounded-full
-                    ${isToday ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                    {day}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold inline-flex w-6 h-6 items-center justify-center rounded-full
+                      ${isToday ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                      {day}
+                    </span>
+                    {isBlocked && (
+                      <svg className="w-3 h-3 text-red-400 dark:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                      </svg>
+                    )}
+                  </div>
                   <div className="mt-1 space-y-0.5">
+                    {isBlocked && (
+                      <div className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1 py-0.5 rounded font-medium truncate">
+                        Blocked
+                      </div>
+                    )}
                     {apptCount > 0 && (
                       <div className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-1 py-0.5 rounded font-medium truncate">
                         {apptCount} appt{apptCount !== 1 ? 's' : ''}
@@ -182,16 +239,36 @@ export default function CalendarPage() {
         {/* Day panel */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-              {formatDateFull(selected)}
-            </h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{formatDateFull(selected)}</h3>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}
+              {selectedOthers.length} event{selectedOthers.length !== 1 ? 's' : ''}
+              {selectedBlocks.length > 0 && <span className="ml-1.5 text-red-500 dark:text-red-400">· {selectedBlocks.length} block{selectedBlocks.length !== 1 ? 's' : ''}</span>}
             </p>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-700">
-            {selectedEvents.length === 0 ? (
+
+            {/* Blocked slots shown at top */}
+            {selectedBlocks.map(b => (
+              <div key={b.id} className="px-5 py-3 bg-red-50/60 dark:bg-red-900/10 flex items-start gap-3">
+                <div className="text-red-400 dark:text-red-500 mt-0.5">{LOCK_ICON}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                    {b.allDay ? 'Full Day Blocked' : `${formatTime(b.startTime)} – ${formatTime(b.endTime)}`}
+                  </p>
+                  {b.reason && <p className="text-xs text-red-500 dark:text-red-500 truncate">{b.reason}</p>}
+                </div>
+                <button onClick={() => removeBlock(b.id)}
+                  title="Remove block"
+                  className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {selectedOthers.length === 0 && selectedBlocks.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <p className="text-sm text-gray-400 dark:text-gray-500">No events on this day</p>
                 <button onClick={() => router.push('/appointments/new')}
@@ -200,12 +277,11 @@ export default function CalendarPage() {
                 </button>
               </div>
             ) : (
-              selectedEvents
+              selectedOthers
                 .sort((a,b) => (a.time||'').localeCompare(b.time||''))
                 .map((e, idx) => {
                   const isFollowUp = e._kind === 'followup' || e._kind === 'visit_followup'
                   const canAttend  = e._kind === 'appointment' && ['scheduled','confirmed'].includes(e.status) && e.patientId
-                  const initials   = (e.patientName||'').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() || '?'
                   return (
                     <div key={`${e._kind}-${e.id}-${idx}`} className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                       <div className="flex items-start gap-3">
@@ -217,16 +293,11 @@ export default function CalendarPage() {
                               {isFollowUp ? 'Follow-up' : e.type?.replace('_',' ') || 'Appointment'}
                             </span>
                           </div>
-                          {e.time && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(e.time)}</p>
-                          )}
-                          {(e.note || e.reason) && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{e.note || e.reason}</p>
-                          )}
+                          {e.time && <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(e.time)}</p>}
+                          {(e.note || e.reason) && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{e.note || e.reason}</p>}
                           {canAttend && (
-                            <button
-                              onClick={() => router.push(`/visits/new?patientId=${e.patientId}&appointmentId=${e.id}&reason=${encodeURIComponent(e.reason||'')}`)}
-                              className="mt-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-0.5 rounded-lg transition-colors">
+                            <button onClick={() => router.push(`/visits/new?patientId=${e.patientId}&appointmentId=${e.id}&reason=${encodeURIComponent(e.reason||'')}`)
+                            } className="mt-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-0.5 rounded-lg transition-colors">
                               Attend Now →
                             </button>
                           )}
@@ -244,14 +315,105 @@ export default function CalendarPage() {
             )}
           </div>
 
-          <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
-            <button onClick={() => router.push('/appointments/new')}
+          <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2">
+            <button onClick={() => router.push(`/appointments/new`)}
               className="w-full py-2 text-sm font-medium text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
               + Schedule Appointment
+            </button>
+            <button onClick={openBlock}
+              className="w-full py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5">
+              {LOCK_ICON} Block This Day
             </button>
           </div>
         </div>
       </div>
+
+      {/* Block Time Modal */}
+      {blockOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={() => setBlockOpen(false)}/>
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center text-red-600 dark:text-red-400">
+                  {LOCK_ICON}
+                </div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Block Time</h2>
+              </div>
+              <button onClick={() => setBlockOpen(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Date */}
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" value={blockForm.date}
+                onChange={e => setBlockForm(f => ({ ...f, date: e.target.value }))}
+                className="input-field"/>
+            </div>
+
+            {/* All day / hours toggle */}
+            <div>
+              <label className="form-label">Block type</label>
+              <div className="flex gap-3">
+                {[{ v: true, l: 'Full Day' }, { v: false, l: 'Specific Hours' }].map(({ v, l }) => (
+                  <button key={String(v)} type="button"
+                    onClick={() => setBlockForm(f => ({ ...f, allDay: v }))}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors
+                      ${blockForm.allDay === v
+                        ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'
+                        : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Hours (only when not all day) */}
+            {!blockForm.allDay && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">From</label>
+                  <input type="time" value={blockForm.startTime}
+                    onChange={e => setBlockForm(f => ({ ...f, startTime: e.target.value }))}
+                    className="input-field"/>
+                </div>
+                <div>
+                  <label className="form-label">To</label>
+                  <input type="time" value={blockForm.endTime}
+                    onChange={e => setBlockForm(f => ({ ...f, endTime: e.target.value }))}
+                    className="input-field"/>
+                </div>
+              </div>
+            )}
+
+            {/* Reason */}
+            <div>
+              <label className="form-label">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="text" value={blockForm.reason}
+                onChange={e => setBlockForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="e.g. Out of office, Surgery day, Conference…"
+                className="input-field"/>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setBlockOpen(false)}
+                className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleAddBlock} disabled={!blockForm.date || blockSaving}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+                {blockSaving
+                  ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving…</>
+                  : <>{LOCK_ICON} Block Time</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   )
 }
