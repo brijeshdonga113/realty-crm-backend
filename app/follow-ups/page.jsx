@@ -1,5 +1,5 @@
 'use client'
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useFollowUps } from '@/hooks/useFollowUps'
