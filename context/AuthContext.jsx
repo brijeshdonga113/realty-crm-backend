@@ -52,7 +52,7 @@ function clearSessionLocally() {
 }
 
 async function loadFirebaseProfile(uid) {
-  const { doc, getDoc, setDoc, deleteField } = await import('firebase/firestore')
+  const { doc, getDoc, setDoc } = await import('firebase/firestore')
 
   // Primary: users/{uid}/profile/doctor
   const profileSnap = await getDoc(doc(db, ...profileDocPath(uid)))
@@ -155,20 +155,27 @@ export function AuthProvider({ children }) {
 
   const signupReceptionist = async (name, email, password, rawInviteCode) => {
     const code = rawInviteCode.replace(/\s/g, '').toUpperCase()
-    const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile } = await import('firebase/auth')
+    const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile, deleteUser } = await import('firebase/auth')
     const { doc, getDoc, setDoc } = await import('firebase/firestore')
 
+    // Validate invite code before touching Auth — avoids orphaned accounts
     const inviteSnap = await getDoc(doc(db, 'inviteCodes', code))
     if (!inviteSnap.exists()) throw new Error('Invalid invite code. Please check with your doctor.')
     const { doctorId } = inviteSnap.data()
 
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     const uid  = cred.user.uid
-    await fbUpdateProfile(cred.user, { displayName: name })
 
-    await setDoc(doc(db, 'receptionists', uid), {
-      name, email, doctorId, role: 'receptionist', createdAt: new Date().toISOString(),
-    })
+    try {
+      await fbUpdateProfile(cred.user, { displayName: name })
+      await setDoc(doc(db, 'receptionists', uid), {
+        name, email, doctorId, role: 'receptionist', createdAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      // Roll back the Auth account so the user can retry with the same email
+      await deleteUser(cred.user).catch(() => {})
+      throw err
+    }
 
     const doctorProfile = await loadFirebaseProfile(doctorId)
     const sessionProfile = {

@@ -22,9 +22,9 @@ const COMMON_ITEMS = [
 function NewInvoiceForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { add }      = useBilling()
-  const { patients } = usePatients()
-  const { doctor }   = useAuth()
+  const { add }                  = useBilling()
+  const { patients }             = usePatients()
+  const { doctor, isReceptionist } = useAuth()
   const { formatCurrency } = usePreferences()
 
   const [loading, setLoading]   = useState(false)
@@ -90,6 +90,9 @@ function NewInvoiceForm() {
         doctorName:   doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
         doctorPhone:  doctor?.phone ?? '',
         doctorEmail:  doctor?.email ?? '',
+        createdBy: isReceptionist
+          ? { role: 'receptionist', name: doctor._receptionistName ?? '', uid: doctor._receptionistUid ?? '' }
+          : { role: 'doctor', name: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '', uid: doctor?.id ?? '' },
       })
       router.push('/billing')
     } catch (err) {

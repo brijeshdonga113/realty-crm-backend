@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Returns true if the current user is a receptionist linked to this doctorId
+    function isLinkedReceptionist(doctorId) {
+      return exists(/databases/$(database)/documents/receptionists/$(request.auth.uid))
+        && get(/databases/$(database)/documents/receptionists/$(request.auth.uid)).data.doctorId == doctorId;
+    }
+
+    // All clinic data lives under users/{userId}/...
+    // Allow the doctor themselves OR a receptionist linked to that doctor
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == userId || isLinkedReceptionist(userId));
+    }
+
+    // Invite codes — doctors write their own; any authenticated user can read to validate
+    match /inviteCodes/{code} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.data.doctorId == request.auth.uid;
+    }
+
+    // Receptionist records — each user can only access their own document
+    match /receptionists/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // collectionGroup("visits") — real-time dashboard listener
+    match /{path=**}/visits/{visitId} {
+      allow read: if request.auth != null
+        && resource.data.doctorId == request.auth.uid;
+      allow write: if request.auth != null
+        && request.resource.data.doctorId == request.auth.uid;
+    }
+
+  }
+}

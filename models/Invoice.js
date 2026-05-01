@@ -70,6 +70,7 @@ export function createInvoice(data = {}) {
     paymentDate:   data.paymentDate ?? null,
 
     notes:     data.notes ?? '',
+    createdBy: data.createdBy ?? null,
     createdAt: data.createdAt ?? now,
     updatedAt: now,
   }
