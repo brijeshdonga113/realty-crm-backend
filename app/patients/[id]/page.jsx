@@ -10,6 +10,7 @@ import { useVisits } from '@/hooks/useVisits'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { PAYMENT_METHODS, createLineItem, INVOICE_STATUSES } from '@/models/Invoice'
@@ -458,6 +459,14 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
               <input type="date" value={editForm.followUpDate}
                 onChange={e => setEditForm(f => ({...f, followUpDate: e.target.value}))}
                 className="input-field"/>
+              {editForm.followUpDate && blockedSlots.some(b => b.date === editForm.followUpDate) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  You are blocked on this day — consider picking another date.
+                </p>
+              )}
               {editForm.followUpDate && (
                 <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">
                   {daysBetween(editForm.followUpDate) >= 0
@@ -529,7 +538,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
 }
 
 /* ─────────────── AddVisitModal with payment + billing ─────────────── */
-function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, patientNumber, add, doctor }) {
+function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, patientNumber, add, doctor, blockedSlots = [] }) {
   const { formatDateFull, dateFormat } = usePreferences()
   const [loading, setLoading] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -852,6 +861,14 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
           <input type="date" value={form.followUpDate}
             min={new Date().toISOString().slice(0, 10)}
             onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
+          {form.followUpDate && blockedSlots.some(b => b.date === form.followUpDate) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              You are blocked on this day — consider picking another date.
+            </p>
+          )}
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
@@ -1018,6 +1035,7 @@ export default function PatientProfilePage() {
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
+  const { blockedSlots }        = useBlockedSlots()
   const [tab, setTab]            = useState(0)
   const [showVisitModal, setShowVisitModal]   = useState(false)
   const [showEditModal, setShowEditModal]     = useState(false)
@@ -1464,6 +1482,7 @@ export default function PatientProfilePage() {
         patientNumber={patient.patientNumber}
         add={addVisit}
         doctor={doctor}
+        blockedSlots={blockedSlots}
       />
 
       <EditPatientModal

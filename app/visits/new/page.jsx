@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { usePreferences } from '@/hooks/usePreferences'
 import { visitService } from '@/services/visitService'
 import { appointmentService } from '@/services/appointmentService'
@@ -23,6 +24,7 @@ function VisitEntryForm() {
   const searchParams = useSearchParams()
   const { doctor } = useAuth()
   const { formatDateFull } = usePreferences()
+  const { blockedSlots } = useBlockedSlots()
 
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
@@ -413,6 +415,14 @@ function VisitEntryForm() {
           </div>
           <input type="date" value={form.followUpDate}
             onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
+          {form.followUpDate && blockedSlots.some(b => b.date === form.followUpDate) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              You are blocked on this day — consider picking another date.
+            </p>
+          )}
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">

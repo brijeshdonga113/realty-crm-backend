@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { APPOINTMENT_TYPES } from '@/models/Appointment'
 
 function toMins(t) {
@@ -23,7 +24,8 @@ function NewAppointmentForm() {
   const router            = useRouter()
   const searchParams      = useSearchParams()
   const { add, appointments } = useAppointments()
-  const { patients }      = usePatients()
+  const { patients }          = usePatients()
+  const { blockedSlots }      = useBlockedSlots()
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
@@ -53,6 +55,18 @@ function NewAppointmentForm() {
       return newStart < aEnd && newEnd > aStart
     })
   }, [appointments, form.date, form.time, form.durationMinutes])
+
+  const activeBlock = useMemo(() => {
+    if (!form.date) return null
+    return blockedSlots.find(b => {
+      if (b.date !== form.date) return false
+      if (b.allDay) return true
+      if (!form.time) return false
+      const newStart = toMins(form.time)
+      const newEnd   = newStart + (Number(form.durationMinutes) || 30)
+      return newStart < toMins(b.endTime) && newEnd > toMins(b.startTime)
+    }) ?? null
+  }, [blockedSlots, form.date, form.time, form.durationMinutes])
 
   const set = (k, v) => { setForm(p => ({...p, [k]: v})); setErrors(e => ({...e, [k]: ''})) }
 
@@ -124,6 +138,22 @@ function NewAppointmentForm() {
               {errors.time && <p className="error-text">{errors.time}</p>}
             </div>
           </div>
+
+          {/* Blocked time warning */}
+          {activeBlock && (
+            <div className="p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+              <p className="text-sm font-semibold text-red-800 dark:text-red-300 flex items-center gap-2">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                {activeBlock.allDay ? 'This entire day is blocked' : `Blocked ${fmt12(activeBlock.startTime)} – ${fmt12(activeBlock.endTime)}`}
+              </p>
+              {activeBlock.reason && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1 ml-6">{activeBlock.reason}</p>
+              )}
+              <p className="text-xs text-red-500 dark:text-red-500 mt-1.5 ml-6">You are marked unavailable at this time. Remove the block from the calendar to allow bookings.</p>
+            </div>
+          )}
 
           {/* Clash warning */}
           {clashes.length > 0 && (
