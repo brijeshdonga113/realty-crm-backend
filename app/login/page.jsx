@@ -178,6 +178,12 @@ export default function LoginPage() {
               Create an account
             </Link>
           </p>
+          <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+            Are you a receptionist?{' '}
+            <Link href="/signup/receptionist" className="text-primary-600 dark:text-primary-400 font-medium hover:underline">
+              Sign up here
+            </Link>
+          </p>
 
         </div>
       </div>

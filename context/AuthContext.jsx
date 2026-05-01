@@ -10,6 +10,11 @@ const AuthContext = createContext(null)
 // Profile lives at users/{uid}/profile/doctor
 const profileDocPath = (uid) => ['users', uid, 'profile', 'doctor']
 
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
 function buildDoctorProfile(uid, data) {
   return {
     id:             uid,
@@ -27,14 +32,15 @@ function buildDoctorProfile(uid, data) {
     referralSources:    data.referralSources    ?? null,
     googleCalendarConnected: data.googleCalendarConnected ?? false,
     subscription: data.subscription ?? null,
+    inviteCode:   data.inviteCode   ?? '',
     createdAt:    data.createdAt    ?? new Date().toISOString(),
   }
 }
 
-// Strip `id` before writing to Firestore — it's the document path, not a field
+// Strip `id` and internal `_*` fields before writing to Firestore
 function toFirestoreProfile(profile) {
   const { id, ...rest } = profile
-  return rest
+  return Object.fromEntries(Object.entries(rest).filter(([k]) => !k.startsWith('_')))
 }
 
 // Session cache — synchronous reads for components that need doctor data immediately
@@ -65,6 +71,22 @@ async function loadFirebaseProfile(uid) {
   return null
 }
 
+async function loadReceptionistSession(uid, userEmail) {
+  const { doc, getDoc } = await import('firebase/firestore')
+  const recSnap = await getDoc(doc(db, 'receptionists', uid))
+  if (!recSnap.exists()) return null
+  const { name, email, doctorId } = recSnap.data()
+  const doctorProfile = await loadFirebaseProfile(doctorId)
+  if (!doctorProfile) return null
+  return {
+    ...doctorProfile,
+    _role: 'receptionist',
+    _receptionistUid: uid,
+    _receptionistName: name,
+    _receptionistEmail: email ?? userEmail,
+  }
+}
+
 export function AuthProvider({ children }) {
   const [doctor, setDoctor]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -75,16 +97,23 @@ export function AuthProvider({ children }) {
       unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
           try {
-            const profile = await loadFirebaseProfile(user.uid)
-            const resolved = profile ?? buildDoctorProfile(user.uid, {
-              email:     user.email,
-              firstName: user.displayName?.split(' ')[0] ?? '',
-              lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
-            })
-            // Restore Google Calendar connection flag from profile
-            restoreGoogleCalendarConnection(resolved.googleCalendarConnected)
-            saveSessionLocally(resolved)
-            setDoctor(resolved)
+            // Check receptionist first
+            const recSession = await loadReceptionistSession(user.uid, user.email)
+            if (recSession) {
+              restoreGoogleCalendarConnection(recSession.googleCalendarConnected)
+              saveSessionLocally(recSession)
+              setDoctor(recSession)
+            } else {
+              const profile = await loadFirebaseProfile(user.uid)
+              const resolved = profile ?? buildDoctorProfile(user.uid, {
+                email:     user.email,
+                firstName: user.displayName?.split(' ')[0] ?? '',
+                lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
+              })
+              restoreGoogleCalendarConnection(resolved.googleCalendarConnected)
+              saveSessionLocally(resolved)
+              setDoctor(resolved)
+            }
           } catch {
             setDoctor(null)
           }
@@ -102,11 +131,13 @@ export function AuthProvider({ children }) {
     const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile } = await import('firebase/auth')
     const { doc, setDoc } = await import('firebase/firestore')
 
-    const cred    = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
-    const uid     = cred.user.uid
-    const profile = buildDoctorProfile(uid, { ...doctorData, subscription: initTrial() })
+    const cred       = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
+    const uid        = cred.user.uid
+    const inviteCode = generateInviteCode()
+    const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial() })
 
     await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
+    await setDoc(doc(db, 'inviteCodes', inviteCode), { doctorId: uid, createdAt: new Date().toISOString() })
     await fbUpdateProfile(cred.user, { displayName: `${doctorData.firstName} ${doctorData.lastName}` })
 
     saveSessionLocally(profile)
@@ -114,14 +145,75 @@ export function AuthProvider({ children }) {
     return profile
   }
 
+  const signupReceptionist = async (name, email, password, rawInviteCode) => {
+    const code = rawInviteCode.replace(/\s/g, '').toUpperCase()
+    const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile } = await import('firebase/auth')
+    const { doc, getDoc, setDoc } = await import('firebase/firestore')
+
+    const inviteSnap = await getDoc(doc(db, 'inviteCodes', code))
+    if (!inviteSnap.exists()) throw new Error('Invalid invite code. Please check with your doctor.')
+    const { doctorId } = inviteSnap.data()
+
+    const cred = await createUserWithEmailAndPassword(auth, email, password)
+    const uid  = cred.user.uid
+    await fbUpdateProfile(cred.user, { displayName: name })
+
+    await setDoc(doc(db, 'receptionists', uid), {
+      name, email, doctorId, role: 'receptionist', createdAt: new Date().toISOString(),
+    })
+
+    const doctorProfile = await loadFirebaseProfile(doctorId)
+    const sessionProfile = {
+      ...doctorProfile,
+      _role: 'receptionist',
+      _receptionistUid: uid,
+      _receptionistName: name,
+      _receptionistEmail: email,
+    }
+    saveSessionLocally(sessionProfile)
+    setDoctor(sessionProfile)
+    return sessionProfile
+  }
+
   const login = async (email, password) => {
     const { signInWithEmailAndPassword } = await import('firebase/auth')
-    const cred    = await signInWithEmailAndPassword(auth, email, password)
-    const profile = await loadFirebaseProfile(cred.user.uid)
-    const resolved = profile ?? buildDoctorProfile(cred.user.uid, { email })
+    const { doc, getDoc } = await import('firebase/firestore')
+    const cred = await signInWithEmailAndPassword(auth, email, password)
+    const uid  = cred.user.uid
+
+    // Check if receptionist
+    const recSnap = await getDoc(doc(db, 'receptionists', uid))
+    if (recSnap.exists()) {
+      const { name, doctorId } = recSnap.data()
+      const doctorProfile = await loadFirebaseProfile(doctorId)
+      const sessionProfile = {
+        ...doctorProfile,
+        _role: 'receptionist',
+        _receptionistUid: uid,
+        _receptionistName: name,
+        _receptionistEmail: email,
+      }
+      saveSessionLocally(sessionProfile)
+      setDoctor(sessionProfile)
+      return sessionProfile
+    }
+
+    const profile  = await loadFirebaseProfile(uid)
+    const resolved = profile ?? buildDoctorProfile(uid, { email })
     saveSessionLocally(resolved)
     setDoctor(resolved)
     return resolved
+  }
+
+  const generateReceptionistCode = async () => {
+    const { doc, setDoc } = await import('firebase/firestore')
+    const code = generateInviteCode()
+    await setDoc(doc(db, 'inviteCodes', code), { doctorId: doctor.id, createdAt: new Date().toISOString() })
+    const updated = { ...doctor, inviteCode: code }
+    await setDoc(doc(db, ...profileDocPath(doctor.id)), toFirestoreProfile(updated))
+    saveSessionLocally(updated)
+    setDoctor(updated)
+    return code
   }
 
   const updateProfile = async (patch) => {
@@ -146,8 +238,10 @@ export function AuthProvider({ children }) {
     setDoctor(null)
   }
 
+  const isReceptionist = doctor?._role === 'receptionist'
+
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, login, logout, updateProfile }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist }}>
       {children}
     </AuthContext.Provider>
   )
