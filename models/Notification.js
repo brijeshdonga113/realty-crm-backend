@@ -41,8 +41,10 @@ export function createNotification(data = {}) {
       type: data.relatedEntity?.type ?? null,
       id:   data.relatedEntity?.id ?? null,
     },
-    read:      data.read ?? false,
-    createdAt: data.createdAt ?? now,
+    read:          data.read          ?? false,
+    createdAt:     data.createdAt     ?? now,
+    createdByRole: data.createdByRole ?? 'doctor',
+    createdByUid:  data.createdByUid  ?? null,
   }
 }
 
