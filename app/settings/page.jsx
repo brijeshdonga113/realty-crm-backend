@@ -33,7 +33,7 @@ const SPECIALIZATIONS = [
 ]
 
 export default function SettingsPage() {
-  const { doctor, updateProfile } = useAuth()
+  const { doctor, updateProfile, generateReceptionistCode } = useAuth()
   const { dark, toggle, colorTheme, setTheme } = useTheme()
 
   const [form, setForm] = useState({
@@ -171,6 +171,21 @@ export default function SettingsPage() {
   const [pwError, setPwError]   = useState('')
   const [pwSaved, setPwSaved]   = useState(false)
   const [error, setError]       = useState('')
+
+  const [codeGenerating, setCodeGenerating] = useState(false)
+  const [codeCopied, setCodeCopied]         = useState(false)
+
+  const handleGenerateCode = async () => {
+    setCodeGenerating(true)
+    try { await generateReceptionistCode() } finally { setCodeGenerating(false) }
+  }
+
+  const handleCopyCode = () => {
+    if (!doctor?.inviteCode) return
+    navigator.clipboard.writeText(doctor.inviteCode).catch(() => {})
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
+  }
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -804,6 +819,80 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
+
+        {/* ── Receptionist Access ──────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Receptionist Access</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Share this invite code with your receptionist so they can create an account linked to your clinic.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {doctor?.inviteCode ? (
+              <>
+                <div>
+                  <label className="form-label">Your Invite Code</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 font-mono text-lg tracking-widest text-center bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white select-all">
+                      {doctor.inviteCode}
+                    </div>
+                    <button onClick={handleCopyCode}
+                      className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium rounded-lg border transition-colors flex-shrink-0
+                        ${codeCopied
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                          : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
+                      {codeCopied ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                          </svg>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                          </svg>
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
+                  </svg>
+                  <span>Keep this code private. Anyone with it can join your clinic as a receptionist. You can generate a new code at any time to invalidate the old one.</span>
+                </div>
+                <button onClick={handleGenerateCode} disabled={codeGenerating}
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline underline-offset-2 transition-colors disabled:opacity-50">
+                  {codeGenerating ? 'Generating…' : 'Generate new code'}
+                </button>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  No invite code yet. Generate one to allow a receptionist to join your clinic.
+                </p>
+                <button onClick={handleGenerateCode} disabled={codeGenerating}
+                  className="btn-primary w-auto px-6">
+                  {codeGenerating ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Generating…
+                    </span>
+                  ) : 'Generate Invite Code'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
       </div>
     </AppLayout>
