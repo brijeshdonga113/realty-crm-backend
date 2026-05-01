@@ -97,22 +97,30 @@ export function AuthProvider({ children }) {
       unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
           try {
-            // Check receptionist first
-            const recSession = await loadReceptionistSession(user.uid, user.email)
-            if (recSession) {
-              restoreGoogleCalendarConnection(recSession.googleCalendarConnected)
-              saveSessionLocally(recSession)
-              setDoctor(recSession)
+            // Doctor profile check first — existing doctors always have this
+            const profile = await loadFirebaseProfile(user.uid)
+            if (profile) {
+              restoreGoogleCalendarConnection(profile.googleCalendarConnected)
+              saveSessionLocally(profile)
+              setDoctor(profile)
             } else {
-              const profile = await loadFirebaseProfile(user.uid)
-              const resolved = profile ?? buildDoctorProfile(user.uid, {
-                email:     user.email,
-                firstName: user.displayName?.split(' ')[0] ?? '',
-                lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
-              })
-              restoreGoogleCalendarConnection(resolved.googleCalendarConnected)
-              saveSessionLocally(resolved)
-              setDoctor(resolved)
+              // No doctor profile — check if this is a receptionist account
+              const recSession = await loadReceptionistSession(user.uid, user.email)
+              if (recSession) {
+                restoreGoogleCalendarConnection(recSession.googleCalendarConnected)
+                saveSessionLocally(recSession)
+                setDoctor(recSession)
+              } else {
+                // Fallback: new doctor (e.g. Google sign-in) with no stored profile yet
+                const resolved = buildDoctorProfile(user.uid, {
+                  email:     user.email,
+                  firstName: user.displayName?.split(' ')[0] ?? '',
+                  lastName:  user.displayName?.split(' ').slice(1).join(' ') ?? '',
+                })
+                restoreGoogleCalendarConnection(false)
+                saveSessionLocally(resolved)
+                setDoctor(resolved)
+              }
             }
           } catch {
             setDoctor(null)
@@ -177,29 +185,26 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { signInWithEmailAndPassword } = await import('firebase/auth')
-    const { doc, getDoc } = await import('firebase/firestore')
     const cred = await signInWithEmailAndPassword(auth, email, password)
     const uid  = cred.user.uid
 
-    // Check if receptionist
-    const recSnap = await getDoc(doc(db, 'receptionists', uid))
-    if (recSnap.exists()) {
-      const { name, doctorId } = recSnap.data()
-      const doctorProfile = await loadFirebaseProfile(doctorId)
-      const sessionProfile = {
-        ...doctorProfile,
-        _role: 'receptionist',
-        _receptionistUid: uid,
-        _receptionistName: name,
-        _receptionistEmail: email,
-      }
-      saveSessionLocally(sessionProfile)
-      setDoctor(sessionProfile)
-      return sessionProfile
+    // Doctor profile check first — covers all existing accounts
+    const profile = await loadFirebaseProfile(uid)
+    if (profile) {
+      saveSessionLocally(profile)
+      setDoctor(profile)
+      return profile
     }
 
-    const profile  = await loadFirebaseProfile(uid)
-    const resolved = profile ?? buildDoctorProfile(uid, { email })
+    // No doctor profile — check if this is a receptionist account
+    const recSession = await loadReceptionistSession(uid, email)
+    if (recSession) {
+      saveSessionLocally(recSession)
+      setDoctor(recSession)
+      return recSession
+    }
+
+    const resolved = buildDoctorProfile(uid, { email })
     saveSessionLocally(resolved)
     setDoctor(resolved)
     return resolved
