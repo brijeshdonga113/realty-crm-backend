@@ -9,12 +9,14 @@ import { usePatients } from '@/hooks/usePatients'
 import { useBilling } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
+import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { getReferralSources } from '@/lib/referralSources'
 
 export default function PatientsPage() {
   const router = useRouter()
+  const { doctor } = useAuth()
   const { patients, loading, remove, search } = usePatients()
   const { invoices } = useBilling()
   const { add: addFollowUp } = useFollowUps()
@@ -41,13 +43,13 @@ export default function PatientsPage() {
   }))
   const activeFilterCount = activeFilters.gender.length + activeFilters.source.length + (activeFilters.ageRange ? 1 : 0)
 
-  const referralSources = useMemo(() => getReferralSources(), [])
+  const referralSources = useMemo(() => getReferralSources(doctor?.referralSources), [doctor?.referralSources])
 
   const sourceLabelMap = useMemo(() => {
     const map = {}
-    getReferralSources().forEach(s => { map[s.value] = s.label })
+    getReferralSources(doctor?.referralSources).forEach(s => { map[s.value] = s.label })
     return map
-  }, [])
+  }, [doctor?.referralSources])
 
   // Build a map of patientId → total bill count
   const billCountByPatient = useMemo(() => {

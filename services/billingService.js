@@ -37,7 +37,21 @@ export const billingService = {
       const year = new Date().getFullYear()
       invoiceNumber = `INV-${year}-${Date.now().toString().slice(-5)}`
     }
-    const invoice = createInvoice({ ...data, invoiceNumber })
+
+    // Auto-attach createdBy from session if caller didn't supply it
+    let createdBy = data.createdBy ?? null
+    if (!createdBy) {
+      try {
+        const session = JSON.parse(localStorage.getItem('clinic_crm_doctor') ?? 'null')
+        if (session?._role === 'receptionist') {
+          createdBy = { role: 'receptionist', name: session._receptionistName ?? '', uid: session._receptionistUid ?? '' }
+        } else if (session?.id) {
+          createdBy = { role: 'doctor', name: `Dr. ${session.firstName ?? ''} ${session.lastName ?? ''}`.trim(), uid: session.id }
+        }
+      } catch {}
+    }
+
+    const invoice = createInvoice({ ...data, invoiceNumber, createdBy })
     const saved = await dataStore.create(COLLECTION, invoice)
 
     // Fire-and-forget — never let notification failure block invoice creation

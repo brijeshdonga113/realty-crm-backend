@@ -181,7 +181,6 @@ function InfoRow({ label, value }) {
 /* ─────────────── VisitCard with edit + delete ─────────────── */
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
-  const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [editForm, setEditForm] = useState(null)
@@ -224,7 +223,6 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
         })
       }
       setEditing(false)
-      setOpen(false)
     } catch (err) {
       alert(err?.message || 'Failed to update visit')
     } finally {
@@ -233,188 +231,148 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   }
 
   const daysRemaining = visit.followUpDate ? daysBetween(visit.followUpDate) : null
+  const hasVitals = visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean)
+
+  const Field = ({ label, value }) => value ? (
+    <div>
+      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{value}</p>
+    </div>
+  ) : null
 
   return (
-    <>
-      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        onClick={() => setOpen(true)}>
-        <div className="flex items-start justify-between mb-2">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {formatDate(visit.visitDate)}
-          </p>
-          <div className="flex items-center gap-2">
-            {visit.followUpDate && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-              }`}>
-                {daysRemaining < 0 ? `${Math.abs(daysRemaining)}d overdue` :
-                 daysRemaining === 0 ? 'Follow-up today' :
-                 `Follow-up in ${daysRemaining}d`}
-              </span>
-            )}
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
+    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30">
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-bold text-gray-900 dark:text-white">{formatDate(visit.visitDate)}</p>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
+          </span>
+          {visit.followUpDate && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+              daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+              'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+            }`}>
+              Follow-up: {formatDate(visit.followUpDate)}
+              {daysRemaining === 0 ? ' (Today)' : daysRemaining < 0 ? ` (${Math.abs(daysRemaining)}d overdue)` : ` (in ${daysRemaining}d)`}
             </span>
-          </div>
-        </div>
-        {/* Timeline */}
-        <div className="space-y-1.5 mt-1">
-          <div className="flex items-start gap-2">
-            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide w-20 flex-shrink-0 pt-0.5">Complaint</span>
-            <p className="text-sm text-gray-700 dark:text-gray-300 font-medium flex-1">{visit.chiefComplaint || 'No complaint noted'}</p>
-          </div>
-          {visit.treatment && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide w-20 flex-shrink-0 pt-0.5">Treatment</span>
-              <p className="text-sm text-gray-600 dark:text-gray-400 flex-1 line-clamp-2">{visit.treatment}</p>
-            </div>
           )}
         </div>
-        {visit.diagnosis?.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {visit.diagnosis.slice(0, 3).map(d => <Badge key={d} label={d} color="teal" />)}
+        <div className="flex items-center gap-2">
+          {onDelete && (
+            <button onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) onDelete(visit.id) }}
+              className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          )}
+          <button onClick={openEdit}
+            className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline px-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      {/* Full visit detail — always visible */}
+      <div className="p-5 space-y-4">
+        <Field label="Chief Complaint" value={visit.chiefComplaint} />
+        <Field label="History" value={visit.history} />
+
+        {hasVitals && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Vital Signs</p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+              {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
+                <div key={k}>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
+                </div>
+              ) : null)}
+            </div>
           </div>
         )}
-        {visit.prescriptions?.length > 0 && (
-          <p className="text-xs text-gray-400 mt-2">💊 {visit.prescriptions.length} prescription{visit.prescriptions.length !== 1 ? 's' : ''}</p>
+
+        <Field label="Clinical Findings" value={visit.examination?.findings} />
+
+        {visit.diagnosis?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Diagnosis</p>
+            <div className="flex flex-wrap gap-1.5">
+              {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
+            </div>
+          </div>
         )}
+
+        <Field label="Treatment Plan" value={visit.treatment} />
+
+        {visit.prescriptions?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Prescriptions</p>
+            <div className="space-y-2">
+              {visit.prescriptions.map(rx => (
+                <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/40 rounded-lg px-4 py-3">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{rx.medication}</p>
+                    {rx.dosage && <span className="text-xs font-medium text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/40 px-2 py-0.5 rounded-full">{rx.dosage}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {rx.frequency && <span>{rx.frequency}</span>}
+                    {rx.duration  && <span>· {rx.duration}</span>}
+                  </div>
+                  {rx.instructions && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">{rx.instructions}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {visit.labOrders?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Lab Orders</p>
+            <div className="flex flex-wrap gap-1.5">
+              {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
+            </div>
+          </div>
+        )}
+
+        <Field label="Notes" value={visit.notes} />
+
         {linkedInvoice && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              linkedInvoice.status === 'paid'
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-            }`}>
-              {linkedInvoice.status === 'paid' ? 'Paid' : 'Due'} · {formatCurrency(linkedInvoice.total)}
-            </span>
+          <div className={`rounded-xl px-4 py-3 border flex items-center justify-between ${
+            linkedInvoice.status === 'paid'
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+              : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
+          }`}>
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Payment</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                {linkedInvoice.invoiceNumber}
+                {linkedInvoice.paymentMethod && (
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2 capitalize">
+                    via {linkedInvoice.paymentMethod.replace('_', ' ')}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className={`text-lg font-bold ${linkedInvoice.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                {formatCurrency(linkedInvoice.total)}
+              </p>
+              <Badge label={linkedInvoice.status} color={linkedInvoice.status === 'paid' ? 'green' : 'yellow'} />
+            </div>
           </div>
         )}
       </div>
 
-      {/* View/Edit Modal */}
-      <Modal open={open} onClose={() => { setOpen(false); setEditing(false) }} title={editing ? 'Edit Visit' : 'Visit Record'} size="lg">
-        {!editing ? (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow label="Visit Date" value={new Date(visit.visitDate).toLocaleString()} />
-              <div>
-                <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Follow-up</p>
-                {visit.followUpDate ? (
-                  <div className="mt-0.5">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{visit.followUpDate}</p>
-                    {daysRemaining !== null && (
-                      <p className={`text-xs font-semibold mt-0.5 ${
-                        daysRemaining < 0 ? 'text-red-600 dark:text-red-400' :
-                        daysRemaining === 0 ? 'text-orange-600 dark:text-orange-400' :
-                        'text-primary-600 dark:text-primary-400'
-                      }`}>
-                        {daysRemaining < 0 ? `${Math.abs(daysRemaining)} days overdue` :
-                         daysRemaining === 0 ? 'Today' :
-                         `${daysRemaining} days remaining`}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 mt-0.5">None scheduled</p>
-                )}
-              </div>
-            </div>
-            <InfoRow label="Chief Complaint" value={visit.chiefComplaint} />
-            <InfoRow label="History" value={visit.history} />
-            {visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean) && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Vital Signs</p>
-                <div className="grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                  {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
-                    <div key={k}>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
-                    </div>
-                  ) : null)}
-                </div>
-              </div>
-            )}
-            <InfoRow label="Findings" value={visit.examination?.findings} />
-            {visit.diagnosis?.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Diagnosis</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
-                </div>
-              </div>
-            )}
-            <InfoRow label="Treatment" value={visit.treatment} />
-            {visit.prescriptions?.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Prescriptions</p>
-                <div className="space-y-2">
-                  {visit.prescriptions.map(rx => (
-                    <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
-                      <p className="font-semibold text-gray-800 dark:text-gray-200">{rx.medication} — {rx.dosage}</p>
-                      <p className="text-gray-600 dark:text-gray-400 text-xs">{rx.frequency} · {rx.duration}</p>
-                      {rx.instructions && <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">{rx.instructions}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {visit.labOrders?.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Lab Orders</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
-                </div>
-              </div>
-            )}
-            <InfoRow label="Notes" value={visit.notes} />
-            {/* Linked payment */}
-            {linkedInvoice && (
-              <div className={`rounded-xl px-4 py-3 border flex items-center justify-between ${
-                linkedInvoice.status === 'paid'
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
-                  : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
-              }`}>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Payment</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                    {linkedInvoice.invoiceNumber}
-                    {linkedInvoice.paymentMethod && (
-                      <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2 capitalize">
-                        via {linkedInvoice.paymentMethod.replace('_', ' ')}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-lg font-bold ${linkedInvoice.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                    {formatCurrency(linkedInvoice.total)}
-                  </p>
-                  <Badge label={linkedInvoice.status} color={linkedInvoice.status === 'paid' ? 'green' : 'yellow'} />
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between items-center pt-2 border-t dark:border-gray-700">
-              {onDelete && (
-                <button onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) { onDelete(visit.id); setOpen(false) } }}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm font-medium rounded-lg transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
-                  Delete Visit
-                </button>
-              )}
-              <button onClick={openEdit}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors ml-auto">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit Visit
-              </button>
-            </div>
-          </div>
-        ) : (
+      {/* Edit Modal */}
+      <Modal open={editing} onClose={() => setEditing(false)} title="Edit Visit" size="lg">
+        {editing && editForm && (
           <div className="space-y-4">
             <div>
               <label className="form-label">Chief Complaint *</label>
@@ -533,7 +491,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
           </div>
         )}
       </Modal>
-    </>
+    </div>
   )
 }
 
@@ -1041,6 +999,9 @@ export default function PatientProfilePage() {
   const [showEditModal, setShowEditModal]     = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
+  const [editingOverview, setEditingOverview] = useState(false)
+  const [overviewForm, setOverviewForm]       = useState({})
+  const [overviewSaving, setOverviewSaving]   = useState(false)
 
   // Merge follow-ups for this patient from the followups collection (includes visit-linked ones)
   // plus a fallback for older visits that predate the auto-sync (no followup record yet).
@@ -1102,6 +1063,28 @@ export default function PatientProfilePage() {
   const age = getPatientAge(patient)
   const today    = new Date().toISOString().slice(0, 10)
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+
+  const startOverviewEdit = () => {
+    setOverviewForm({
+      phone:          patient.phone          || '',
+      alternatePhone: patient.alternatePhone || '',
+      email:          patient.email          || '',
+      address:        patient.address        || '',
+    })
+    setEditingOverview(true)
+  }
+
+  const saveOverview = async () => {
+    setOverviewSaving(true)
+    try {
+      await patientService.update(id, overviewForm)
+      setEditingOverview(false)
+    } catch (err) {
+      alert(err?.message || 'Failed to save')
+    } finally {
+      setOverviewSaving(false)
+    }
+  }
 
   const overdueFollowUps  = patientFollowUps.filter(e => e.dueDate < today)
   const todayFollowUps    = patientFollowUps.filter(e => e.dueDate === today)
@@ -1208,18 +1191,73 @@ export default function PatientProfilePage() {
       {/* Tab 0: Overview */}
       {tab === 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Personal Details — inline editable */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Personal Details</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Personal Details</h3>
+              {!editingOverview ? (
+                <button onClick={startOverviewEdit}
+                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                  Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditingOverview(false)}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+                  <button onClick={saveOverview} disabled={overviewSaving}
+                    className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                    {overviewSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Read-only fixed fields */}
             <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
-              <InfoRow label="Phone" value={patient.phone} />
-              <InfoRow label="Alt Phone" value={patient.alternatePhone} />
               <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
               {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
             </div>
-            <InfoRow label="Email" value={patient.email} />
-            <InfoRow label="Address" value={patient.address} />
+
+            {/* Editable fields */}
+            {editingOverview ? (
+              <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label text-xs">Phone</label>
+                    <input value={overviewForm.phone} onChange={e => setOverviewForm(f => ({ ...f, phone: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="Phone number"/>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Alt Phone</label>
+                    <input value={overviewForm.alternatePhone} onChange={e => setOverviewForm(f => ({ ...f, alternatePhone: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="Alternate phone"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Email</label>
+                  <input type="email" value={overviewForm.email} onChange={e => setOverviewForm(f => ({ ...f, email: e.target.value }))}
+                    className="input-field py-2 text-sm" placeholder="Email address"/>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Address</label>
+                  <textarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
+                    rows={2} className="input-field py-2 text-sm resize-none" placeholder="Address"/>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <InfoRow label="Phone" value={patient.phone} />
+                <InfoRow label="Alt Phone" value={patient.alternatePhone} />
+                <InfoRow label="Email" value={patient.email} />
+                <InfoRow label="Address" value={patient.address} />
+              </div>
+            )}
+
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
             )}
@@ -1234,6 +1272,8 @@ export default function PatientProfilePage() {
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Medical Summary</h3>
+
+              {/* From patient record */}
               {patient.allergies?.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
@@ -1251,14 +1291,55 @@ export default function PatientProfilePage() {
                 </div>
               )}
               {patient.currentMedications?.length > 0 && (
-                <div>
+                <div className="mb-3">
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Current Medications</p>
                   <div className="flex flex-wrap gap-1.5">
                     {patient.currentMedications.map(m => <Badge key={m} label={m} color="blue"/>)}
                   </div>
                 </div>
               )}
-              {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && (
+
+              {/* Aggregated from visits */}
+              {visits.length > 0 && (() => {
+                const allDiagnoses   = [...new Set(visits.flatMap(v => v.diagnosis || []).filter(Boolean))]
+                const allLabOrders   = [...new Set(visits.flatMap(v => v.labOrders  || []).filter(Boolean))]
+                const recentRx = visits
+                  .slice(0, 3)
+                  .flatMap(v => (v.prescriptions || []).map(p => p.medication).filter(Boolean))
+                const uniqueRx = [...new Set(recentRx)]
+                if (!allDiagnoses.length && !allLabOrders.length && !uniqueRx.length) return null
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">From Visit History</p>
+                    {allDiagnoses.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Diagnoses</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allDiagnoses.map(d => <Badge key={d} label={d} color="purple"/>)}
+                        </div>
+                      </div>
+                    )}
+                    {uniqueRx.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Recent Prescriptions</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {uniqueRx.map(m => <Badge key={m} label={m} color="teal"/>)}
+                        </div>
+                      </div>
+                    )}
+                    {allLabOrders.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Lab Orders</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allLabOrders.map(l => <Badge key={l} label={l} color="gray"/>)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
                 <p className="text-sm text-gray-400">No medical history recorded.</p>
               )}
             </div>
