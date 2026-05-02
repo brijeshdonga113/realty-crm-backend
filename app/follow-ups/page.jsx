@@ -101,8 +101,7 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
           className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2 py-1 rounded-lg transition-colors">
           {WA_ICON} Remind
         </button>
-        {/* Mark done (standalone only) */}
-        {isStandalone && entry.status === 'pending' && onMarkDone && (
+        {entry.status === 'pending' && onMarkDone && (
           <button onClick={() => onMarkDone(entry.id)}
             title="Mark as done"
             className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors">
@@ -117,7 +116,8 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
   )
 }
 
-function Section({ title, count, color, children, emptyMsg }) {
+function Section({ title, count, color, children, emptyMsg, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
   const colors = {
     red:    'text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-900/20 dark:border-red-700',
     orange: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/20 dark:border-orange-700',
@@ -126,14 +126,27 @@ function Section({ title, count, color, children, emptyMsg }) {
   }
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+          </svg>
+          <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+        </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${colors[color] ?? colors.teal}`}>{count}</span>
-      </div>
-      {count === 0 ? (
-        <div className="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">{emptyMsg}</div>
-      ) : (
-        <div className="divide-y divide-gray-50 dark:divide-gray-700">{children}</div>
+      </button>
+      {open && (
+        count === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">{emptyMsg}</div>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-700">{children}</div>
+        )
       )}
     </div>
   )
@@ -283,7 +296,7 @@ export default function FollowUpsPage() {
                 <Section title={`Missed / Overdue`} count={overdue.length} color="red" emptyMsg="">
                   {overdue.map(e => (
                     <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor}
-                      onMarkDone={e.source === 'standalone' ? markDone : null}/>
+                      onMarkDone={markDone}/>
                   ))}
                 </Section>
               )}
@@ -293,14 +306,14 @@ export default function FollowUpsPage() {
                   <Section title="Today" count={todayF.length} color="orange" emptyMsg="No follow-ups today.">
                     {todayF.map(e => (
                       <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor}
-                        onMarkDone={e.source === 'standalone' ? markDone : null}/>
+                        onMarkDone={markDone}/>
                     ))}
                   </Section>
 
                   <Section title="Tomorrow" count={tomorrowF.length} color="yellow" emptyMsg="No follow-ups tomorrow.">
                     {tomorrowF.map(e => (
                       <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor}
-                        onMarkDone={e.source === 'standalone' ? markDone : null}/>
+                        onMarkDone={markDone}/>
                     ))}
                   </Section>
 
@@ -308,7 +321,7 @@ export default function FollowUpsPage() {
                     <Section title="Upcoming" count={upcoming.length} color="teal" emptyMsg="">
                       {upcoming.map(e => (
                         <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor}
-                          onMarkDone={e.source === 'standalone' ? markDone : null}/>
+                          onMarkDone={markDone}/>
                       ))}
                     </Section>
                   )}
@@ -319,7 +332,7 @@ export default function FollowUpsPage() {
                 <Section title={`Follow-ups on ${filterDate}`} count={displayed.length} color="teal" emptyMsg="">
                   {displayed.map(e => (
                     <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor}
-                      onMarkDone={e.source === 'standalone' ? markDone : null}/>
+                      onMarkDone={markDone}/>
                   ))}
                 </Section>
               )}

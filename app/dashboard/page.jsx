@@ -54,7 +54,7 @@ function StatCard({ label, value, sub, color, icon, href }) {
 }
 
 export default function DashboardPage() {
-  const { doctor }    = useAuth()
+  const { doctor, isReceptionist } = useAuth()
   const router        = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
   const { stats, loading: reportLoading } = useReports()
@@ -62,9 +62,12 @@ export default function DashboardPage() {
   const { patients }     = usePatients()
   const { followups }    = useFollowUps()
 
-  const todayStr     = new Date().toISOString().slice(0, 10)
-  const twoDaysStr   = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
-  const todayAppts = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5)
+  const todayStr    = new Date().toISOString().slice(0, 10)
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  const twoDaysStr  = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
+  const todayAppts  = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5)
+  const todayFollowups    = followups.filter(f => f.dueDate === todayStr    && f.status === 'pending')
+  const tomorrowFollowups = followups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending')
   const specLabel  = SPECIALIZATION_LABELS[doctor?.specialization] ?? doctor?.specialization
 
   const quickActions = [
@@ -103,7 +106,11 @@ export default function DashboardPage() {
             {doctor?.clinicName && (
               <p className="text-primary-200 text-xs font-semibold uppercase tracking-wider mb-1">{doctor.clinicName}</p>
             )}
-            <h2 className="text-xl font-bold mb-0.5">Good day, Dr. {doctor?.firstName} {doctor?.lastName}!</h2>
+            <h2 className="text-xl font-bold mb-0.5">
+              {isReceptionist
+                ? `Good day, ${doctor?._receptionistName ?? 'there'}!`
+                : `Good day, Dr. ${doctor?.firstName} ${doctor?.lastName}!`}
+            </h2>
             <p className="text-primary-100 text-sm">
               {stats
                 ? `${stats.appointments.todayCount} appointment${stats.appointments.todayCount !== 1 ? 's' : ''} · ${stats.visits?.todayCount ?? 0} visit${stats.visits?.todayCount !== 1 ? 's' : ''} today.`
@@ -227,6 +234,85 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Today's & Tomorrow's follow-ups */}
+        {(todayFollowups.length > 0 || tomorrowFollowups.length > 0) && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* Today */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+              <div className="px-6 py-4 border-b border-orange-100 dark:border-orange-900/30 flex items-center justify-between bg-orange-50/40 dark:bg-orange-900/10 rounded-t-xl">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Follow-ups Today</h3>
+                  {todayFollowups.length > 0 && (
+                    <span className="text-xs font-bold px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-full">
+                      {todayFollowups.length}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => router.push('/follow-ups')}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+              </div>
+              {todayFollowups.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No follow-ups today.</div>
+              ) : (
+                <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                  {todayFollowups.map(f => (
+                    <div key={f.id} className="px-6 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
+                      onClick={() => f.patientId && router.push(`/patients/${f.patientId}`)}>
+                      <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-orange-700 dark:text-orange-300 font-semibold text-xs">
+                          {(f.patientName||'').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()||'?'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Follow-up visit'}</p>
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full flex-shrink-0">Today</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tomorrow */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+              <div className="px-6 py-4 border-b border-yellow-100 dark:border-yellow-900/30 flex items-center justify-between bg-yellow-50/40 dark:bg-yellow-900/10 rounded-t-xl">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Follow-ups Tomorrow</h3>
+                  {tomorrowFollowups.length > 0 && (
+                    <span className="text-xs font-bold px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 rounded-full">
+                      {tomorrowFollowups.length}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => router.push('/follow-ups')}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+              </div>
+              {tomorrowFollowups.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No follow-ups tomorrow.</div>
+              ) : (
+                <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                  {tomorrowFollowups.map(f => (
+                    <div key={f.id} className="px-6 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
+                      onClick={() => f.patientId && router.push(`/patients/${f.patientId}`)}>
+                      <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-yellow-700 dark:text-yellow-300 font-semibold text-xs">
+                          {(f.patientName||'').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()||'?'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Follow-up visit'}</p>
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-full flex-shrink-0">Tomorrow</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 2-days upcoming follow-ups */}
         {(() => {
