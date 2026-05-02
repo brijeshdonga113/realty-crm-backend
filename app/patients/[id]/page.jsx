@@ -491,7 +491,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
           </div>
         )}
       </Modal>
-    </>
+    </div>
   )
 }
 
