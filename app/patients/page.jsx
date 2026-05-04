@@ -110,11 +110,27 @@ Now here is the patient data to convert:
     try {
       const text = await file.text()
       const { patientMap, visitMap } = importPatientsCsv(text)
-      let imported = 0, skipped = 0
+      // Build a lookup of existing patients keyed the same way as the CSV
+      const existingKeys = new Set(
+        patients.map(p => {
+          const phone = (p.phone || '').replace(/\D/g, '')
+          const first = (p.firstName || '').toLowerCase()
+          const last  = (p.lastName  || '').toLowerCase()
+          return phone ? `${phone}__${first}__${last}` : `${first}__${last}__${p.dateOfBirth || ''}`
+        })
+      )
+
+      let imported = 0, skipped = 0, duplicates = 0
       const errors = []
       for (const [key, patientData] of patientMap) {
+        // Skip if already in DB (matched by phone + name, or name + DOB)
+        if (existingKeys.has(key)) {
+          duplicates++
+          continue
+        }
         try {
           const created = await patientService.create(patientData)
+          existingKeys.add(key) // prevent double-create within the same import
           const visits  = visitMap.get(key) ?? []
           for (const v of visits) {
             await visitService.create({
@@ -130,7 +146,7 @@ Now here is the patient data to convert:
           skipped++
         }
       }
-      setImportResult({ imported, skipped, errors })
+      setImportResult({ imported, skipped, duplicates, errors })
     } catch (err) {
       setImportResult({ imported: 0, skipped: 0, errors: [err.message] })
     } finally {
@@ -679,7 +695,7 @@ Now here is the patient data to convert:
               <li>Your CSV must use the <strong>exact column names</strong> shown below — spelling and capitalisation matter.</li>
               <li>Each row represents <strong>one visit</strong>. A patient with 3 visits needs 3 rows with the same patient details.</li>
               <li>A patient row with no <strong>Visit Date</strong> is imported as a patient with no visit history.</li>
-              <li>Patients are de-duplicated by <strong>Email</strong> (or First Name + Last Name + DOB if no email).</li>
+              <li>Duplicates are skipped using <strong>Phone + First Name + Last Name</strong> (or First Name + Last Name + DOB if no phone). Existing patients with the same match are never overwritten.</li>
             </ul>
           </div>
 
@@ -785,11 +801,17 @@ Now here is the patient data to convert:
       <Modal open={!!importResult} onClose={() => setImportResult(null)} title="Import Complete" size="sm">
         {importResult && (
           <div className="space-y-4">
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <div className="flex-1 bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
                 <p className="text-2xl font-bold text-green-700 dark:text-green-400">{importResult.imported}</p>
                 <p className="text-xs text-green-600 dark:text-green-500 font-medium mt-0.5">Imported</p>
               </div>
+              {importResult.duplicates > 0 && (
+                <div className="flex-1 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{importResult.duplicates}</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-500 font-medium mt-0.5">Skipped (duplicate)</p>
+                </div>
+              )}
               {importResult.skipped > 0 && (
                 <div className="flex-1 bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-red-700 dark:text-red-400">{importResult.skipped}</p>
