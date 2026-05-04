@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
 import { DEFAULT_REFERRAL_SOURCES, getReferralSources } from '@/lib/referralSources'
+import { DEFAULT_BILLING_STATUSES, BILLING_STATUS_COLORS, getBillingStatuses } from '@/lib/billingStatuses'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -162,6 +163,52 @@ export default function SettingsPage() {
     if (!label) { setEditingIdx(null); return }
     setRefSources(prev => prev.map((s, i) => i === idx ? { ...s, label } : s))
     setEditingIdx(null)
+  }
+
+  // Billing statuses management
+  const [billStatuses,    setBillStatuses]    = useState(() => getBillingStatuses(doctor?.billingStatuses))
+  const [billInput,       setBillInput]       = useState('')
+  const [billColor,       setBillColor]       = useState('gray')
+  const [billEditingIdx,  setBillEditingIdx]  = useState(null)
+  const [billEditLabel,   setBillEditLabel]   = useState('')
+  const [billEditColor,   setBillEditColor]   = useState('gray')
+  const [billSaving,      setBillSaving]      = useState(false)
+  const [billSaved,       setBillSaved]       = useState(false)
+
+  const handleBillStatusSave = async () => {
+    setBillSaving(true)
+    setBillSaved(false)
+    try {
+      await updateProfile({ billingStatuses: billStatuses })
+      setBillSaved(true)
+      setTimeout(() => setBillSaved(false), 3000)
+    } finally {
+      setBillSaving(false)
+    }
+  }
+
+  const addBillStatus = () => {
+    const label = billInput.trim()
+    if (!label) return
+    const value = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    if (billStatuses.some(s => s.value === value || s.label.toLowerCase() === label.toLowerCase())) return
+    setBillStatuses(prev => [...prev, { value, label, color: billColor }])
+    setBillInput('')
+    setBillColor('gray')
+  }
+
+  const removeBillStatus = (idx) => setBillStatuses(prev => prev.filter((_, i) => i !== idx))
+
+  const startBillEdit = (idx) => {
+    setBillEditingIdx(idx)
+    setBillEditLabel(billStatuses[idx].label)
+    setBillEditColor(billStatuses[idx].color ?? 'gray')
+  }
+  const commitBillEdit = (idx) => {
+    const label = billEditLabel.trim()
+    if (!label) { setBillEditingIdx(null); return }
+    setBillStatuses(prev => prev.map((s, i) => i === idx ? { ...s, label, color: billEditColor } : s))
+    setBillEditingIdx(null)
   }
 
   const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' })
@@ -472,6 +519,102 @@ export default function SettingsPage() {
               {refSaving
                 ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
                 : 'Save Sources'
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* ── Billing Statuses ─────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Billing Statuses</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Customise the statuses used on invoices across the app.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              {billStatuses.map((st, idx) => (
+                <div key={st.value} className="flex items-center gap-2 group">
+                  {billEditingIdx === idx ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={billEditLabel}
+                        onChange={e => setBillEditLabel(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitBillEdit(idx); if (e.key === 'Escape') setBillEditingIdx(null) }}
+                        className="input-field flex-1 text-sm py-1.5"
+                      />
+                      <select value={billEditColor} onChange={e => setBillEditColor(e.target.value)} className="input-field w-28 text-sm py-1.5">
+                        {BILLING_STATUS_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <button onClick={() => commitBillEdit(idx)}
+                        className="text-xs px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors">
+                        Save
+                      </button>
+                      <button onClick={() => setBillEditingIdx(null)}
+                        className="text-xs px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full bg-${st.color}-500 flex-shrink-0`}/>
+                        {st.label}
+                        <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-mono">{st.value}</span>
+                      </span>
+                      <button onClick={() => startBillEdit(idx)}
+                        className="opacity-0 group-hover:opacity-100 text-xs px-2.5 py-1.5 text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 border border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600 rounded-lg transition-all">
+                        Edit
+                      </button>
+                      <button onClick={() => removeBillStatus(idx)}
+                        className="opacity-0 group-hover:opacity-100 text-xs px-2.5 py-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 border border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-700 rounded-lg transition-all">
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <input
+                value={billInput}
+                onChange={e => setBillInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBillStatus() } }}
+                placeholder="e.g. Partially Paid, Insurance Pending…"
+                className="input-field flex-1 text-sm"
+              />
+              <select value={billColor} onChange={e => setBillColor(e.target.value)} className="input-field w-28 text-sm">
+                {BILLING_STATUS_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button onClick={addBillStatus}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                + Add
+              </button>
+            </div>
+
+            <button onClick={() => { setBillStatuses(DEFAULT_BILLING_STATUSES); setBillEditingIdx(null) }}
+              className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:underline transition-colors">
+              Reset to defaults
+            </button>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            {billSaved
+              ? <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  Statuses saved.
+                </p>
+              : <span/>
+            }
+            <button onClick={handleBillStatusSave} disabled={billSaving}
+              className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              {billSaving
+                ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                : 'Save Statuses'
               }
             </button>
           </div>

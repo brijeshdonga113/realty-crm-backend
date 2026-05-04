@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -13,6 +13,9 @@ import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { getReferralSources } from '@/lib/referralSources'
+import { exportPatientsCsv, importPatientsCsv, CSV_HEADERS } from '@/lib/patientCsvUtils'
+import { patientService } from '@/services/patientService'
+import { visitService } from '@/services/visitService'
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -42,6 +45,144 @@ export default function PatientsPage() {
     [group]: f[group].includes(val) ? f[group].filter(x => x !== val) : [...f[group], val],
   }))
   const activeFilterCount = activeFilters.gender.length + activeFilters.source.length + (activeFilters.ageRange ? 1 : 0)
+
+  // Import / Export state
+  const importRef = useRef(null)
+  const [importing, setImporting]         = useState(false)
+  const [importResult, setImportResult]   = useState(null) // { imported, skipped, errors }
+  const [exporting, setExporting]         = useState(false)
+  const [showImportGuide, setShowImportGuide] = useState(false)
+  const [promptCopied, setPromptCopied]       = useState(false)
+
+  const CHATGPT_PROMPT = `You are a data conversion assistant. Convert the patient data I paste below into a CSV file that exactly matches the following format.
+
+REQUIRED COLUMN HEADERS (use these exact names, in this exact order):
+UHID,First Name,Last Name,Date of Birth,Gender,Blood Type,National ID,Phone,Alternate Phone,Email,Address,Allergies,Chronic Conditions,Current Medications,Family History,Emergency Contact Name,Emergency Contact Phone,Emergency Contact Relationship,Insurance Provider,Insurance Policy Number,Insurance Expiry,Insurance Group Number,Referral Source,Referral Notes,Status,Patient Notes,Visit Date,Chief Complaint,History,Blood Pressure,Heart Rate,Temperature,Weight,Height,Oxygen Saturation,Clinical Findings,Diagnosis,Treatment Plan,Prescriptions,Lab Orders,Follow-up Date,Visit Notes
+
+FORMATTING RULES:
+1. One row per visit. If a patient has multiple visits, repeat their patient info on each row with different visit data.
+2. If a patient has no visit history, include one row with empty visit columns (Visit Date onwards).
+3. Multi-value fields (Allergies, Chronic Conditions, Current Medications, Diagnosis, Lab Orders) → separate values with | (pipe). Example: Penicillin|Dust|Pollen
+4. Prescriptions format → each medicine: Medication|Dosage|Frequency|Duration|Instructions — separate multiple medicines with ;; (double semicolon). Example: Amoxicillin|500mg|TID|7 days|Take with food;;Ibuprofen|400mg|BID|5 days|After food
+5. Date format: YYYY-MM-DD (e.g. 1990-05-15)
+6. Gender: use lowercase male / female / other
+7. Status: use active / inactive / deceased
+8. If a field is unknown or missing, leave it empty (do not write "N/A" or "Unknown")
+9. Wrap any cell value that contains a comma in double quotes.
+10. Output only the raw CSV text — no explanations, no markdown code blocks, no extra formatting.
+
+Now here is the patient data to convert:
+[PASTE YOUR DATA HERE]`
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(CHATGPT_PROMPT).then(() => {
+      setPromptCopied(true)
+      setTimeout(() => setPromptCopied(false), 2500)
+    }).catch(() => {})
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      // Fetch all visits for all patients in parallel
+      const allVisits = (await Promise.all(
+        patients.map(p => visitService.getForPatient(p.id).catch(() => []))
+      )).flat()
+      const csv = exportPatientsCsv(patients, allVisits)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const text = await file.text()
+      const { patientMap, visitMap } = importPatientsCsv(text)
+      // Fetch ALL patients fresh — bypasses the search-filtered `patients` state
+      const allExisting = await patientService.getAll()
+      const existingKeys = new Set(
+        allExisting.map(p => {
+          const phone = (p.phone || '').replace(/\D/g, '')
+          const first = (p.firstName || '').toLowerCase()
+          const last  = (p.lastName  || '').toLowerCase()
+          return phone ? `${phone}__${first}__${last}` : `${first}__${last}__${p.dateOfBirth || ''}`
+        })
+      )
+
+      let imported = 0, skipped = 0, duplicates = 0
+      const errors = []
+      for (const [key, patientData] of patientMap) {
+        // Skip if already in DB (matched by phone + name, or name + DOB)
+        if (existingKeys.has(key)) {
+          duplicates++
+          continue
+        }
+        try {
+          const created = await patientService.create(patientData)
+          existingKeys.add(key) // prevent double-create within the same import
+          const visits  = visitMap.get(key) ?? []
+          for (const v of visits) {
+            await visitService.create({
+              ...v,
+              patientId:   created.id,
+              patientName: `${created.firstName} ${created.lastName}`,
+              patientPhone: created.phone || '',
+            }).catch(() => {})
+          }
+          imported++
+        } catch (err) {
+          errors.push(`${patientData.firstName} ${patientData.lastName}: ${err.message}`)
+          skipped++
+        }
+      }
+      setImportResult({ imported, skipped, duplicates, errors })
+    } catch (err) {
+      setImportResult({ imported: 0, skipped: 0, duplicates: 0, errors: [err.message] })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleDownloadTemplate = () => {
+    const exampleRow = [
+      '1001','John','Doe','1985-06-15','male','B+','ID123456',
+      '9876543210','9876543211','john@example.com','123 Main St, City',
+      'Penicillin|Dust','Hypertension|Diabetes','Metformin 500mg','Father had heart disease',
+      'Jane Doe','9876543212','Spouse',
+      'Star Health','POL-001','2027-12-31','GRP-99',
+      'doctor_referral','Referred by Dr. Smith',
+      'active','Regular patient',
+      '2024-03-10',
+      'Chest pain','Patient reports intermittent chest discomfort',
+      '120/80','72','98.6','70','175','98',
+      'Clear lungs, no murmurs',
+      'Hypertension|Anxiety',
+      'Lifestyle modification and medication review',
+      'Amlodipine|5mg|Once daily|30 days|Take in the morning;;Aspirin|75mg|Once daily|30 days|After food',
+      'CBC|Lipid Profile',
+      '2024-04-10','Monitor blood pressure weekly',
+    ]
+    const csv = [CSV_HEADERS.join(','), exampleRow.map(v =>
+      v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
+    ).join(',')].join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = 'patient-import-template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const referralSources = useMemo(() => getReferralSources(doctor?.referralSources), [doctor?.referralSources])
 
@@ -125,13 +266,48 @@ export default function PatientsPage() {
     <AppLayout
       title="Patients"
       action={
-        <button onClick={() => router.push('/patients/new')}
-          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-          </svg>
-          Add Patient
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Hidden file input — triggered by label to avoid programmatic .click() which Chrome intercepts */}
+          <input id="patient-csv-import" ref={importRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile}/>
+
+          <button onClick={() => setShowImportGuide(true)} disabled={importing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
+            {importing ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+            )}
+            {importing ? 'Importing…' : 'Import CSV'}
+          </button>
+
+          <button onClick={handleExport} disabled={exporting || patients.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
+            {exporting ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            )}
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+
+          <button onClick={() => router.push('/patients/new')}
+            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Patient
+          </button>
+        </div>
       }
     >
       {/* Search + filter bar */}
@@ -509,6 +685,157 @@ export default function PatientsPage() {
             Set Reminder
           </button>
         </div>
+      </Modal>
+
+      {/* Import guide modal */}
+      <Modal open={showImportGuide} onClose={() => setShowImportGuide(false)} title="Import Patients from CSV" size="lg">
+        <div className="space-y-5">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Before you import</p>
+            <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1 list-disc list-inside">
+              <li>Your CSV must use the <strong>exact column names</strong> shown below — spelling and capitalisation matter.</li>
+              <li>Each row represents <strong>one visit</strong>. A patient with 3 visits needs 3 rows with the same patient details.</li>
+              <li>A patient row with no <strong>Visit Date</strong> is imported as a patient with no visit history.</li>
+              <li>Duplicates are skipped using <strong>Phone + First Name + Last Name</strong> (or First Name + Last Name + DOB if no phone). Existing patients with the same match are never overwritten.</li>
+            </ul>
+          </div>
+
+          {/* Column reference */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Column reference</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 max-h-56 overflow-y-auto pr-1">
+              {[
+                { cols: ['UHID', 'First Name *', 'Last Name *', 'Date of Birth', 'Gender', 'Blood Type', 'National ID'], label: 'Patient basics' },
+                { cols: ['Phone', 'Alternate Phone', 'Email', 'Address'], label: 'Contact' },
+                { cols: ['Allergies', 'Chronic Conditions', 'Current Medications', 'Family History'], label: 'Medical background' },
+                { cols: ['Emergency Contact Name', 'Emergency Contact Phone', 'Emergency Contact Relationship'], label: 'Emergency contact' },
+                { cols: ['Insurance Provider', 'Insurance Policy Number', 'Insurance Expiry', 'Insurance Group Number'], label: 'Insurance' },
+                { cols: ['Referral Source', 'Referral Notes', 'Status', 'Patient Notes'], label: 'Other' },
+                { cols: ['Visit Date', 'Chief Complaint', 'History', 'Blood Pressure', 'Heart Rate', 'Temperature', 'Weight', 'Height', 'Oxygen Saturation'], label: 'Visit / vitals' },
+                { cols: ['Clinical Findings', 'Diagnosis', 'Treatment Plan', 'Prescriptions', 'Lab Orders', 'Follow-up Date', 'Visit Notes'], label: 'Clinical' },
+              ].map(group => (
+                <div key={group.label}>
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mb-0.5">{group.label}</p>
+                  {group.cols.map(c => (
+                    <p key={c} className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded px-1.5 py-0.5 mb-0.5 inline-block mr-1">{c}</p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Array / prescription format notes */}
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-2 text-sm">
+            <p className="font-semibold text-amber-800 dark:text-amber-300">Format notes for multi-value fields</p>
+            <div className="space-y-1.5 text-amber-700 dark:text-amber-400 text-xs">
+              <p><span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Allergies</span>, <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Diagnosis</span>, <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Lab Orders</span> etc. — separate multiple values with <strong>|</strong></p>
+              <p className="font-mono bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">Penicillin|Dust|Pollen</p>
+              <p className="mt-1"><span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Prescriptions</span> — each medicine's fields separated by <strong>|</strong>, multiple medicines separated by <strong>;;</strong></p>
+              <p className="font-mono bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">Amoxicillin|500mg|TID|7 days|With food;;Ibuprofen|400mg|BID|5 days|</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">Fields in order: Medication | Dosage | Frequency | Duration | Instructions</p>
+            </div>
+          </div>
+
+          {/* ChatGPT prompt */}
+          <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Convert your data with ChatGPT</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Copy this prompt → paste into ChatGPT → add your data at the bottom → paste the output CSV here.
+                </p>
+              </div>
+              <button onClick={handleCopyPrompt}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex-shrink-0 ${
+                  promptCopied
+                    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400'
+                }`}>
+                {promptCopied ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Copy Prompt
+                  </>
+                )}
+              </button>
+            </div>
+            <pre className="text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 max-h-28 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono select-all">
+{CHATGPT_PROMPT}
+            </pre>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-700">
+            <button onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download blank template
+            </button>
+            <div className="flex gap-3">
+              <button onClick={() => setShowImportGuide(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <label htmlFor="patient-csv-import" onClick={() => setShowImportGuide(false)}
+                className="cursor-pointer px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Choose CSV File
+              </label>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Import result modal */}
+      <Modal open={!!importResult} onClose={() => setImportResult(null)} title="Import Complete" size="sm">
+        {importResult && (
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold text-green-700 dark:text-green-400">{importResult.imported}</p>
+                <p className="text-xs text-green-600 dark:text-green-500 font-medium mt-0.5">Imported</p>
+              </div>
+              {importResult.duplicates > 0 && (
+                <div className="flex-1 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{importResult.duplicates}</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-500 font-medium mt-0.5">Skipped (duplicate)</p>
+                </div>
+              )}
+              {importResult.skipped > 0 && (
+                <div className="flex-1 bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-400">{importResult.skipped}</p>
+                  <p className="text-xs text-red-600 dark:text-red-500 font-medium mt-0.5">Failed</p>
+                </div>
+              )}
+            </div>
+            {importResult.errors.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Errors</p>
+                {importResult.errors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-600 dark:text-red-400">{e}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button onClick={() => setImportResult(null)}
+                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete confirm modal — accessible from patient profile page */}
