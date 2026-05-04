@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useSubscription } from '@/hooks/useSubscription'
 import { SubscriptionBanner } from '@/components/ui/SubscriptionBanner'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 
 function ThemeToggle() {
   const { dark, toggle } = useTheme()
@@ -129,6 +130,7 @@ export function AppLayout({ children, title, action }) {
           {children}
         </div>
       </main>
+      <ChatWidget />
     </div>
   )
 }
