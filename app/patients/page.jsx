@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -13,6 +13,9 @@ import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials } from '@/models/Patient'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { getReferralSources } from '@/lib/referralSources'
+import { exportPatientsCsv, importPatientsCsv } from '@/lib/patientCsvUtils'
+import { patientService } from '@/services/patientService'
+import { visitService } from '@/services/visitService'
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -42,6 +45,69 @@ export default function PatientsPage() {
     [group]: f[group].includes(val) ? f[group].filter(x => x !== val) : [...f[group], val],
   }))
   const activeFilterCount = activeFilters.gender.length + activeFilters.source.length + (activeFilters.ageRange ? 1 : 0)
+
+  // Import / Export state
+  const importRef = useRef(null)
+  const [importing, setImporting]       = useState(false)
+  const [importResult, setImportResult] = useState(null) // { imported, skipped, errors }
+  const [exporting, setExporting]       = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      // Fetch all visits for all patients in parallel
+      const allVisits = (await Promise.all(
+        patients.map(p => visitService.getForPatient(p.id).catch(() => []))
+      )).flat()
+      const csv = exportPatientsCsv(patients, allVisits)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `patients-export-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const text = await file.text()
+      const { patientMap, visitMap } = importPatientsCsv(text)
+      let imported = 0, skipped = 0
+      const errors = []
+      for (const [key, patientData] of patientMap) {
+        try {
+          const created = await patientService.create(patientData)
+          const visits  = visitMap.get(key) ?? []
+          for (const v of visits) {
+            await visitService.create({
+              ...v,
+              patientId:   created.id,
+              patientName: `${created.firstName} ${created.lastName}`,
+              patientPhone: created.phone || '',
+            }).catch(() => {})
+          }
+          imported++
+        } catch (err) {
+          errors.push(`${patientData.firstName} ${patientData.lastName}: ${err.message}`)
+          skipped++
+        }
+      }
+      setImportResult({ imported, skipped, errors })
+    } catch (err) {
+      setImportResult({ imported: 0, skipped: 0, errors: [err.message] })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const referralSources = useMemo(() => getReferralSources(doctor?.referralSources), [doctor?.referralSources])
 
@@ -125,13 +191,48 @@ export default function PatientsPage() {
     <AppLayout
       title="Patients"
       action={
-        <button onClick={() => router.push('/patients/new')}
-          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-          </svg>
-          Add Patient
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Hidden file input for CSV import */}
+          <input ref={importRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile}/>
+
+          <button onClick={() => importRef.current?.click()} disabled={importing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
+            {importing ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+            )}
+            {importing ? 'Importing…' : 'Import CSV'}
+          </button>
+
+          <button onClick={handleExport} disabled={exporting || patients.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
+            {exporting ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            )}
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+
+          <button onClick={() => router.push('/patients/new')}
+            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Patient
+          </button>
+        </div>
       }
     >
       {/* Search + filter bar */}
@@ -509,6 +610,40 @@ export default function PatientsPage() {
             Set Reminder
           </button>
         </div>
+      </Modal>
+
+      {/* Import result modal */}
+      <Modal open={!!importResult} onClose={() => setImportResult(null)} title="Import Complete" size="sm">
+        {importResult && (
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1 bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold text-green-700 dark:text-green-400">{importResult.imported}</p>
+                <p className="text-xs text-green-600 dark:text-green-500 font-medium mt-0.5">Imported</p>
+              </div>
+              {importResult.skipped > 0 && (
+                <div className="flex-1 bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-400">{importResult.skipped}</p>
+                  <p className="text-xs text-red-600 dark:text-red-500 font-medium mt-0.5">Failed</p>
+                </div>
+              )}
+            </div>
+            {importResult.errors.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Errors</p>
+                {importResult.errors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-600 dark:text-red-400">{e}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button onClick={() => setImportResult(null)}
+                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete confirm modal — accessible from patient profile page */}
