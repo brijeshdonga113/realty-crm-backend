@@ -1,8 +1,9 @@
 'use client'
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Modal } from '@/components/ui/Modal'
 import { useInventory } from '@/hooks/useInventory'
+import { dataStore } from '@/lib/dataStore'
 
 // ─── CSV import helper ────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -218,13 +219,24 @@ export default function InventoryPage() {
   const [formFilter, setFormFilter] = useState('')
   const [colsOpen,   setColsOpen]   = useState(false)
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
+
+  useEffect(() => {
+    dataStore.getMeta('inventoryColumns').then(saved => {
+      if (saved && typeof saved === 'object') setVisibleCols({ ...DEFAULT_VISIBLE, ...saved })
+    }).catch(() => {})
+  }, [])
+
   const [importing,  setImporting]  = useState(false)
   const [importErr,  setImportErr]  = useState('')
   const [addOpen,    setAddOpen]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
 
-  const toggleCol = (key) => setVisibleCols(v => ({ ...v, [key]: !v[key] }))
+  const toggleCol = (key) => setVisibleCols(v => {
+    const next = { ...v, [key]: !v[key] }
+    dataStore.setMeta('inventoryColumns', next).catch(() => {})
+    return next
+  })
 
   // ── CSV import ──────────────────────────────────────────────────────────────
   const handleFile = async (e) => {
