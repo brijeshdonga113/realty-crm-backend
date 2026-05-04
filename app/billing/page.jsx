@@ -7,11 +7,10 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
-import { INVOICE_STATUSES, PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS } from '@/models/Invoice'
+import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
-
-const STATUS_COLOR = { draft: 'orange', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
 
 function InvoicePrint({ invoice, doctor }) {
   const { formatCurrency, formatDate } = usePreferences()
@@ -95,6 +94,8 @@ function BillingPageInner() {
   const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, update, remove } = useBilling()
+  const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
+  const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
   const [filterStatus,    setFilterStatus]    = useState('all')
   const [filterDateFrom,  setFilterDateFrom]  = useState('')
   const [filterDateTo,    setFilterDateTo]    = useState('')
@@ -147,10 +148,7 @@ function BillingPageInner() {
     if (found) setPrintInvoice(found)
   }, [searchParams, invoices])
 
-  // Receptionists only see invoices they created
-  const visibleInvoices = isReceptionist
-    ? invoices.filter(inv => doctor?._receptionistUid && inv.createdBy?.uid === doctor._receptionistUid)
-    : invoices
+  const visibleInvoices = invoices
 
   const hasActiveFilters = filterStatus !== 'all' || filterDateFrom || filterDateTo || filterCreatedBy !== 'all'
 
@@ -226,7 +224,7 @@ function BillingPageInner() {
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</label>
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field py-2 text-sm">
               <option value="all">All Statuses</option>
-              {INVOICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {billingStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
           {!isReceptionist && (
@@ -287,7 +285,7 @@ function BillingPageInner() {
                   <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{inv.lineItems?.length ?? 0} item{inv.lineItems?.length !== 1 ? 's' : ''}</td>
                   <td className="px-4 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3.5">
-                    <Badge label={INVOICE_STATUSES.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
+                    <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
                   </td>
                   {!isReceptionist && (
                     <td className="px-4 py-3.5">
@@ -404,7 +402,7 @@ function BillingPageInner() {
             <div>
               <label className="form-label">Status</label>
               <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} className="input-field">
-                {INVOICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {billingStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
           </div>

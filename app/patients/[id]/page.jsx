@@ -13,7 +13,8 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS, createLineItem, INVOICE_STATUSES } from '@/models/Invoice'
+import { PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
@@ -164,7 +165,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
 
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
-const INV_COLORS    = { draft: 'gray', sent: 'blue', paid: 'green', overdue: 'red', cancelled: 'yellow' }
+// INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
 const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
 
@@ -179,7 +180,7 @@ function InfoRow({ label, value }) {
 }
 
 /* ─────────────── VisitCard with edit + delete ─────────────── */
-function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice }) {
+function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [] }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -987,7 +988,9 @@ export default function PatientProfilePage() {
   const router  = useRouter()
   const { doctor } = useAuth()
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
-  const referralSources = useReferralSources()
+  const referralSources  = useReferralSources()
+  const billingStatuses  = getBillingStatuses(doctor?.billingStatuses)
+  const INV_COLORS       = buildStatusColorMap(billingStatuses)
   const { patient, loading, update } = usePatient(id)
   const { visits, update: updateVisit, add: addVisit, remove: removeVisit } = useVisits(id)
   const { appointments }     = usePatientAppointments(id)
@@ -1467,6 +1470,7 @@ export default function PatientProfilePage() {
                   patientId={id}
                   patientName={`${patient.firstName} ${patient.lastName}`}
                   linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
+                  blockedSlots={blockedSlots}
                 />
               ))}
             </div>
@@ -1535,7 +1539,7 @@ export default function PatientProfilePage() {
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 capitalize">{inv.paymentMethod?.replace('_',' ') || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3">
-                        <Badge label={INVOICE_STATUSES.find(s => s.value === inv.status)?.label ?? inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
+                        <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
                       </td>
                     </tr>
                   ))}
