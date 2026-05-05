@@ -50,11 +50,6 @@ const SLOT_DURATIONS = [
   { value: 60, label: '60 min' },
 ]
 
-function generateSlug() {
-  const chars = 'abcdefghijkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
-
 function BookingSettings({ doctor, updateProfile }) {
   const defaultWh = {
     start: '09:00',
@@ -73,25 +68,33 @@ function BookingSettings({ doctor, updateProfile }) {
     ? `${window.location.origin}/book/${bookingSlug}`
     : ''
 
-  // Auto-generate and persist a slug if the doctor doesn't have one yet
+  // Auto-generate and persist a slug if the doctor doesn't have one yet.
+  // Calls the server-side API so Firebase Admin can write bookingSlugs
+  // without needing client-side Firestore rules for that collection.
   useEffect(() => {
     if (doctor?.bookingSlug || !doctor?.id) return
-    const slug = generateSlug()
+    let cancelled = false
 
     async function registerSlug() {
       try {
-        const { db } = await import('@/lib/firebase')
-        const { doc, setDoc } = await import('firebase/firestore')
-        // Write reverse mapping: bookingSlugs/{slug} → doctorId
-        await setDoc(doc(db, 'bookingSlugs', slug), {
-          doctorId: doctor.id,
-          createdAt: new Date().toISOString(),
+        const { auth } = await import('@/lib/firebase')
+        const token = await auth.currentUser?.getIdToken()
+        if (!token || cancelled) return
+
+        const res  = await fetch('/api/booking/generate-slug', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
         })
+        if (!res.ok || cancelled) return
+        const { slug } = await res.json()
+        if (!slug || cancelled) return
+
         await updateProfile({ bookingSlug: slug })
-        setSlugReady(true)
+        if (!cancelled) setSlugReady(true)
       } catch {}
     }
     registerSlug()
+    return () => { cancelled = true }
   }, [doctor?.id, doctor?.bookingSlug])
 
   const toggleDay = (day) => {

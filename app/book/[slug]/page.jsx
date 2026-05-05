@@ -49,23 +49,26 @@ export default function BookingPage({ params }) {
     return d
   })
 
-  // Load doctor info on mount
+  // Load doctor info on mount — AbortController handles React Strict Mode double-fire
   useEffect(() => {
+    const controller = new AbortController()
     async function load() {
       try {
-        const res = await fetch(`/api/booking/${slug}`)
-        if (!res.ok) throw new Error('Doctor not found')
+        const res = await fetch(`/api/booking/${slug}`, { signal: controller.signal })
+        if (!res.ok) throw new Error('Booking link not found')
         const data = await res.json()
         setDoctor(data.doctor)
         setWorkingHours(data.workingHours)
       } catch (err) {
+        if (err.name === 'AbortError') return
         setInfoError(err.message)
       } finally {
-        setLoadingInfo(false)
+        if (!controller.signal.aborted) setLoadingInfo(false)
       }
     }
     load()
-  }, [doctorId])
+    return () => controller.abort()
+  }, [slug])
 
   // Load slots when date selected
   const loadSlots = useCallback(async (dateStr) => {
@@ -76,12 +79,12 @@ export default function BookingPage({ params }) {
       const res = await fetch(`/api/booking/${slug}?date=${dateStr}`)
       const data = await res.json()
       setSlots(data.slots ?? [])
-    } catch {
-      setSlots([])
+    } catch (err) {
+      if (err.name !== 'AbortError') setSlots([])
     } finally {
       setLoadingSlots(false)
     }
-  }, [doctorId])
+  }, [slug])
 
   const handleDateSelect = (date) => {
     setSelectedDate(date)
