@@ -34,7 +34,8 @@ function LoadingScreen() {
   )
 }
 
-function ErrorScreen() {
+function ErrorScreen({ status }) {
+  const isServerError = status >= 500
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center p-8">
@@ -43,8 +44,17 @@ function ErrorScreen() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-1">Booking link not found</h2>
-        <p className="text-sm text-gray-500">This booking link is invalid or has been removed.</p>
+        {isServerError ? (
+          <>
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">Server configuration error</h2>
+            <p className="text-sm text-gray-500">The booking service is not properly configured. Please contact the clinic.</p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">Booking link not found</h2>
+            <p className="text-sm text-gray-500">This booking link is invalid or has been removed.</p>
+          </>
+        )}
       </div>
     </div>
   )
@@ -310,6 +320,7 @@ export default function BookingPage({ params }) {
   }, [])
 
   const [pageState, setPageState] = useState('loading') // loading | error | booking | confirmed
+  const [errorStatus, setErrorStatus] = useState(0)
   const [doctor, setDoctor]       = useState(null)
   const [workingHours, setWorkingHours] = useState(null)
 
@@ -326,7 +337,11 @@ export default function BookingPage({ params }) {
     const controller = new AbortController()
     fetch(`/api/booking/${slug}`, { signal: controller.signal })
       .then(res => {
-        if (!res.ok) throw new Error()
+        if (!res.ok) {
+          const err = new Error()
+          err.status = res.status
+          throw err
+        }
         return res.json()
       })
       .then(data => {
@@ -335,7 +350,10 @@ export default function BookingPage({ params }) {
         setPageState('booking')
       })
       .catch(err => {
-        if (err.name !== 'AbortError') setPageState('error')
+        if (err.name !== 'AbortError') {
+          setErrorStatus(err.status ?? 500)
+          setPageState('error')
+        }
       })
     return () => controller.abort()
   }, [slug])
@@ -383,7 +401,7 @@ export default function BookingPage({ params }) {
   }
 
   if (pageState === 'loading')   return <LoadingScreen />
-  if (pageState === 'error')     return <ErrorScreen />
+  if (pageState === 'error')     return <ErrorScreen status={errorStatus} />
   if (pageState === 'confirmed') return (
     <ConfirmedScreen
       doctor={doctor}

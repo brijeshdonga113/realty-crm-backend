@@ -3,15 +3,27 @@ import { DEFAULT_WORKING_HOURS, generateSlots } from '@/lib/booking'
 
 async function resolveBooking(db, slug) {
   const slugSnap = await db.collection('bookingSlugs').doc(slug).get()
-  if (!slugSnap.exists) return null
+  if (!slugSnap.exists) {
+    console.error(`[booking] bookingSlugs/${slug} not found`)
+    return null
+  }
 
   const { doctorId } = slugSnap.data()
-  const profileSnap  = await db
+  if (!doctorId) {
+    console.error(`[booking] bookingSlugs/${slug} has no doctorId`)
+    return null
+  }
+
+  const profileSnap = await db
     .collection('users').doc(doctorId)
     .collection('profile').doc('doctor')
     .get()
 
-  if (!profileSnap.exists) return null
+  if (!profileSnap.exists) {
+    console.error(`[booking] users/${doctorId}/profile/doctor not found`)
+    return null
+  }
+
   return { doctorId, profile: profileSnap.data() }
 }
 
@@ -33,6 +45,11 @@ export async function GET(request, { params }) {
   const { slug }       = await params
   const { searchParams } = new URL(request.url)
   const date           = searchParams.get('date')
+
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+    console.error('[booking] Firebase Admin SDK env vars are not set (FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)')
+    return Response.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
 
   try {
     const db      = getAdminDb()
@@ -92,6 +109,11 @@ export async function GET(request, { params }) {
 // Creates an appointment after verifying the slot is still free.
 export async function POST(request, { params }) {
   const { slug } = await params
+
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+    console.error('[booking] Firebase Admin SDK env vars are not set')
+    return Response.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
 
   try {
     const { date, time, name, phone, reason } = await request.json()
