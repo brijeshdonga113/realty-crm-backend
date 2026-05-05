@@ -35,9 +35,11 @@ function buildDoctorProfile(uid, data) {
     currency:           data.currency           ?? 'INR',
     referralSources:    data.referralSources    ?? null,
     googleCalendarConnected: data.googleCalendarConnected ?? false,
-    subscription: data.subscription ?? null,
-    inviteCode:   data.inviteCode   ?? '',
-    createdAt:    data.createdAt    ?? new Date().toISOString(),
+    subscription:  data.subscription  ?? null,
+    inviteCode:    data.inviteCode    ?? '',
+    bookingSlug:   data.bookingSlug   ?? '',
+    workingHours:  data.workingHours  ?? null,
+    createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }
 
