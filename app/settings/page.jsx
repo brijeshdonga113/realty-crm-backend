@@ -17,6 +17,7 @@ import {
 } from '@/lib/googleCalendar'
 import { appointmentService } from '@/services/appointmentService'
 import { sendWhatsAppMessage } from '@/lib/whatsappApi'
+import { DEFAULT_WORKING_HOURS } from '@/lib/booking'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -51,13 +52,7 @@ const SLOT_DURATIONS = [
 ]
 
 function BookingSettings({ doctor, updateProfile }) {
-  const defaultWh = {
-    start: '09:00',
-    end: '17:00',
-    slotMinutes: 30,
-    workDays: [1, 2, 3, 4, 5],
-  }
-  const [wh, setWh]         = useState(() => ({ ...defaultWh, ...(doctor?.workingHours ?? {}) }))
+  const [wh, setWh]         = useState(() => ({ ...DEFAULT_WORKING_HOURS, ...(doctor?.workingHours ?? {}) }))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [copied, setCopied] = useState(false)
