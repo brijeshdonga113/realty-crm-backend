@@ -31,8 +31,11 @@ export async function GET(request, { params }) {
   try {
     const db = getAdminDb()
 
-    // Fetch doctor profile
-    const doctorSnap = await db.collection('users').doc(doctorId).get()
+    // Fetch doctor profile — stored at users/{doctorId}/profile/doctor
+    const doctorSnap = await db
+      .collection('users').doc(doctorId)
+      .collection('profile').doc('doctor')
+      .get()
     if (!doctorSnap.exists) {
       return Response.json({ error: 'Doctor not found' }, { status: 404 })
     }
@@ -124,8 +127,11 @@ export async function POST(request, { params }) {
 
     const db = getAdminDb()
 
-    // Verify doctor exists
-    const doctorSnap = await db.collection('users').doc(doctorId).get()
+    // Verify doctor exists — profile stored at users/{doctorId}/profile/doctor
+    const doctorSnap = await db
+      .collection('users').doc(doctorId)
+      .collection('profile').doc('doctor')
+      .get()
     if (!doctorSnap.exists) {
       return Response.json({ error: 'Doctor not found' }, { status: 404 })
     }
