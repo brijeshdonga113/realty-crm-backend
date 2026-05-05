@@ -57,44 +57,45 @@ function BookingSettings({ doctor, updateProfile }) {
     slotMinutes: 30,
     workDays: [1, 2, 3, 4, 5],
   }
-  const [wh, setWh]           = useState(() => ({ ...defaultWh, ...(doctor?.workingHours ?? {}) }))
-  const [saving, setSaving]   = useState(false)
-  const [saved, setSaved]     = useState(false)
-  const [copied, setCopied]   = useState(false)
-  const [slugReady, setSlugReady] = useState(!!doctor?.bookingSlug)
+  const [wh, setWh]         = useState(() => ({ ...defaultWh, ...(doctor?.workingHours ?? {}) }))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [copied, setCopied] = useState(false)
 
+  // Derive directly from doctor so it updates as soon as updateProfile resolves —
+  // no separate state that can get stuck when React Strict Mode cancels the effect.
   const bookingSlug = doctor?.bookingSlug ?? ''
+  const slugReady   = !!bookingSlug
   const bookingUrl  = typeof window !== 'undefined' && bookingSlug
     ? `${window.location.origin}/book/${bookingSlug}`
     : ''
 
   // Auto-generate and persist a slug if the doctor doesn't have one yet.
-  // Calls the server-side API so Firebase Admin can write bookingSlugs
+  // Calls the server-side API so Firebase Admin can write to bookingSlugs
   // without needing client-side Firestore rules for that collection.
   useEffect(() => {
     if (doctor?.bookingSlug || !doctor?.id) return
-    let cancelled = false
 
     async function registerSlug() {
       try {
         const { auth } = await import('@/lib/firebase')
         const token = await auth.currentUser?.getIdToken()
-        if (!token || cancelled) return
+        if (!token) return
 
-        const res  = await fetch('/api/booking/generate-slug', {
+        const res = await fetch('/api/booking/generate-slug', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         })
-        if (!res.ok || cancelled) return
+        if (!res.ok) return
         const { slug } = await res.json()
-        if (!slug || cancelled) return
+        if (!slug) return
 
         await updateProfile({ bookingSlug: slug })
-        if (!cancelled) setSlugReady(true)
+        // No setSlugReady needed — slugReady is derived from doctor.bookingSlug
+        // which updateProfile updates in the AuthContext state.
       } catch {}
     }
     registerSlug()
-    return () => { cancelled = true }
   }, [doctor?.id, doctor?.bookingSlug])
 
   const toggleDay = (day) => {
