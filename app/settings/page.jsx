@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
@@ -51,45 +51,45 @@ const SLOT_DURATIONS = [
   { value: 60, label: '60 min' },
 ]
 
+function generateSlug() {
+  const chars = 'abcdefghijkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
 function BookingSettings({ doctor, updateProfile }) {
   const [wh, setWh]         = useState(() => ({ ...DEFAULT_WORKING_HOURS, ...(doctor?.workingHours ?? {}) }))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [copied, setCopied] = useState(false)
+  const [slugError, setSlugError] = useState(false)
 
-  // Derive directly from doctor so it updates as soon as updateProfile resolves —
-  // no separate state that can get stuck when React Strict Mode cancels the effect.
   const bookingSlug = doctor?.bookingSlug ?? ''
   const slugReady   = !!bookingSlug
   const bookingUrl  = typeof window !== 'undefined' && bookingSlug
     ? `${window.location.origin}/book/${bookingSlug}`
     : ''
 
-  // Auto-generate and persist a slug if the doctor doesn't have one yet.
-  // Calls the server-side API so Firebase Admin can write to bookingSlugs
-  // without needing client-side Firestore rules for that collection.
+  // Write directly to Firestore from the client — Firestore rules allow
+  // authenticated doctors to write their own slug to bookingSlugs.
+  const registerSlug = async () => {
+    if (!doctor?.id || !auth.currentUser) return
+    setSlugError(false)
+    try {
+      const { doc, setDoc } = await import('firebase/firestore')
+      const slug = generateSlug()
+      await setDoc(doc(db, 'bookingSlugs', slug), {
+        doctorId:  doctor.id,
+        createdAt: new Date().toISOString(),
+      })
+      await updateProfile({ bookingSlug: slug })
+    } catch (err) {
+      console.error('Failed to generate booking slug:', err)
+      setSlugError(true)
+    }
+  }
+
   useEffect(() => {
     if (doctor?.bookingSlug || !doctor?.id) return
-
-    async function registerSlug() {
-      try {
-        const { auth } = await import('@/lib/firebase')
-        const token = await auth.currentUser?.getIdToken()
-        if (!token) return
-
-        const res = await fetch('/api/booking/generate-slug', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) return
-        const { slug } = await res.json()
-        if (!slug) return
-
-        await updateProfile({ bookingSlug: slug })
-        // No setSlugReady needed — slugReady is derived from doctor.bookingSlug
-        // which updateProfile updates in the AuthContext state.
-      } catch {}
-    }
     registerSlug()
   }, [doctor?.id, doctor?.bookingSlug])
 
@@ -139,13 +139,25 @@ function BookingSettings({ doctor, updateProfile }) {
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your Booking Link</label>
           {!slugReady ? (
-            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500 py-2">
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-              Generating your booking link…
-            </div>
+            slugError ? (
+              <div className="flex items-center gap-3 py-2">
+                <p className="text-sm text-red-500 dark:text-red-400">Failed to generate booking link.</p>
+                <button
+                  onClick={registerSlug}
+                  className="text-sm text-primary-600 dark:text-primary-400 underline underline-offset-2 hover:no-underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500 py-2">
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Generating your booking link…
+              </div>
+            )
           ) : (
             <div className="flex gap-2">
               <div className="flex-1 text-sm bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-2.5 text-gray-600 dark:text-gray-300 font-mono truncate select-all">
