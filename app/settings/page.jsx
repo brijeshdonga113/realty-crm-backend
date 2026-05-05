@@ -50,6 +50,11 @@ const SLOT_DURATIONS = [
   { value: 60, label: '60 min' },
 ]
 
+function generateSlug() {
+  const chars = 'abcdefghijkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
 function BookingSettings({ doctor, updateProfile }) {
   const defaultWh = {
     start: '09:00',
@@ -57,14 +62,37 @@ function BookingSettings({ doctor, updateProfile }) {
     slotMinutes: 30,
     workDays: [1, 2, 3, 4, 5],
   }
-  const [wh, setWh] = useState(() => ({ ...defaultWh, ...(doctor?.workingHours ?? {}) }))
+  const [wh, setWh]           = useState(() => ({ ...defaultWh, ...(doctor?.workingHours ?? {}) }))
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
   const [copied, setCopied]   = useState(false)
+  const [slugReady, setSlugReady] = useState(!!doctor?.bookingSlug)
 
-  const bookingUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/book/${doctor?.id ?? ''}`
+  const bookingSlug = doctor?.bookingSlug ?? ''
+  const bookingUrl  = typeof window !== 'undefined' && bookingSlug
+    ? `${window.location.origin}/book/${bookingSlug}`
     : ''
+
+  // Auto-generate and persist a slug if the doctor doesn't have one yet
+  useEffect(() => {
+    if (doctor?.bookingSlug || !doctor?.id) return
+    const slug = generateSlug()
+
+    async function registerSlug() {
+      try {
+        const { db } = await import('@/lib/firebase')
+        const { doc, setDoc } = await import('firebase/firestore')
+        // Write reverse mapping: bookingSlugs/{slug} → doctorId
+        await setDoc(doc(db, 'bookingSlugs', slug), {
+          doctorId: doctor.id,
+          createdAt: new Date().toISOString(),
+        })
+        await updateProfile({ bookingSlug: slug })
+        setSlugReady(true)
+      } catch {}
+    }
+    registerSlug()
+  }, [doctor?.id, doctor?.bookingSlug])
 
   const toggleDay = (day) => {
     setWh(prev => ({
@@ -111,34 +139,44 @@ function BookingSettings({ doctor, updateProfile }) {
         {/* Booking link */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your Booking Link</label>
-          <div className="flex gap-2">
-            <div className="flex-1 text-sm bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-2.5 text-gray-600 dark:text-gray-300 font-mono truncate select-all">
-              {bookingUrl}
+          {!slugReady ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500 py-2">
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Generating your booking link…
             </div>
-            <button
-              onClick={handleCopy}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors flex-shrink-0
-                ${copied
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
-                  : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
-            >
-              {copied ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                  </svg>
-                  Copy Link
-                </>
-              )}
-            </button>
-          </div>
+          ) : (
+            <div className="flex gap-2">
+              <div className="flex-1 text-sm bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-2.5 text-gray-600 dark:text-gray-300 font-mono truncate select-all">
+                {bookingUrl}
+              </div>
+              <button
+                onClick={handleCopy}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors flex-shrink-0
+                  ${copied
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                    : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+              >
+                {copied ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Copy Link
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Share this with clients via WhatsApp, email, or your website.</p>
         </div>
 

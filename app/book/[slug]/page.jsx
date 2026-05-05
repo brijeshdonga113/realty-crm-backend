@@ -23,7 +23,7 @@ function toDateStr(date) {
 }
 
 export default function BookingPage({ params }) {
-  const { doctorId } = params
+  const { slug } = params
 
   const [doctor, setDoctor]           = useState(null)
   const [workingHours, setWorkingHours] = useState(null)
@@ -53,7 +53,7 @@ export default function BookingPage({ params }) {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/booking/${doctorId}`)
+        const res = await fetch(`/api/booking/${slug}`)
         if (!res.ok) throw new Error('Doctor not found')
         const data = await res.json()
         setDoctor(data.doctor)
@@ -73,7 +73,7 @@ export default function BookingPage({ params }) {
     setSlots([])
     setSelectedTime(null)
     try {
-      const res = await fetch(`/api/booking/${doctorId}?date=${dateStr}`)
+      const res = await fetch(`/api/booking/${slug}?date=${dateStr}`)
       const data = await res.json()
       setSlots(data.slots ?? [])
     } catch {
@@ -95,7 +95,7 @@ export default function BookingPage({ params }) {
     setSubmitting(true)
     setSubmitError('')
     try {
-      const res = await fetch(`/api/booking/${doctorId}`, {
+      const res = await fetch(`/api/booking/${slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

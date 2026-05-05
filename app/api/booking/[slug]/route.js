@@ -22,24 +22,40 @@ function generateSlots(start, end, slotMinutes) {
   return slots
 }
 
-// GET /api/booking/[doctorId]?date=YYYY-MM-DD
+// Resolve slug → doctorId via the bookingSlugs reverse-mapping collection.
+// This keeps the Firebase UID out of the public URL.
+async function resolveDoctorId(db, slug) {
+  const snap = await db.collection('bookingSlugs').doc(slug).get()
+  if (!snap.exists) return null
+  return snap.data().doctorId ?? null
+}
+
+async function getDoctorProfile(db, doctorId) {
+  const snap = await db
+    .collection('users').doc(doctorId)
+    .collection('profile').doc('doctor')
+    .get()
+  return snap.exists ? snap.data() : null
+}
+
+// GET /api/booking/[slug]?date=YYYY-MM-DD
 export async function GET(request, { params }) {
-  const { doctorId } = await params
+  const { slug } = await params
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
 
   try {
     const db = getAdminDb()
 
-    // Fetch doctor profile — stored at users/{doctorId}/profile/doctor
-    const doctorSnap = await db
-      .collection('users').doc(doctorId)
-      .collection('profile').doc('doctor')
-      .get()
-    if (!doctorSnap.exists) {
-      return Response.json({ error: 'Doctor not found' }, { status: 404 })
+    const doctorId = await resolveDoctorId(db, slug)
+    if (!doctorId) {
+      return Response.json({ error: 'Booking link not found' }, { status: 404 })
     }
-    const doctor = doctorSnap.data()
+
+    const doctor = await getDoctorProfile(db, doctorId)
+    if (!doctor) {
+      return Response.json({ error: 'Booking link not found' }, { status: 404 })
+    }
 
     const wh = { ...DEFAULT_WORKING_HOURS, ...(doctor.workingHours ?? {}) }
 
@@ -55,21 +71,17 @@ export async function GET(request, { params }) {
       })
     }
 
-    // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return Response.json({ error: 'Invalid date format' }, { status: 400 })
     }
 
-    // Check if requested day is a work day
     const dayOfWeek = new Date(date + 'T00:00:00').getDay()
     if (!wh.workDays.includes(dayOfWeek)) {
       return Response.json({ slots: [], workingHours: wh })
     }
 
-    // Fetch existing appointments for this date
     const apptSnap = await db
-      .collection('users')
-      .doc(doctorId)
+      .collection('users').doc(doctorId)
       .collection('appointments')
       .where('date', '==', date)
       .where('status', 'in', ['scheduled', 'confirmed'])
@@ -77,10 +89,8 @@ export async function GET(request, { params }) {
 
     const bookedTimes = new Set(apptSnap.docs.map(d => d.data().time))
 
-    // Fetch blocked slots for this date
     const blockedSnap = await db
-      .collection('users')
-      .doc(doctorId)
+      .collection('users').doc(doctorId)
       .collection('blockedSlots')
       .where('date', '==', date)
       .get()
@@ -114,9 +124,9 @@ export async function GET(request, { params }) {
   }
 }
 
-// POST /api/booking/[doctorId]
+// POST /api/booking/[slug]
 export async function POST(request, { params }) {
-  const { doctorId } = await params
+  const { slug } = await params
 
   try {
     const { date, time, name, phone, reason } = await request.json()
@@ -127,19 +137,18 @@ export async function POST(request, { params }) {
 
     const db = getAdminDb()
 
-    // Verify doctor exists — profile stored at users/{doctorId}/profile/doctor
-    const doctorSnap = await db
-      .collection('users').doc(doctorId)
-      .collection('profile').doc('doctor')
-      .get()
-    if (!doctorSnap.exists) {
-      return Response.json({ error: 'Doctor not found' }, { status: 404 })
+    const doctorId = await resolveDoctorId(db, slug)
+    if (!doctorId) {
+      return Response.json({ error: 'Booking link not found' }, { status: 404 })
     }
 
-    // Check slot is still available
+    const doctor = await getDoctorProfile(db, doctorId)
+    if (!doctor) {
+      return Response.json({ error: 'Booking link not found' }, { status: 404 })
+    }
+
     const conflict = await db
-      .collection('users')
-      .doc(doctorId)
+      .collection('users').doc(doctorId)
       .collection('appointments')
       .where('date', '==', date)
       .where('time', '==', time)
@@ -151,10 +160,8 @@ export async function POST(request, { params }) {
     }
 
     const now = new Date().toISOString()
-    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-
-    const doctor = doctorSnap.data()
-    const wh = { ...DEFAULT_WORKING_HOURS, ...(doctor.workingHours ?? {}) }
+    const id  = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    const wh  = { ...DEFAULT_WORKING_HOURS, ...(doctor.workingHours ?? {}) }
 
     const appointment = {
       id,
@@ -176,10 +183,8 @@ export async function POST(request, { params }) {
     }
 
     await db
-      .collection('users')
-      .doc(doctorId)
-      .collection('appointments')
-      .doc(id)
+      .collection('users').doc(doctorId)
+      .collection('appointments').doc(id)
       .set(appointment)
 
     return Response.json({ success: true, appointmentId: id })
