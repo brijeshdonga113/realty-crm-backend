@@ -16,9 +16,12 @@ export function useNotifications() {
     setLoading(true)
     try {
       const all     = await notificationService.getAll()
-      // Receptionists only see notifications they triggered
+      // Receptionists see: notifications they triggered + external ones (e.g. patient booking link)
       const visible = isReceptionist
-        ? all.filter(n => doctor._receptionistUid && n.createdByUid === doctor._receptionistUid)
+        ? all.filter(n =>
+            (doctor._receptionistUid && n.createdByUid === doctor._receptionistUid) ||
+            n.createdByRole === 'patient'
+          )
         : all
       setNotifications(visible)
       setUnreadCount(visible.filter(n => !n.read).length)
