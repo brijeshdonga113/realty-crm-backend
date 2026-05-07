@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { auth, storage } from '@/lib/firebase'
+import { auth, db, storage } from '@/lib/firebase'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -25,12 +25,13 @@ export default function ProfilePage() {
 
   // ── Profile form ────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
-    clinicName:     doctor?.clinicName     ?? '',
-    firstName:      doctor?.firstName      ?? '',
-    lastName:       doctor?.lastName       ?? '',
-    phone:          doctor?.phone          ?? '',
-    specialization: doctor?.specialization ?? '',
-    licenseNumber:  doctor?.licenseNumber  ?? '',
+    clinicName:     doctor?.clinicName          ?? '',
+    firstName:      doctor?.firstName           ?? '',
+    lastName:       doctor?.lastName            ?? '',
+    phone:          doctor?.phone               ?? '',
+    specialization: doctor?.specialization      ?? '',
+    licenseNumber:  doctor?.licenseNumber       ?? '',
+    recName:        doctor?._receptionistName   ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
@@ -44,12 +45,30 @@ export default function ProfilePage() {
 
   const handleSave = async (e) => {
     e.preventDefault()
+    setSaved(false)
+    setError('')
+
+    if (isReceptionist) {
+      if (!form.recName.trim()) { setError('Name is required.'); return }
+      setSaving(true)
+      try {
+        const { doc, setDoc } = await import('firebase/firestore')
+        await setDoc(doc(db, 'receptionists', doctor._receptionistUid), { name: form.recName.trim() }, { merge: true })
+        await updateProfile({ _receptionistName: form.recName.trim() })
+        setSaved(true)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError('First name and last name are required.')
       return
     }
     setSaving(true)
-    setError('')
     try {
       await updateProfile(form)
       setSaved(true)
@@ -258,23 +277,30 @@ export default function ProfilePage() {
             )}
 
             {/* Name row */}
-            <div className="grid grid-cols-2 gap-4">
+            {isReceptionist ? (
               <div>
-                <label className="form-label">First Name</label>
-                <input type="text" name="firstName" value={form.firstName} onChange={handleChange} className="input-field" />
+                <label className="form-label">Full Name</label>
+                <input type="text" name="recName" value={form.recName} onChange={handleChange} className="input-field" />
               </div>
-              <div>
-                <label className="form-label">Last Name</label>
-                <input type="text" name="lastName" value={form.lastName} onChange={handleChange} className="input-field" />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">First Name</label>
+                  <input type="text" name="firstName" value={form.firstName} onChange={handleChange} className="input-field" />
+                </div>
+                <div>
+                  <label className="form-label">Last Name</label>
+                  <input type="text" name="lastName" value={form.lastName} onChange={handleChange} className="input-field" />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Email — read only */}
             <div>
               <label className="form-label">Email Address</label>
               <input
                 type="email"
-                value={doctor?.email ?? ''}
+                value={(isReceptionist ? doctor?._receptionistEmail : doctor?.email) ?? ''}
                 readOnly
                 className="input-field bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
               />
