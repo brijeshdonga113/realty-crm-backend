@@ -547,6 +547,32 @@ export default function DashboardPage() {
       title={doctor?.clinicName || 'Dashboard'}
       action={
         <div className="flex items-center gap-2">
+          {doctor?.bookingSlug && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/book/${doctor.bookingSlug}`
+                navigator.clipboard.writeText(url).then(() => {
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                })
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                linkCopied
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-600 dark:text-green-400'
+                  : 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+              }`}>
+              {linkCopied ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+              )}
+              {linkCopied ? 'Copied!' : 'Copy Booking Link'}
+            </button>
+          )}
           <button onClick={() => { setDraftLayout(layout); setCustomizing(true) }}
             className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -592,50 +618,6 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-
-        {/* Booking link — shown only when a slug is configured */}
-        {doctor?.bookingSlug && (() => {
-          const bookingUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/book/${doctor.bookingSlug}`
-          const copy = () => {
-            navigator.clipboard.writeText(bookingUrl).then(() => {
-              setLinkCopied(true)
-              setTimeout(() => setLinkCopied(false), 2000)
-            })
-          }
-          return (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm px-5 py-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Booking Link</p>
-                <p className="text-sm text-gray-700 dark:text-gray-300 truncate font-mono">{bookingUrl}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={copy}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-                    linkCopied
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-600 dark:text-green-400'
-                      : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {linkCopied ? 'Copied!' : 'Copy'}
-                </button>
-                <a
-                  href={bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                >
-                  Open
-                </a>
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Customizable widgets in saved order */}
         {layout.filter(w => w.visible).map(item => {
