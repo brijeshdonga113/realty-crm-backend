@@ -144,27 +144,44 @@ export async function POST(request, { params }) {
     const now = new Date().toISOString()
     const id  = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 
-    await db
-      .collection('users').doc(doctorId)
-      .collection('appointments').doc(id)
-      .set({
-        id,
-        doctorId,
-        patientId:      '',
-        patientName:    name.trim(),
-        patientPhone:   phone.replace(/\D/g, ''),
-        date,
-        time,
-        durationMinutes: wh.slotMinutes,
-        type:           'consultation',
-        reason:         reason?.trim() ?? '',
-        status:         'scheduled',
-        notes:          '',
-        visitRecordId:  null,
-        source:         'booking_link',
-        createdAt:      now,
-        updatedAt:      now,
-      })
+    const notifId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+
+    await Promise.all([
+      db.collection('users').doc(doctorId)
+        .collection('appointments').doc(id)
+        .set({
+          id,
+          doctorId,
+          patientId:      '',
+          patientName:    name.trim(),
+          patientPhone:   phone.replace(/\D/g, ''),
+          date,
+          time,
+          durationMinutes: wh.slotMinutes,
+          type:           'consultation',
+          reason:         reason?.trim() ?? '',
+          status:         'scheduled',
+          notes:          '',
+          visitRecordId:  null,
+          source:         'booking_link',
+          createdAt:      now,
+          updatedAt:      now,
+        }),
+      db.collection('users').doc(doctorId)
+        .collection('notifications').doc(notifId)
+        .set({
+          id:            notifId,
+          doctorId,
+          type:          'appointment_new',
+          title:         'New appointment booked',
+          body:          `${name.trim()} booked a ${date} appointment at ${time}${reason?.trim() ? ` — ${reason.trim()}` : ''}`,
+          relatedEntity: { type: 'appointment', id },
+          read:          false,
+          createdAt:     now,
+          createdByRole: 'patient',
+          createdByUid:  null,
+        }),
+    ])
 
     return Response.json({ success: true, appointmentId: id })
   } catch (err) {
