@@ -11,7 +11,7 @@ import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { isWhatsAppApiConnected, sendWhatsAppMessage } from '@/lib/whatsappApi'
-import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 
 function getWADateFormat(fallback) {
   if (typeof window === 'undefined') return fallback
@@ -40,7 +40,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
 
   const firstDay    = new Date(calYear, calMonth, 1).getDay()
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
-  const today       = new Date().toISOString().slice(0, 10)
+  const today       = localDateStr()
 
   const apptsByDate = useMemo(() => {
     const map = {}
@@ -199,7 +199,7 @@ export default function AppointmentsPage() {
   const { appointments, loading, update, remove } = useAppointments()
 
   const [view, setView]                 = useState('list')
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
+  const [selectedDate, setSelectedDate] = useState(() => localDateStr())
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterDate, setFilterDate]     = useState('')
   const [showArchive, setShowArchive]   = useState(false)
@@ -211,9 +211,9 @@ export default function AppointmentsPage() {
   const [apiSending, setApiSending]     = useState(false)
   const [apiResult, setApiResult]       = useState(null)
 
-  const today    = new Date().toISOString().slice(0, 10)
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-  const cutoff   = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+  const today    = localDateStr()
+  const tomorrow = localDateStr(1)
+  const cutoff   = localDateStr(-7)
 
   // Quick stats (always from all appointments)
   const todayCount     = appointments.filter(a => a.date === today && a.status !== 'cancelled').length
