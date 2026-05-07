@@ -53,6 +53,7 @@ export default function PatientsPage() {
   const [exporting, setExporting]         = useState(false)
   const [showImportGuide, setShowImportGuide] = useState(false)
   const [promptCopied, setPromptCopied]       = useState(false)
+  const [bookingCopied, setBookingCopied]     = useState(false)
 
   const CHATGPT_PROMPT = `You are a data conversion assistant. Convert the patient data I paste below into a CSV file that exactly matches the following format.
 
@@ -299,6 +300,33 @@ Now here is the patient data to convert:
             )}
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
+
+          {doctor?.bookingSlug && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/book/${doctor.bookingSlug}`
+                navigator.clipboard.writeText(url).then(() => {
+                  setBookingCopied(true)
+                  setTimeout(() => setBookingCopied(false), 2000)
+                })
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                bookingCopied
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-600 dark:text-green-400'
+                  : 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+              }`}>
+              {bookingCopied ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+              )}
+              {bookingCopied ? 'Copied!' : 'Copy Booking Link'}
+            </button>
+          )}
 
           <button onClick={() => router.push('/patients/new')}
             className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">

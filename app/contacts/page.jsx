@@ -51,9 +51,11 @@ export default function ContactsPage() {
   const { patients, loading: patientsLoading } = usePatients()
   const { appointments, loading: apptLoading }  = useAppointments()
 
-  const [query,        setQuery]        = useState('')
-  const [cityFilter,   setCityFilter]   = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [query,          setQuery]          = useState('')
+  const [cityFilter,     setCityFilter]     = useState('')
+  const [statusFilter,   setStatusFilter]   = useState('all')
+  const [bookingOpen,    setBookingOpen]    = useState(true)
+  const [patientsOpen,   setPatientsOpen]   = useState(true)
 
   const loading = patientsLoading || apptLoading
 
@@ -161,15 +163,20 @@ export default function ContactsPage() {
           {/* ── Booking contacts ─────────────────────────────────────────── */}
           {filteredBooking.length > 0 && (
             <section>
-              <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={() => setBookingOpen(o => !o)}
+                className="flex items-center gap-3 mb-3 w-full text-left group">
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${bookingOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                </svg>
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Booking Contacts</h2>
                 <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                   {filteredBooking.length}
                 </span>
                 <p className="text-xs text-gray-400 dark:text-gray-500">Booked via appointment link — not yet registered as patients</p>
-              </div>
+              </button>
 
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden">
+              {bookingOpen && <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-blue-50 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-900/10">
@@ -221,21 +228,26 @@ export default function ContactsPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </div>}
             </section>
           )}
 
           {/* ── Registered patients ──────────────────────────────────────── */}
           <section>
-            <div className="flex items-center gap-3 mb-3">
+            <button
+              onClick={() => setPatientsOpen(o => !o)}
+              className="flex items-center gap-3 mb-3 w-full text-left group">
+              <svg className={`w-4 h-4 text-gray-400 transition-transform ${patientsOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+              </svg>
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Registered Patients</h2>
               <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
                 {filteredPatients.length} contact{filteredPatients.length !== 1 ? 's' : ''}
                 {(query || cityFilter || statusFilter !== 'all') ? ' matching filters' : ''}
               </span>
-            </div>
+            </button>
 
-            {filteredPatients.length === 0 ? (
+            {patientsOpen && (filteredPatients.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-12 text-center">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No contacts found</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Try a different search term or filter.</p>
@@ -320,7 +332,7 @@ export default function ContactsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ))}
           </section>
 
         </div>
