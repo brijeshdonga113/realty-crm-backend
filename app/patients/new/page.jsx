@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
@@ -74,6 +74,7 @@ function Field({ name, label, type = 'text', placeholder, required, nested, opti
 
 export default function NewPatientPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { add, patients } = usePatients()
   const referralSources = useReferralSources()
   const [tab, setTab]       = useState(0)
@@ -95,6 +96,18 @@ export default function NewPatientPage() {
     consentFormSigned: false,
     emergencyContact: { name: '', phone: '', relationship: '' },
   })
+
+  // Pre-fill from URL params (e.g. coming from booking contacts)
+  useEffect(() => {
+    const name  = searchParams.get('name') || ''
+    const phone = searchParams.get('phone') || ''
+    if (name || phone) {
+      const parts     = name.trim().split(' ')
+      const firstName = parts[0] ?? ''
+      const lastName  = parts.slice(1).join(' ')
+      setForm(prev => ({ ...prev, firstName, lastName, phone }))
+    }
+  }, [searchParams])
 
   // Pre-fill the next sequential patient number on mount
   useEffect(() => {
