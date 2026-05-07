@@ -5,6 +5,25 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 
+const LEFT_FEATURES = [
+  {
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+    label: 'Complete patient records & history',
+  },
+  {
+    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+    label: 'Smart appointment scheduling',
+  },
+  {
+    icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    label: 'Billing, invoices & Razorpay payments',
+  },
+  {
+    icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    label: 'WhatsApp reminders — reduce no-shows 40%',
+  },
+]
+
 export default function LoginPage() {
   const { login } = useAuth()
   const router = useRouter()
@@ -39,11 +58,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
 
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 right-20 w-64 h-64 rounded-full bg-white/30 blur-3xl" />
-          <div className="absolute bottom-32 left-10 w-48 h-48 rounded-full bg-accent-500/40 blur-3xl" />
+      {/* ── Left panel — 50% ───────────────────────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
+        {/* Decorative blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4 blur-3xl" />
         </div>
 
         {/* Logo */}
@@ -57,32 +77,58 @@ export default function LoginPage() {
           <span className="text-white text-xl font-bold tracking-tight">ClinicCRM</span>
         </div>
 
-        {/* Hero text */}
+        {/* Centre content */}
         <div className="relative">
-          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
-            Manage your patients<br />with confidence.
+          <h1 className="text-4xl font-bold text-white leading-tight mb-3">
+            Manage your clinic<br />with confidence.
           </h1>
-          <p className="text-primary-200 text-lg leading-relaxed mb-10">
+          <p className="text-primary-200 text-base leading-relaxed mb-8">
             Your complete clinic management system — patient records, appointments, billing, and more.
           </p>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { icon: '👥', label: 'Patient Records' },
-              { icon: '🗓️', label: 'Appointments' },
-              { icon: '🧾', label: 'Billing' },
-            ].map(item => (
-              <div key={item.label} className="bg-white/10 backdrop-blur rounded-2xl p-4 text-center">
-                <div className="text-2xl mb-1">{item.icon}</div>
-                <div className="text-primary-200 text-xs font-medium">{item.label}</div>
+
+          {/* Feature list */}
+          <div className="space-y-3 mb-8">
+            {LEFT_FEATURES.map(item => (
+              <div key={item.label} className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
+                  </svg>
+                </div>
+                <span className="text-primary-100 text-sm">{item.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Stat chips */}
+          <div className="flex gap-3 flex-wrap">
+            {[{ val: '500+', label: 'Doctors' }, { val: '40%', label: 'Fewer no-shows' }, { val: '4.9★', label: 'Rating' }].map(s => (
+              <div key={s.label} className="bg-white/10 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <div className="text-white font-bold text-sm">{s.val}</div>
+                <div className="text-primary-200 text-xs">{s.label}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-primary-300 text-sm">© 2026 ClinicCRM. Built for doctors.</p>
+        {/* Testimonial quote */}
+        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4">
+          <p className="text-primary-100 text-sm italic mb-3">
+            "ClinicCRM cut my admin time in half. I can focus on patients instead of paperwork."
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">PM</div>
+            <div>
+              <div className="text-white text-xs font-semibold">Dr. Priya Mehta</div>
+              <div className="text-primary-300 text-xs">General Physician, Mumbai</div>
+            </div>
+          </div>
+        </div>
+
+        <p className="relative text-primary-400 text-xs">© {new Date().getFullYear()} ClinicCRM. Built for doctors.</p>
       </div>
 
-      {/* Right panel — form */}
+      {/* ── Right panel — 50% ──────────────────────────────────────────────── */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900">
         <div className="w-full max-w-md">
 
