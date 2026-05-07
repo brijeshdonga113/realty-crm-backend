@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
@@ -72,7 +72,7 @@ function Field({ name, label, type = 'text', placeholder, required, nested, opti
   )
 }
 
-export default function NewPatientPage() {
+function NewPatientForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { add, patients } = usePatients()
@@ -423,5 +423,13 @@ export default function NewPatientPage() {
         </form>
       </div>
     </AppLayout>
+  )
+}
+
+export default function NewPatientPage() {
+  return (
+    <Suspense>
+      <NewPatientForm />
+    </Suspense>
   )
 }
