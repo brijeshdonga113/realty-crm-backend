@@ -8,6 +8,7 @@ import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
+import { localDateStr } from '@/lib/preferences'
 
 const DAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -37,7 +38,7 @@ export default function CalendarPage() {
   const [calYear,  setCalYear]  = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
   const [filter,   setFilter]   = useState('all')
-  const [selected, setSelected] = useState(new Date().toISOString().slice(0,10))
+  const [selected, setSelected] = useState(() => localDateStr())
 
   // Block time modal state
   const [blockOpen,    setBlockOpen]    = useState(false)
@@ -113,13 +114,13 @@ export default function CalendarPage() {
   // Build a Set of blocked dates for fast grid lookup
   const blockedDates = useMemo(() => new Set(blockedSlots.map(b => b.date)), [blockedSlots])
 
-  const today       = new Date().toISOString().slice(0, 10)
+  const today       = localDateStr()
   const firstDay    = new Date(calYear, calMonth, 1).getDay()
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
 
   const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) } else setCalMonth(m => m - 1) }
   const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) } else setCalMonth(m => m + 1) }
-  const goToday   = () => { setCalYear(new Date().getFullYear()); setCalMonth(new Date().getMonth()); setSelected(today) }
+  const goToday   = () => { const n = new Date(); setCalYear(n.getFullYear()); setCalMonth(n.getMonth()); setSelected(localDateStr()) }
 
   const selectedEvents  = eventsByDate[selected] ?? []
   const selectedBlocks  = selectedEvents.filter(e => e._kind === 'blocked')

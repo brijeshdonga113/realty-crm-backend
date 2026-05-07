@@ -41,18 +41,63 @@ function daysBetween(dateStr) {
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
 }
 
+/* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
+function TagInput({ label, items, onChange, suggestions = [] }) {
+  const [input, setInput] = useState('')
+  const add = (val) => {
+    const trimmed = val.trim()
+    if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
+    setInput('')
+  }
+  return (
+    <div>
+      <label className="form-label">{label}</label>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {items.map(item => (
+          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs rounded-full font-medium">
+            {item}
+            <button type="button" onClick={() => onChange(items.filter(i => i !== item))} className="hover:text-primary-900">×</button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
+          placeholder="Type and press Enter"
+          className="input-field flex-1"
+          list={`tag-${label}`}
+        />
+        {suggestions.length > 0 && (
+          <datalist id={`tag-${label}`}>{suggestions.map(s => <option key={s} value={s}/>)}</datalist>
+        )}
+        <button type="button" onClick={() => add(input)}
+          className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const CONDITION_SUGGESTIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
+const ALLERGY_SUGGESTIONS   = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
+
+const EDIT_TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
+
 /* ─────────────── EditPatientModal ─────────────── */
 function EditPatientModal({ open, onClose, patient, onSave }) {
   const referralSources = useReferralSources()
-  const [form, setForm] = useState(null)
+  const [form, setForm]   = useState(null)
+  const [tab, setTab]     = useState(0)
   const [saving, setSaving] = useState(false)
 
-  if (open && !form) setForm({ ...patient })
+  if (open && !form) { setForm({ ...patient, emergencyContact: { ...patient.emergencyContact } }); setTab(0) }
   if (!open && form) setForm(null)
   if (!open || !form) return null
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const age = form.dateOfBirth ? getPatientAge(form) : null
+  const set    = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const setEc  = (k, v) => setForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, [k]: v } }))
+  const age    = form.dateOfBirth ? getPatientAge(form) : null
 
   const handleSave = async () => {
     setSaving(true)
@@ -61,100 +106,185 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Edit Patient" size="xl">
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">First Name *</label>
-            <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field" required/>
-          </div>
-          <div>
-            <label className="form-label">Last Name *</label>
-            <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field" required/>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="form-label">Date of Birth</label>
-            <input type="date" value={form.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} className="input-field"/>
-            {age !== null && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Age: {age} years</p>}
-          </div>
-          <div>
-            <label className="form-label">Age (if no DOB)</label>
-            <input type="number" min="0" max="150"
-              value={form.dateOfBirth ? (age ?? '') : (form.ageManual ?? '')}
-              disabled={!!form.dateOfBirth}
-              onChange={e => set('ageManual', e.target.value)}
-              placeholder={form.dateOfBirth ? 'Calculated' : 'Enter age'}
-              className="input-field disabled:opacity-50"/>
-          </div>
-          <div>
-            <label className="form-label">Gender</label>
-            <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
-              {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">Blood Type</label>
-            <select value={form.bloodType || ''} onChange={e => set('bloodType', e.target.value)} className="input-field">
-              <option value="">Select…</option>
-              {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Patient ID #</label>
-            <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">Referral Source</label>
-            <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
-              <option value="">Select source…</option>
-              {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Referral Details</label>
-            <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">Phone *</label>
-            <input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className="input-field"/>
-          </div>
-          <div>
-            <label className="form-label">Alternate Phone</label>
-            <input value={form.alternatePhone || ''} onChange={e => set('alternatePhone', e.target.value)} className="input-field"/>
-          </div>
-        </div>
-        <div>
-          <label className="form-label">Email</label>
-          <input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className="input-field"/>
-        </div>
-        <div>
-          <label className="form-label">Address</label>
-          <textarea value={form.address || ''} onChange={e => set('address', e.target.value)} rows={2} className="input-field resize-none"/>
-        </div>
-        <div>
-          <label className="form-label">Status</label>
-          <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
-            {['active','inactive','deceased'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Notes</label>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none"/>
-        </div>
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-gray-100 dark:border-gray-700 mb-4 -mt-1">
+        {EDIT_TABS.map((t, i) => (
+          <button key={t} onClick={() => setTab(i)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === i
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}>
+            {t}
+          </button>
+        ))}
       </div>
+
+      <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+
+        {/* ── Basic Info ── */}
+        {tab === 0 && <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">First Name *</label>
+              <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Last Name *</label>
+              <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="form-label">Date of Birth</label>
+              <input type="date" value={form.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} className="input-field"/>
+              {age !== null && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Age: {age} yrs</p>}
+            </div>
+            <div>
+              <label className="form-label">Age (if no DOB)</label>
+              <input type="number" min="0" max="150"
+                value={form.dateOfBirth ? (age ?? '') : (form.ageManual ?? '')}
+                disabled={!!form.dateOfBirth}
+                onChange={e => set('ageManual', e.target.value)}
+                placeholder={form.dateOfBirth ? 'Calculated' : 'Enter age'}
+                className="input-field disabled:opacity-50"/>
+            </div>
+            <div>
+              <label className="form-label">Gender</label>
+              <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
+                {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="form-label">Blood Type</label>
+              <select value={form.bloodType || ''} onChange={e => set('bloodType', e.target.value)} className="input-field">
+                <option value="">Select…</option>
+                {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">National ID</label>
+              <input value={form.nationalId || ''} onChange={e => set('nationalId', e.target.value)} className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Patient ID #</label>
+              <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Registration Date</label>
+              <input type="date" value={form.registrationDate || ''} onChange={e => set('registrationDate', e.target.value)} className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
+                {['active','inactive','deceased'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Phone *</label>
+              <input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Alternate Phone</label>
+              <input value={form.alternatePhone || ''} onChange={e => set('alternatePhone', e.target.value)} className="input-field"/>
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Email</label>
+            <input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Address</label>
+            <textarea value={form.address || ''} onChange={e => set('address', e.target.value)} rows={2} className="input-field resize-none"/>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Referral Source</label>
+              <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
+                <option value="">Select source…</option>
+                {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Referral Details</label>
+              <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Notes</label>
+            <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none"/>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={!!form.consentFormSigned} onChange={e => set('consentFormSigned', e.target.checked)} className="rounded border-gray-300"/>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Consent form signed</span>
+          </label>
+        </>}
+
+        {/* ── Medical ── */}
+        {tab === 1 && <>
+          <TagInput label="Chronic Conditions" items={form.chronicConditions ?? []} onChange={v => set('chronicConditions', v)} suggestions={CONDITION_SUGGESTIONS}/>
+          <TagInput label="Allergies" items={form.allergies ?? []} onChange={v => set('allergies', v)} suggestions={ALLERGY_SUGGESTIONS}/>
+          <TagInput label="Current Medications" items={form.currentMedications ?? []} onChange={v => set('currentMedications', v)}/>
+          <div>
+            <label className="form-label">Family History</label>
+            <textarea value={form.familyHistory || ''} onChange={e => set('familyHistory', e.target.value)} rows={3} className="input-field resize-none" placeholder="Relevant family medical history…"/>
+          </div>
+        </>}
+
+        {/* ── Insurance ── */}
+        {tab === 2 && <>
+          <div>
+            <label className="form-label">Insurance Provider</label>
+            <input value={form.insuranceProvider || ''} onChange={e => set('insuranceProvider', e.target.value)} className="input-field"/>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Policy Number</label>
+              <input value={form.insurancePolicyNumber || ''} onChange={e => set('insurancePolicyNumber', e.target.value)} className="input-field font-mono"/>
+            </div>
+            <div>
+              <label className="form-label">Group Number</label>
+              <input value={form.insuranceGroupNumber || ''} onChange={e => set('insuranceGroupNumber', e.target.value)} className="input-field font-mono"/>
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Expiry Date</label>
+            <input type="date" value={form.insuranceExpiry || ''} onChange={e => set('insuranceExpiry', e.target.value)} className="input-field"/>
+          </div>
+        </>}
+
+        {/* ── Emergency Contact ── */}
+        {tab === 3 && <>
+          <div>
+            <label className="form-label">Contact Name</label>
+            <input value={form.emergencyContact?.name || ''} onChange={e => setEc('name', e.target.value)} className="input-field"/>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Contact Phone</label>
+              <input value={form.emergencyContact?.phone || ''} onChange={e => setEc('phone', e.target.value)} className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Relationship</label>
+              <input value={form.emergencyContact?.relationship || ''} onChange={e => setEc('relationship', e.target.value)} placeholder="e.g. Spouse, Parent…" className="input-field"/>
+            </div>
+          </div>
+        </>}
+
+      </div>
+
       <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700 mt-4">
         <button onClick={onClose}
           className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
           Cancel
         </button>
-        <button onClick={handleSave} disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
+        <button onClick={handleSave} disabled={saving || !form.firstName?.trim() || !form.lastName?.trim()}
           className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
           {saving ? 'Saving…' : 'Save Changes'}
         </button>

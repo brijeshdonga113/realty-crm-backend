@@ -10,6 +10,7 @@ import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { usePreferences } from '@/hooks/usePreferences'
+import { localDateStr } from '@/lib/preferences'
 import { dataStore } from '@/lib/dataStore'
 
 const SPECIALIZATION_LABELS = {
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const [customizing, setCustomizing] = useState(false)
   const [draftLayout, setDraftLayout] = useState(DEFAULT_LAYOUT)
   const [saving, setSaving]         = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const dragId = useRef(null)
 
   // Load saved layout from Firestore
@@ -97,9 +99,9 @@ export default function DashboardPage() {
     }).catch(() => {})
   }, [doctor])
 
-  const todayStr    = new Date().toISOString().slice(0, 10)
-  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-  const twoDaysStr  = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)
+  const todayStr    = localDateStr()
+  const tomorrowStr = localDateStr(1)
+  const twoDaysStr  = localDateStr(2)
   const todayAppts  = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5)
   const todayFollowups    = followups.filter(f => f.dueDate === todayStr    && f.status === 'pending')
   const tomorrowFollowups = followups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending')
@@ -545,6 +547,32 @@ export default function DashboardPage() {
       title={doctor?.clinicName || 'Dashboard'}
       action={
         <div className="flex items-center gap-2">
+          {doctor?.bookingSlug && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/book/${doctor.bookingSlug}`
+                navigator.clipboard.writeText(url).then(() => {
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                })
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                linkCopied
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-600 dark:text-green-400'
+                  : 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+              }`}>
+              {linkCopied ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+              )}
+              {linkCopied ? 'Copied!' : 'Copy Booking Link'}
+            </button>
+          )}
           <button onClick={() => { setDraftLayout(layout); setCustomizing(true) }}
             className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

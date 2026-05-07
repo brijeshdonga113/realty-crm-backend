@@ -35,9 +35,11 @@ function buildDoctorProfile(uid, data) {
     currency:           data.currency           ?? 'INR',
     referralSources:    data.referralSources    ?? null,
     googleCalendarConnected: data.googleCalendarConnected ?? false,
-    subscription: data.subscription ?? null,
-    inviteCode:   data.inviteCode   ?? '',
-    createdAt:    data.createdAt    ?? new Date().toISOString(),
+    subscription:  data.subscription  ?? null,
+    inviteCode:    data.inviteCode    ?? '',
+    bookingSlug:   data.bookingSlug   ?? '',
+    workingHours:  data.workingHours  ?? null,
+    createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }
 
@@ -75,15 +77,26 @@ async function loadFirebaseProfile(uid) {
   return null
 }
 
+// Personal preference fields stored per-user (not shared with the clinic profile)
+const PERSONAL_PREF_FIELDS = new Set(['colorTheme', 'darkMode', 'dateFormat', 'currency'])
+
 async function loadReceptionistSession(uid, userEmail) {
   const { doc, getDoc } = await import('firebase/firestore')
   const recSnap = await getDoc(doc(db, 'receptionists', uid))
   if (!recSnap.exists()) return null
-  const { name, email, doctorId } = recSnap.data()
+  const { name, email, doctorId, ...recData } = recSnap.data()
   const doctorProfile = await loadFirebaseProfile(doctorId)
   if (!doctorProfile) return null
+
+  // Overlay the receptionist's own stored preferences (colorTheme, darkMode, dateFormat, currency)
+  // over the doctor's profile values so each user gets their own UI settings.
+  const ownPrefs = Object.fromEntries(
+    Object.entries(recData).filter(([k]) => PERSONAL_PREF_FIELDS.has(k))
+  )
+
   return {
     ...doctorProfile,
+    ...ownPrefs,
     _role: 'receptionist',
     _receptionistUid: uid,
     _receptionistName: name,
@@ -254,6 +267,26 @@ export function AuthProvider({ children }) {
   const updateProfile = async (patch) => {
     const updated = { ...doctor, ...patch }
     const { doc, setDoc } = await import('firebase/firestore')
+
+    if (doctor._role === 'receptionist') {
+      // Personal preferences (theme, format, currency) go to the receptionist's own doc.
+      // Receptionists cannot modify the clinic/doctor profile.
+      const personalPatch = Object.fromEntries(
+        Object.entries(patch).filter(([k]) => PERSONAL_PREF_FIELDS.has(k))
+      )
+      if (Object.keys(personalPatch).length > 0) {
+        await setDoc(
+          doc(db, 'receptionists', doctor._receptionistUid),
+          personalPatch,
+          { merge: true }
+        )
+      }
+      saveSessionLocally(updated)
+      setDoctor(updated)
+      return updated
+    }
+
+    // Doctor: write everything to the clinic profile as before
     await setDoc(doc(db, ...profileDocPath(doctor.id)), toFirestoreProfile(updated))
     if (auth.currentUser) {
       const { updateProfile: fbUpdateProfile } = await import('firebase/auth')

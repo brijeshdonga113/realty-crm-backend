@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
@@ -17,6 +17,7 @@ import {
 } from '@/lib/googleCalendar'
 import { appointmentService } from '@/services/appointmentService'
 import { sendWhatsAppMessage } from '@/lib/whatsappApi'
+import { DEFAULT_WORKING_HOURS } from '@/lib/booking'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -32,6 +33,248 @@ const SPECIALIZATIONS = [
   { value: 'dentistry',     label: 'Dentistry' },
   { value: 'other',         label: 'Other' },
 ]
+
+const WEEK_DAYS = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+]
+
+const SLOT_DURATIONS = [
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '60 min' },
+]
+
+function generateSlug() {
+  const chars = 'abcdefghijkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
+function BookingSettings({ doctor, updateProfile }) {
+  const [wh, setWh]         = useState(() => ({ ...DEFAULT_WORKING_HOURS, ...(doctor?.workingHours ?? {}) }))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [slugError, setSlugError] = useState(false)
+
+  const bookingSlug = doctor?.bookingSlug ?? ''
+  const slugReady   = !!bookingSlug
+  const bookingUrl  = typeof window !== 'undefined' && bookingSlug
+    ? `${window.location.origin}/book/${bookingSlug}`
+    : ''
+
+  // Write directly to Firestore from the client — Firestore rules allow
+  // authenticated doctors to write their own slug to bookingSlugs.
+  const registerSlug = async () => {
+    if (!doctor?.id || !auth.currentUser) return
+    setSlugError(false)
+    try {
+      const { doc, setDoc } = await import('firebase/firestore')
+      const slug = generateSlug()
+      await setDoc(doc(db, 'bookingSlugs', slug), {
+        doctorId:  doctor.id,
+        createdAt: new Date().toISOString(),
+      })
+      await updateProfile({ bookingSlug: slug })
+    } catch (err) {
+      console.error('Failed to generate booking slug:', err)
+      setSlugError(true)
+    }
+  }
+
+  useEffect(() => {
+    if (doctor?.bookingSlug || !doctor?.id) return
+    registerSlug()
+  }, [doctor?.id, doctor?.bookingSlug])
+
+  const toggleDay = (day) => {
+    setWh(prev => ({
+      ...prev,
+      workDays: prev.workDays.includes(day)
+        ? prev.workDays.filter(d => d !== day)
+        : [...prev.workDays, day].sort((a, b) => a - b),
+    }))
+    setSaved(false)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      await updateProfile({ workingHours: wh })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(bookingUrl).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
+        <svg className="w-5 h-5 flex-shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <div>
+          <h2 className="font-semibold text-gray-900 dark:text-white">Online Booking Page</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Share your booking link so clients can book appointments directly.</p>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-6">
+
+        {/* Booking link */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your Booking Link</label>
+          {!slugReady ? (
+            slugError ? (
+              <div className="flex items-center gap-3 py-2">
+                <p className="text-sm text-red-500 dark:text-red-400">Failed to generate booking link.</p>
+                <button
+                  onClick={registerSlug}
+                  className="text-sm text-primary-600 dark:text-primary-400 underline underline-offset-2 hover:no-underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500 py-2">
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Generating your booking link…
+              </div>
+            )
+          ) : (
+            <div className="flex gap-2">
+              <div className="flex-1 text-sm bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-2.5 text-gray-600 dark:text-gray-300 font-mono truncate select-all">
+                {bookingUrl}
+              </div>
+              <button
+                onClick={handleCopy}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors flex-shrink-0
+                  ${copied
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                    : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+              >
+                {copied ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Copy Link
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Share this with clients via WhatsApp, email, or your website.</p>
+        </div>
+
+        {/* Working days */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Working Days</label>
+          <div className="flex gap-2 flex-wrap">
+            {WEEK_DAYS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => toggleDay(value)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all
+                  ${wh.workDays.includes(value)
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-blue-300'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Working hours + slot duration */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Start Time</label>
+            <input
+              type="time"
+              value={wh.start}
+              onChange={e => { setWh(p => ({ ...p, start: e.target.value })); setSaved(false) }}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">End Time</label>
+            <input
+              type="time"
+              value={wh.end}
+              onChange={e => { setWh(p => ({ ...p, end: e.target.value })); setSaved(false) }}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Slot Duration</label>
+            <div className="relative">
+              <select
+                value={wh.slotMinutes}
+                onChange={e => { setWh(p => ({ ...p, slotMinutes: Number(e.target.value) })); setSaved(false) }}
+                className="input-field appearance-none pr-9"
+              >
+                {SLOT_DURATIONS.map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        {saved
+          ? <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+              </svg>
+              Schedule saved.
+            </p>
+          : <span/>
+        }
+        <button onClick={handleSave} disabled={saving}
+          className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+          {saving
+            ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+            : 'Save Schedule'
+          }
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { doctor, updateProfile, generateReceptionistCode, isReceptionist } = useAuth()
@@ -900,6 +1143,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Booking Page ─────────────────────────────────────────────────── */}
+        <BookingSettings doctor={doctor} updateProfile={updateProfile} />
 
         </>} {/* end !isReceptionist */}
 
