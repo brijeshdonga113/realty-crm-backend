@@ -190,7 +190,7 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
   )
 }
 
-function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect }) {
+function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect, blockedReasons = [] }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
@@ -202,6 +202,14 @@ function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect }) 
         </h2>
       </div>
       <div className="p-5">
+        {blockedReasons.length > 0 && (
+          <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 space-y-0.5">
+            <p className="text-xs font-semibold text-amber-700">Limited availability</p>
+            {blockedReasons.map((reason, i) => (
+              <p key={i} className="text-xs text-amber-600">{reason}</p>
+            ))}
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
             <Spinner size={5} />
@@ -324,10 +332,11 @@ export default function BookingPage({ params }) {
   const [doctor, setDoctor]       = useState(null)
   const [workingHours, setWorkingHours] = useState(null)
 
-  const [selectedDate, setSelectedDate] = useState(null)
-  const [slots, setSlots]               = useState([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [selectedTime, setSelectedTime] = useState(null)
+  const [selectedDate, setSelectedDate]     = useState(null)
+  const [slots, setSlots]                   = useState([])
+  const [blockedReasons, setBlockedReasons] = useState([])
+  const [loadingSlots, setLoadingSlots]     = useState(false)
+  const [selectedTime, setSelectedTime]     = useState(null)
 
   const [submitError, setSubmitError]   = useState('')
   const [submitting, setSubmitting]     = useState(false)
@@ -362,13 +371,16 @@ export default function BookingPage({ params }) {
     setSelectedDate(date)
     setSelectedTime(null)
     setSlots([])
+    setBlockedReasons([])
     setLoadingSlots(true)
     try {
       const res  = await fetch(`/api/booking/${slug}?date=${toDateStr(date)}`)
       const data = await res.json()
       setSlots(data.slots ?? [])
+      setBlockedReasons(data.blockedReasons ?? [])
     } catch {
       setSlots([])
+      setBlockedReasons([])
     } finally {
       setLoadingSlots(false)
     }
@@ -430,6 +442,7 @@ export default function BookingPage({ params }) {
             loading={loadingSlots}
             selectedTime={selectedTime}
             onSelect={setSelectedTime}
+            blockedReasons={blockedReasons}
           />
         )}
 
