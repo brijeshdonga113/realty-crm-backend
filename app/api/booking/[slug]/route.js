@@ -32,6 +32,7 @@ function doctorInfo(profile) {
     name:           [profile.firstName, profile.lastName].filter(Boolean).join(' '),
     clinicName:     profile.clinicName     ?? '',
     specialization: profile.specialization ?? '',
+    logoUrl:        profile.logoUrl        ?? '',
   }
 }
 

@@ -39,6 +39,7 @@ function buildDoctorProfile(uid, data) {
     inviteCode:    data.inviteCode    ?? '',
     bookingSlug:   data.bookingSlug   ?? '',
     workingHours:  data.workingHours  ?? null,
+    logoUrl:       data.logoUrl       ?? '',
     createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }

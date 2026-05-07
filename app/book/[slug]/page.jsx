@@ -61,6 +61,41 @@ function ErrorScreen({ status }) {
 }
 
 function BookingHeader({ doctor }) {
+  const hasLogo = !!doctor.logoUrl
+
+  if (hasLogo) {
+    return (
+      <div className="bg-white shadow-sm">
+        <div className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+        <div className="max-w-2xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-white border border-gray-100 shadow-md flex items-center justify-center p-2 flex-shrink-0 overflow-hidden">
+              <img
+                src={doctor.logoUrl}
+                alt={doctor.clinicName || 'Clinic logo'}
+                className="w-full h-full object-contain"
+                onError={e => { e.currentTarget.style.display = 'none' }}
+              />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                {doctor.clinicName || doctor.name || 'Clinic'}
+              </h1>
+              {doctor.name && (
+                <p className="text-sm text-gray-500 mt-0.5">Dr. {doctor.name}</p>
+              )}
+              {doctor.specialization && (
+                <span className="inline-block mt-2 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full capitalize">
+                  {doctor.specialization.replace(/_/g, ' ')}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white border-b border-gray-100">
       <div className="max-w-2xl mx-auto px-4 py-6">
