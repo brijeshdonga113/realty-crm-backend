@@ -59,7 +59,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
 
       {/* ── Left panel — 50% ───────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col p-12 gap-8 relative overflow-y-auto">
         {/* Decorative blobs */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
@@ -67,7 +67,7 @@ export default function LoginPage() {
         </div>
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex items-center gap-3 flex-shrink-0">
           <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -77,17 +77,17 @@ export default function LoginPage() {
           <span className="text-white text-xl font-bold tracking-tight">ClinicCRM</span>
         </div>
 
-        {/* Centre content */}
-        <div className="relative">
+        {/* Centre content — fills available space */}
+        <div className="relative flex-1 flex flex-col justify-center min-h-0">
           <h1 className="text-3xl font-bold text-white leading-tight mb-3">
             Manage your clinic<br />with confidence.
           </h1>
-          <p className="text-primary-200 text-base leading-relaxed mb-8">
+          <p className="text-primary-200 text-base leading-relaxed mb-6">
             Your complete clinic management system — patient records, appointments, billing, and more.
           </p>
 
           {/* Feature list */}
-          <div className="space-y-3 mb-8">
+          <div className="space-y-3 mb-6">
             {LEFT_FEATURES.map(item => (
               <div key={item.label} className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -112,7 +112,7 @@ export default function LoginPage() {
         </div>
 
         {/* Testimonial quote */}
-        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4">
+        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4 flex-shrink-0">
           <p className="text-primary-100 text-sm italic mb-3">
             "ClinicCRM cut my admin time in half. I can focus on patients instead of paperwork."
           </p>
@@ -125,7 +125,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-primary-400 text-xs">© {new Date().getFullYear()} ClinicCRM.</p>
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
       </div>
 
       {/* ── Right panel — 50% ──────────────────────────────────────────────── */}

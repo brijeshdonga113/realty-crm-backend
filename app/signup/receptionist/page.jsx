@@ -55,53 +55,82 @@ export default function ReceptionistSignupPage() {
     <div className="min-h-screen flex">
 
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 right-10 w-72 h-72 rounded-full bg-white blur-3xl" />
-          <div className="absolute bottom-20 left-5 w-56 h-56 rounded-full bg-teal-300 blur-3xl" />
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col p-12 gap-8 relative overflow-y-auto">
+        {/* Decorative blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4 blur-3xl" />
         </div>
 
-        <div className="relative flex items-center gap-3">
+        {/* Logo */}
+        <div className="relative flex items-center gap-3 flex-shrink-0">
           <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
           </div>
-          <span className="text-white text-xl font-bold">ClinicCRM</span>
+          <span className="text-white text-xl font-bold tracking-tight">ClinicCRM</span>
         </div>
 
-        <div className="relative">
-          <h1 className="text-3xl font-bold text-white leading-tight mb-4">
+        {/* Centre content */}
+        <div className="relative flex-1 flex flex-col justify-center min-h-0">
+          <h1 className="text-3xl font-bold text-white leading-tight mb-3">
             Join your clinic<br />as receptionist
           </h1>
-          <p className="text-teal-100 text-base leading-relaxed mb-8">
-            Use the 16-digit invite code provided by your doctor to create your receptionist account.
+          <p className="text-primary-200 text-base leading-relaxed mb-6">
+            Use the invite code provided by your doctor to create your receptionist account.
           </p>
-          <ul className="space-y-3">
+
+          {/* Feature list */}
+          <div className="space-y-3 mb-6">
             {[
-              'Schedule & manage appointments',
-              'Create patient invoices',
-              'Send WhatsApp messages',
-              'View patient records',
+              { icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Schedule & manage appointments' },
+              { icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'Create patient invoices & billing' },
+              { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', label: 'Send WhatsApp reminders' },
+              { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', label: 'View & manage patient records' },
             ].map(item => (
-              <li key={item} className="flex items-center gap-3 text-teal-100 text-sm">
-                <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              <div key={item.label} className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
                   </svg>
-                </span>
-                {item}
-              </li>
+                </div>
+                <span className="text-primary-100 text-sm">{item.label}</span>
+              </div>
             ))}
-          </ul>
+          </div>
+
+          {/* Stat chips */}
+          <div className="flex gap-3 flex-wrap">
+            {[{ val: '500+', label: 'Clinics' }, { val: '2 min', label: 'Setup time' }, { val: '4.9★', label: 'Rating' }].map(s => (
+              <div key={s.label} className="bg-white/10 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <div className="text-white font-bold text-sm">{s.val}</div>
+                <div className="text-primary-200 text-xs">{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <p className="relative text-teal-300 text-sm">© 2026 ClinicCRM.</p>
+        {/* Testimonial */}
+        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4 flex-shrink-0">
+          <p className="text-primary-100 text-sm italic mb-3">
+            "Managing appointments used to take hours. Now it takes minutes."
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AS</div>
+            <div>
+              <div className="text-white text-xs font-semibold">Anjali Sharma</div>
+              <div className="text-primary-300 text-xs">Receptionist, Delhi Clinic</div>
+            </div>
+          </div>
+        </div>
+
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
       </div>
 
       {/* Right panel — form */}
-      <div className="w-full lg:w-3/5 flex items-start justify-center p-8 bg-white dark:bg-gray-900 overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex items-start justify-center p-8 bg-white dark:bg-gray-900 overflow-y-auto">
         <div className="w-full max-w-md py-8">
 
           {/* Mobile logo */}
