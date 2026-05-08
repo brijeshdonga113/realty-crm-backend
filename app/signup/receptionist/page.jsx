@@ -52,7 +52,7 @@ export default function ReceptionistSignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="auth-theme min-h-screen flex">
 
       {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col p-12 gap-8 relative overflow-y-auto">
