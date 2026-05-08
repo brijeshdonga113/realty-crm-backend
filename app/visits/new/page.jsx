@@ -53,10 +53,12 @@ function VisitEntryForm() {
   const [payment, setPayment] = useState({
     record: true,
     amount: '',
-    method: 'cash',
+    method: 'receptionist',
     description: 'Consultation Fee',
-    status: 'paid',
+    status: 'draft',
   })
+
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const [diagInput,    setDiagInput]    = useState('')
   const [labInput,     setLabInput]     = useState('')
@@ -269,9 +271,27 @@ function VisitEntryForm() {
           </div>
 
           <div>
-            <label className="form-label">History of Present Illness</label>
-            <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={2}
-              placeholder="Detailed history, existing conditions…" className="input-field resize-none"/>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(o => !o)}
+              className="flex items-center justify-between w-full group mb-1.5"
+            >
+              <span className="form-label mb-0">History of Present Illness</span>
+              <span className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 font-medium group-hover:underline">
+                {historyOpen ? 'Collapse' : (form.history ? 'Edit' : 'Expand')}
+                <svg className={`w-3.5 h-3.5 transition-transform ${historyOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                </svg>
+              </span>
+            </button>
+            {!historyOpen && form.history && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate px-1">{form.history}</p>
+            )}
+            {historyOpen && (
+              <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={5}
+                placeholder="Detailed history, existing conditions, onset, duration…"
+                className="input-field resize-y" autoFocus/>
+            )}
           </div>
 
           {/* Vitals */}

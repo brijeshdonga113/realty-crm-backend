@@ -12,6 +12,7 @@ export const INVOICE_STATUSES = [
 ]
 
 export const PAYMENT_METHODS = [
+  { value: 'receptionist',  label: 'Collected by Receptionist' },
   { value: 'cash',          label: 'Cash' },
   { value: 'card',          label: 'Card' },
   { value: 'upi',           label: 'UPI' },
