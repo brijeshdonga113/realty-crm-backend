@@ -1226,7 +1226,7 @@ export default function PatientProfilePage() {
   const saveOverview = async () => {
     setOverviewSaving(true)
     try {
-      await patientService.update(id, overviewForm)
+      await update(overviewForm)   // uses usePatient's update which calls setPatient(updated)
       setEditingOverview(false)
     } catch (err) {
       alert(err?.message || 'Failed to save')
