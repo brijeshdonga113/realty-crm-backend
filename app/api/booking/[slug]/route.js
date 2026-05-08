@@ -1,5 +1,5 @@
 import { getAdminDb } from '@/lib/firebaseAdmin'
-import { DEFAULT_WORKING_HOURS, generateSlots } from '@/lib/booking'
+import { normalizeWorkingHours, generateSlotsFromWorkingHours } from '@/lib/booking'
 
 async function resolveBooking(db, slug) {
   const slugSnap = await db.collection('bookingSlugs').doc(slug).get()
@@ -37,7 +37,7 @@ function doctorInfo(profile) {
 }
 
 function workingHours(profile) {
-  return { ...DEFAULT_WORKING_HOURS, ...(profile.workingHours ?? {}) }
+  return normalizeWorkingHours(profile.workingHours ?? {})
 }
 
 // GET /api/booking/[slug]?date=YYYY-MM-DD
@@ -90,7 +90,7 @@ export async function GET(request, { params }) {
     const blockedSlots   = blockedSnap.docs.map(d => d.data())
     const blockedReasons = [...new Set(blockedSlots.map(b => b.reason).filter(Boolean))]
 
-    const slots = generateSlots(wh.start, wh.end, wh.slotMinutes).map(time => {
+    const slots = generateSlotsFromWorkingHours(wh).map(time => {
       const isBooked  = bookedTimes.has(time)
       const isBlocked = blockedSlots.some(b => {
         if (b.allDay) return true

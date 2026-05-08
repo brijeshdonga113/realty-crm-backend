@@ -17,7 +17,7 @@ import {
 } from '@/lib/googleCalendar'
 import { appointmentService } from '@/services/appointmentService'
 import { sendWhatsAppMessage } from '@/lib/whatsappApi'
-import { DEFAULT_WORKING_HOURS } from '@/lib/booking'
+import { normalizeWorkingHours } from '@/lib/booking'
 
 const WEEK_DAYS = [
   { value: 0, label: 'Sun' },
@@ -42,7 +42,7 @@ function generateSlug() {
 }
 
 function BookingSettings({ doctor, updateProfile }) {
-  const [wh, setWh]         = useState(() => ({ ...DEFAULT_WORKING_HOURS, ...(doctor?.workingHours ?? {}) }))
+  const [wh, setWh]         = useState(() => normalizeWorkingHours(doctor?.workingHours ?? {}))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [copied, setCopied] = useState(false)
@@ -196,43 +196,94 @@ function BookingSettings({ doctor, updateProfile }) {
           </div>
         </div>
 
-        {/* Working hours + slot duration */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Start Time</label>
-            <input
-              type="time"
-              value={wh.start}
-              onChange={e => { setWh(p => ({ ...p, start: e.target.value })); setSaved(false) }}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">End Time</label>
-            <input
-              type="time"
-              value={wh.end}
-              onChange={e => { setWh(p => ({ ...p, end: e.target.value })); setSaved(false) }}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Slot Duration</label>
-            <div className="relative">
-              <select
-                value={wh.slotMinutes}
-                onChange={e => { setWh(p => ({ ...p, slotMinutes: Number(e.target.value) })); setSaved(false) }}
-                className="input-field appearance-none pr-9"
-              >
-                {SLOT_DURATIONS.map(d => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                </svg>
+        {/* Opening hours — up to two sessions per day */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Opening Hours</label>
+          <div className="space-y-3">
+
+            {/* Session 1 */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"/>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Session 1</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">(always active)</span>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Start</label>
+                  <input type="time" value={wh.session1?.start ?? '09:00'}
+                    onChange={e => { setWh(p => ({ ...p, session1: { ...p.session1, start: e.target.value } })); setSaved(false) }}
+                    className="input-field" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">End</label>
+                  <input type="time" value={wh.session1?.end ?? '13:00'}
+                    onChange={e => { setWh(p => ({ ...p, session1: { ...p.session1, end: e.target.value } })); setSaved(false) }}
+                    className="input-field" />
+                </div>
+              </div>
+            </div>
+
+            {/* Session 2 */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"/>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Session 2</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">optional</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setWh(p => ({ ...p, session2: { ...p.session2, enabled: !p.session2?.enabled } })); setSaved(false) }}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none
+                    ${wh.session2?.enabled ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-600'}`}
+                  aria-label="Toggle session 2"
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform
+                    ${wh.session2?.enabled ? 'translate-x-4' : 'translate-x-0.5'}`}/>
+                </button>
+              </div>
+              {wh.session2?.enabled && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Start</label>
+                    <input type="time" value={wh.session2?.start ?? '17:00'}
+                      onChange={e => { setWh(p => ({ ...p, session2: { ...p.session2, start: e.target.value } })); setSaved(false) }}
+                      className="input-field" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">End</label>
+                    <input type="time" value={wh.session2?.end ?? '20:00'}
+                      onChange={e => { setWh(p => ({ ...p, session2: { ...p.session2, end: e.target.value } })); setSaved(false) }}
+                      className="input-field" />
+                  </div>
+                </div>
+              )}
+              {!wh.session2?.enabled && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">Enable to add an evening or afternoon session.</p>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+        {/* Slot duration */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Appointment Slot Duration</label>
+          <div className="relative max-w-xs">
+            <select
+              value={wh.slotMinutes}
+              onChange={e => { setWh(p => ({ ...p, slotMinutes: Number(e.target.value) })); setSaved(false) }}
+              className="input-field appearance-none pr-9"
+            >
+              {SLOT_DURATIONS.map(d => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+              </svg>
             </div>
           </div>
         </div>
