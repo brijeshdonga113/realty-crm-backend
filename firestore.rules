@@ -2,49 +2,76 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Returns true if the current user is a receptionist linked to this doctorId
+    // Returns true when the current user is a receptionist linked to this doctor
     function isLinkedReceptionist(doctorId) {
       return exists(/databases/$(database)/documents/receptionists/$(request.auth.uid))
         && get(/databases/$(database)/documents/receptionists/$(request.auth.uid)).data.doctorId == doctorId;
     }
 
-    // All clinic data lives under users/{userId}/...
-    // Allow the doctor themselves OR a receptionist linked to that doctor
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null
+    // Convenience: owner (doctor) OR their linked receptionist
+    function isOwnerOrLinkedReceptionist(userId) {
+      return request.auth != null
         && (request.auth.uid == userId || isLinkedReceptionist(userId));
     }
 
-    // Invite codes — doctors write their own; publicly readable so unauthenticated
-    // receptionists can validate the code before creating their account
+    // ── All clinic data lives under users/{userId}/... ──────────────────────
+    // Covers patients, invoices, followups, notifications, blockedSlots, meta,
+    // and all nested subcollections (e.g. patients/{id}/visits/{id}).
+    match /users/{userId} {
+      allow read, write: if isOwnerOrLinkedReceptionist(userId);
+    }
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if isOwnerOrLinkedReceptionist(userId);
+    }
+
+    // ── Invite codes ─────────────────────────────────────────────────────────
+    // Publicly readable so receptionists can validate the code before signup.
+    // Only the owning doctor can create/update their own code.
     match /inviteCodes/{code} {
       allow read: if true;
       allow write: if request.auth != null
                    && request.resource.data.doctorId == request.auth.uid;
     }
 
-    // Receptionist records — each user can only access their own document
+    // ── Receptionist records ─────────────────────────────────────────────────
+    // Each receptionist can read/write their own document.
+    // Doctors can read receptionist documents linked to them (e.g. for the
+    // settings page that lists their receptionists).
     match /receptionists/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null
+                  && (request.auth.uid == uid
+                      || (resource != null
+                          && resource.data.doctorId == request.auth.uid));
+      allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Booking slugs — reverse mapping from opaque slug to doctorId.
+    // ── Booking slugs ────────────────────────────────────────────────────────
     // Publicly readable so the booking page can resolve slugs without auth.
-    // Only the doctor whose UID matches can create/update their own slug.
+    // Only the matching doctor can create/update their slug.
     match /bookingSlugs/{slug} {
       allow read: if true;
       allow write: if request.auth != null
                    && request.resource.data.doctorId == request.auth.uid;
     }
 
-    // collectionGroup("visits") — real-time dashboard listener
+    // ── collectionGroup("visits") ────────────────────────────────────────────
+    // Needed for cross-patient dashboard queries (getDashboardStats, getAll).
+    // Split create vs update/delete because request.resource is null on deletes.
     match /{path=**}/visits/{visitId} {
       allow read: if request.auth != null
         && (resource.data.doctorId == request.auth.uid
             || isLinkedReceptionist(resource.data.doctorId));
-      allow write: if request.auth != null
+
+      // create: new document — check data being written
+      allow create: if request.auth != null
         && (request.resource.data.doctorId == request.auth.uid
             || isLinkedReceptionist(request.resource.data.doctorId));
+
+      // update / delete: existing document — check existing data
+      allow update, delete: if request.auth != null
+        && (resource.data.doctorId == request.auth.uid
+            || isLinkedReceptionist(resource.data.doctorId));
     }
 
   }

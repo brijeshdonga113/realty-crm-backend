@@ -18,7 +18,8 @@ export const visitService = {
     return visits.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   },
 
-  async getById(id) {
+  async getById(id, patientId = null) {
+    if (patientId) return dataStore.getById(visitPath(patientId), id)
     return dataStore.getByIdGroup('visits', id)
   },
 
