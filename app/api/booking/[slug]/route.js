@@ -32,6 +32,7 @@ function doctorInfo(profile) {
     name:           [profile.firstName, profile.lastName].filter(Boolean).join(' '),
     clinicName:     profile.clinicName     ?? '',
     specialization: profile.specialization ?? '',
+    logoUrl:        profile.logoUrl        ?? '',
   }
 }
 
@@ -85,8 +86,9 @@ export async function GET(request, { params }) {
         .get(),
     ])
 
-    const bookedTimes   = new Set(apptSnap.docs.map(d => d.data().time))
-    const blockedSlots  = blockedSnap.docs.map(d => d.data())
+    const bookedTimes    = new Set(apptSnap.docs.map(d => d.data().time))
+    const blockedSlots   = blockedSnap.docs.map(d => d.data())
+    const blockedReasons = [...new Set(blockedSlots.map(b => b.reason).filter(Boolean))]
 
     const slots = generateSlots(wh.start, wh.end, wh.slotMinutes).map(time => {
       const isBooked  = bookedTimes.has(time)
@@ -98,7 +100,7 @@ export async function GET(request, { params }) {
       return { time, available: !isBooked && !isBlocked }
     })
 
-    return Response.json({ doctor: doctorInfo(profile), workingHours: wh, slots })
+    return Response.json({ doctor: doctorInfo(profile), workingHours: wh, slots, blockedReasons })
   } catch (err) {
     console.error('[booking GET]', err)
     return Response.json({ error: 'Server error' }, { status: 500 })

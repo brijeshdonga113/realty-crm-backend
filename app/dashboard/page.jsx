@@ -593,8 +593,12 @@ export default function DashboardPage() {
       <div className="space-y-7">
 
         {/* Welcome banner — always shown */}
-        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 text-white flex items-center justify-between">
-          <div>
+        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 text-white flex items-center justify-between gap-4 relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/5 rounded-full blur-2xl" />
+            <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
+          </div>
+          <div className="relative">
             {doctor?.clinicName && (
               <p className="text-primary-200 text-xs font-semibold uppercase tracking-wider mb-1">{doctor.clinicName}</p>
             )}
@@ -609,14 +613,30 @@ export default function DashboardPage() {
                 : 'Loading your clinic overview…'}
             </p>
           </div>
-          {specLabel && (
+
+          {/* Right: logo (if set) or specialization chip */}
+          {doctor?.logoUrl ? (
+            <div className="hidden sm:flex flex-col items-center gap-1.5 flex-shrink-0 relative">
+              <div className="w-20 h-20 bg-white rounded-2xl shadow-lg flex items-center justify-center p-2 overflow-hidden">
+                <img
+                  src={doctor.logoUrl}
+                  alt={doctor.clinicName || 'Clinic logo'}
+                  className="w-full h-full object-contain"
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                />
+              </div>
+              {specLabel && (
+                <span className="text-xs text-primary-200 font-medium text-center leading-tight">{specLabel}</span>
+              )}
+            </div>
+          ) : specLabel ? (
             <div className="hidden sm:flex items-center gap-2 bg-white/15 rounded-xl px-4 py-2 flex-shrink-0">
               <svg className="w-4 h-4 text-primary-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
               </svg>
               <span className="text-white font-semibold text-sm">{specLabel}</span>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Customizable widgets in saved order */}

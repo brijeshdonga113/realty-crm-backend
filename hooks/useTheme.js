@@ -82,6 +82,8 @@ export function useTheme() {
     const isDark      = saved ? saved === 'dark' : prefersDark
     setDark(isDark)
     document.documentElement.classList.toggle('dark', isDark)
+    // Keep universal key in sync so the inline flash-prevention script can read it
+    localStorage.setItem('darkMode', isDark ? 'dark' : 'light')
 
     // Color theme — apply localStorage immediately, then hydrate from Firestore
     const lsColor = localStorage.getItem(colorKey) ?? DEFAULT_THEME
@@ -104,6 +106,7 @@ export function useTheme() {
       const next = !prev
       document.documentElement.classList.toggle('dark', next)
       localStorage.setItem(darkKey, next ? 'dark' : 'light')
+      localStorage.setItem('darkMode', next ? 'dark' : 'light')
       saveDarkToFirestore(next)
       return next
     })

@@ -32,6 +32,15 @@ const initialForm = {
   confirmPassword: '',
 }
 
+const LEFT_BENEFITS = [
+  { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', label: 'Patient records & medical history' },
+  { icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', label: 'Appointment scheduling & online booking' },
+  { icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'Invoice & billing generation' },
+  { icon: 'M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', label: 'Visit recording & prescriptions' },
+  { icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: 'Inventory & staff management' },
+  { icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', label: 'Secure & private patient data' },
+]
+
 function Field({ name, label, type = 'text', placeholder, optional = false, form, errors, onChange, children }) {
   return (
     <div>
@@ -108,14 +117,15 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex">
 
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 right-10 w-72 h-72 rounded-full bg-white blur-3xl" />
-          <div className="absolute bottom-20 left-5 w-56 h-56 rounded-full bg-teal-300 blur-3xl" />
+      {/* ── Left panel — 50% ───────────────────────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col p-12 gap-8 relative overflow-y-auto">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4 blur-3xl" />
         </div>
 
-        <div className="relative flex items-center gap-3">
+        {/* Logo */}
+        <div className="relative flex items-center gap-3 flex-shrink-0">
           <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -125,38 +135,63 @@ export default function SignupPage() {
           <span className="text-white text-xl font-bold">ClinicCRM</span>
         </div>
 
-        <div className="relative">
-          <h1 className="text-3xl font-bold text-white leading-tight mb-4">
+        {/* Centre content — fills available space, scrolls if needed */}
+        <div className="relative flex-1 flex flex-col justify-center min-h-0">
+          <div className="inline-flex items-center gap-2 bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 self-start">
+            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+            7-day free trial — No credit card required
+          </div>
+          <h1 className="text-3xl font-bold text-white leading-tight mb-3">
             Start managing your<br />clinic today
           </h1>
-          <p className="text-teal-100 text-base leading-relaxed mb-8">
-            Join thousands of doctors using ClinicCRM to streamline patient care, manage records, and simplify billing.
+          <p className="text-primary-200 text-base leading-relaxed mb-6">
+            Join 500+ doctors using ClinicCRM to streamline patient care, manage records, and simplify billing.
           </p>
-          <ul className="space-y-3">
-            {[
-              'Patient records & history',
-              'Appointment scheduling',
-              'Invoice & billing generation',
-              'Prescription management',
-              'Secure & private data',
-            ].map(item => (
-              <li key={item} className="flex items-center gap-3 text-teal-100 text-sm">
-                <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+
+          {/* Benefit list */}
+          <ul className="space-y-3 mb-6">
+            {LEFT_BENEFITS.map(item => (
+              <li key={item.label} className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
                   </svg>
-                </span>
-                {item}
+                </div>
+                <span className="text-primary-100 text-sm">{item.label}</span>
               </li>
             ))}
           </ul>
+
+          {/* Stat chips */}
+          <div className="flex gap-3 flex-wrap">
+            {[{ val: '500+', label: 'Doctors' }, { val: '50k+', label: 'Appointments' }, { val: '4.9★', label: 'Rating' }].map(s => (
+              <div key={s.label} className="bg-white/10 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <div className="text-white font-bold text-sm">{s.val}</div>
+                <div className="text-primary-200 text-xs">{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <p className="relative text-teal-300 text-sm">© 2026 ClinicCRM.</p>
+        {/* Testimonial */}
+        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4 flex-shrink-0">
+          <p className="text-primary-100 text-sm italic mb-3">
+            "The online booking link is a game-changer. Patients book themselves and I wake up to a full schedule."
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AS</div>
+            <div>
+              <div className="text-white text-xs font-semibold">Dr. Arjun Sharma</div>
+              <div className="text-primary-300 text-xs">Dentist, Bangalore</div>
+            </div>
+          </div>
+        </div>
+
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
       </div>
 
-      {/* Right panel — form */}
-      <div className="w-full lg:w-3/5 flex items-start justify-center p-8 bg-white dark:bg-gray-900 overflow-y-auto">
+      {/* ── Right panel — 50% (scrollable for long form) ───────────────────── */}
+      <div className="w-full lg:w-1/2 min-h-screen flex items-start justify-center p-8 bg-white dark:bg-gray-900 overflow-y-auto">
         <div className="w-full max-w-lg py-8">
 
           {/* Mobile logo */}
@@ -219,7 +254,7 @@ export default function SignupPage() {
             {/* License + Phone */}
             <div className="grid grid-cols-2 gap-4">
               <Field name="licenseNumber" label="License Number" placeholder="MED-123456" form={form} errors={errors} onChange={handleChange} />
-              <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" form={form} errors={errors} onChange={handleChange} />
+              <Field name="phone" label="Phone Number" placeholder="+91 98765 43210" form={form} errors={errors} onChange={handleChange} />
             </div>
 
             {/* Clinic name */}
