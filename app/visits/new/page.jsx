@@ -29,12 +29,15 @@ function VisitEntryForm() {
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
   const reasonParam   = searchParams.get('reason') ?? ''
+  const draftId       = searchParams.get('draftId') ?? ''
 
   const { patient, loading: patientLoading } = usePatient(patientId)
 
-  const [saving, setSaving]         = useState(false)
-  const [savedVisit, setSavedVisit] = useState(null)
-  const [saveError, setSaveError]   = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [savedVisit, setSavedVisit]   = useState(null)
+  const [saveError, setSaveError]     = useState('')
+  const [draftSaved, setDraftSaved]   = useState(false)
 
   const [form, setForm] = useState({
     visitDate: new Date().toISOString().slice(0, 10),
@@ -77,6 +80,28 @@ function VisitEntryForm() {
     }))
   }, [patient, reasonParam])
 
+  // Load draft data when draftId is present
+  useEffect(() => {
+    if (!draftId || !patientId) return
+    visitService.getById(draftId).then(draft => {
+      if (!draft || draft.status !== 'draft') return
+      setForm({
+        visitDate:      draft.visitDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        chiefComplaint: draft.chiefComplaint || '',
+        history:        draft.history || '',
+        findings:       draft.examination?.findings || '',
+        diagnosis:      draft.diagnosis || [],
+        treatment:      draft.treatment || '',
+        prescriptions:  draft.prescriptions || [],
+        labOrders:      draft.labOrders || [],
+        followUpDate:   draft.followUpDate || '',
+        notes:          draft.notes || '',
+        vitalSigns:     draft.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+      })
+      if (draft.history) setHistoryOpen(true)
+    }).catch(() => {})
+  }, [draftId, patientId])
+
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
@@ -86,6 +111,44 @@ function VisitEntryForm() {
     set('followUpDate', d)
   }
 
+  const buildVisitData = () => ({
+    patientId,
+    patientName:    patient ? `${patient.firstName} ${patient.lastName}` : '',
+    patientPhone:   patient?.phone || '',
+    appointmentId:  appointmentId || null,
+    visitDate:      form.visitDate ? new Date(form.visitDate).toISOString() : new Date().toISOString(),
+    chiefComplaint: form.chiefComplaint,
+    history:        form.history,
+    examination:    { vitalSigns: form.vitalSigns, findings: form.findings },
+    diagnosis:      form.diagnosis,
+    treatment:      form.treatment,
+    prescriptions:  form.prescriptions,
+    labOrders:      form.labOrders,
+    followUpDate:   form.followUpDate || null,
+    notes:          form.notes,
+    doctorId:       doctor?.id,
+  })
+
+  const handleSaveDraft = async () => {
+    if (!patientId) return
+    setSavingDraft(true)
+    setSaveError('')
+    try {
+      const saved = await visitService.saveDraft(buildVisitData(), draftId || null)
+      setDraftSaved(true)
+      if (!draftId && saved?.id) {
+        const url = new URL(window.location.href)
+        url.searchParams.set('draftId', saved.id)
+        window.history.replaceState({}, '', url.toString())
+      }
+      setTimeout(() => setDraftSaved(false), 3000)
+    } catch {
+      setSaveError('Failed to save draft. Please try again.')
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
@@ -93,25 +156,9 @@ function VisitEntryForm() {
     setSaving(true)
     setSaveError('')
     try {
-      const visit = await visitService.create({
-        patientId,
-        patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
-        patientPhone:  patient?.phone || '',
-        appointmentId: appointmentId || null,
-        visitDate:     form.visitDate
-          ? new Date(form.visitDate).toISOString()
-          : new Date().toISOString(),
-        chiefComplaint: form.chiefComplaint,
-        history:       form.history,
-        examination:   { vitalSigns: form.vitalSigns, findings: form.findings },
-        diagnosis:     form.diagnosis,
-        treatment:     form.treatment,
-        prescriptions: form.prescriptions,
-        labOrders:     form.labOrders,
-        followUpDate:  form.followUpDate || null,
-        notes:         form.notes,
-        doctorId:      doctor?.id,
-      })
+      const visit = draftId
+        ? await visitService.update(draftId, { ...buildVisitData(), status: 'completed' }, patientId)
+        : await visitService.create(buildVisitData())
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
@@ -225,6 +272,18 @@ function VisitEntryForm() {
       }
     >
       <div className="max-w-3xl mx-auto space-y-5 pb-10">
+
+        {/* Draft banner */}
+        {draftId && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 flex items-center gap-3">
+            <svg className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
+              <span className="font-semibold">Continuing a draft visit.</span> Fill in the remaining details and click <span className="font-semibold">Complete Visit</span> to finalise.
+            </p>
+          </div>
+        )}
 
         {/* Patient banner */}
         {patient && (
@@ -527,6 +586,17 @@ function VisitEntryForm() {
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
+          <button type="button" onClick={handleSaveDraft}
+            disabled={savingDraft || saving || !patientId}
+            className="px-5 py-2.5 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            {savingDraft && (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft Saved' : 'Save as Draft'}
+          </button>
           <button onClick={handleSave}
             disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.amount || Number(payment.amount) <= 0}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
@@ -536,7 +606,7 @@ function VisitEntryForm() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
             )}
-            {saving ? 'Saving…' : 'Save Visit'}
+            {saving ? 'Saving…' : draftId ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
       </div>

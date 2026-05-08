@@ -27,6 +27,19 @@ export const visitService = {
     return visits.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   },
 
+  async getDraftsForPatient(patientId) {
+    const all = await dataStore.getAll(visitPath(patientId))
+    return all.filter(v => v.status === 'draft')
+  },
+
+  async saveDraft(data, existingId = null) {
+    const record = { ...createVisitRecord(data), status: 'draft' }
+    if (existingId) {
+      return dataStore.update(visitPath(data.patientId), existingId, { ...record, id: existingId })
+    }
+    return dataStore.create(visitPath(data.patientId), record)
+  },
+
   async create(data) {
     const visit = createVisitRecord(data)
     const saved = await dataStore.create(visitPath(visit.patientId), visit)

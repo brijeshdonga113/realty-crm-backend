@@ -24,6 +24,7 @@ export function createVisitRecord(data = {}) {
     appointmentId: data.appointmentId ?? null,
     visitDate:     data.visitDate ?? now,
     patientPhone:  data.patientPhone ?? '',
+    status:        data.status ?? 'completed',
 
     chiefComplaint: data.chiefComplaint ?? '',
     history:        data.history ?? '',

@@ -1586,12 +1586,41 @@ export default function PatientProfilePage() {
       {/* Tab 2: Visits */}
       {tab === 2 && (
         <div>
-          {visits.length === 0 ? (
+          {/* Draft visits */}
+          {visits.filter(v => v.status === 'draft').map(draft => (
+            <div key={draft.id} className="mb-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded-full">Draft</span>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {draft.chiefComplaint || 'Untitled visit'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Last saved {formatDate(draft.updatedAt?.slice(0, 10) || draft.visitDate?.slice(0, 10))}
+                </p>
+              </div>
+              <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
+                className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                Continue →
+              </button>
+            </div>
+          ))}
+
+          {/* Completed visits */}
+          {visits.filter(v => v.status !== 'draft').length === 0 && visits.filter(v => v.status === 'draft').length === 0 ? (
             <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
               action={() => setShowVisitModal(true)} actionLabel="Record Visit"/>
+          ) : visits.filter(v => v.status !== 'draft').length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
           ) : (
             <div className="space-y-4">
-              {visits.map(visit => (
+              {visits.filter(v => v.status !== 'draft').map(visit => (
                 <VisitCard
                   key={visit.id}
                   visit={visit}
