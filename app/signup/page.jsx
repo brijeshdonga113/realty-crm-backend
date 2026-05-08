@@ -118,14 +118,14 @@ export default function SignupPage() {
     <div className="min-h-screen flex">
 
       {/* ── Left panel — 50% ───────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col p-12 gap-8 relative overflow-y-auto">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4 blur-3xl" />
         </div>
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex items-center gap-3 flex-shrink-0">
           <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -135,21 +135,21 @@ export default function SignupPage() {
           <span className="text-white text-xl font-bold">ClinicCRM</span>
         </div>
 
-        {/* Centre content */}
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5">
+        {/* Centre content — fills available space, scrolls if needed */}
+        <div className="relative flex-1 flex flex-col justify-center min-h-0">
+          <div className="inline-flex items-center gap-2 bg-white/15 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-5 self-start">
             <span className="w-1.5 h-1.5 bg-white rounded-full" />
             7-day free trial — No credit card required
           </div>
           <h1 className="text-3xl font-bold text-white leading-tight mb-3">
             Start managing your<br />clinic today
           </h1>
-          <p className="text-primary-200 text-base leading-relaxed mb-8">
+          <p className="text-primary-200 text-base leading-relaxed mb-6">
             Join 500+ doctors using ClinicCRM to streamline patient care, manage records, and simplify billing.
           </p>
 
           {/* Benefit list */}
-          <ul className="space-y-3 mb-8">
+          <ul className="space-y-3 mb-6">
             {LEFT_BENEFITS.map(item => (
               <li key={item.label} className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -174,7 +174,7 @@ export default function SignupPage() {
         </div>
 
         {/* Testimonial */}
-        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4">
+        <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4 flex-shrink-0">
           <p className="text-primary-100 text-sm italic mb-3">
             "The online booking link is a game-changer. Patients book themselves and I wake up to a full schedule."
           </p>
@@ -187,7 +187,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <p className="relative text-primary-400 text-xs">© {new Date().getFullYear()} ClinicCRM.</p>
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
       </div>
 
       {/* ── Right panel — 50% (scrollable for long form) ───────────────────── */}
