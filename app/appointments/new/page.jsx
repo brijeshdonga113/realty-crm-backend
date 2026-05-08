@@ -5,7 +5,9 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
+import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_TYPES } from '@/models/Appointment'
+import { generateSlotsFromWorkingHours, normalizeWorkingHours } from '@/lib/booking'
 
 function toMins(t) {
   if (!t) return 0
@@ -23,9 +25,15 @@ function fmt12(t) {
 function NewAppointmentForm() {
   const router            = useRouter()
   const searchParams      = useSearchParams()
+  const { doctor }            = useAuth()
   const { add, appointments } = useAppointments()
   const { patients }          = usePatients()
   const { blockedSlots }      = useBlockedSlots()
+
+  const availableSlots = useMemo(() => {
+    const wh = normalizeWorkingHours(doctor?.workingHours ?? {})
+    return generateSlotsFromWorkingHours(wh)
+  }, [doctor?.workingHours])
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors]   = useState({})
@@ -133,6 +141,20 @@ function NewAppointmentForm() {
             </div>
             <div>
               <label className="form-label">Time <span className="text-red-500">*</span></label>
+              {availableSlots.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2 max-h-28 overflow-y-auto pr-1">
+                  {availableSlots.map(t => (
+                    <button key={t} type="button" onClick={() => set('time', t)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                        form.time === t
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 hover:text-primary-600 dark:hover:border-primary-500'
+                      }`}>
+                      {fmt12(t)}
+                    </button>
+                  ))}
+                </div>
+              )}
               <input type="time" value={form.time} onChange={e => set('time', e.target.value)}
                 className={`input-field ${errors.time ? 'border-red-400' : ''}`}/>
               {errors.time && <p className="error-text">{errors.time}</p>}

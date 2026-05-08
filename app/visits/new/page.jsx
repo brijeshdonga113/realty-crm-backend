@@ -22,7 +22,7 @@ const WA_ICON = (
 function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { doctor } = useAuth()
+  const { doctor, isReceptionist } = useAuth()
   const { formatDateFull } = usePreferences()
   const { blockedSlots } = useBlockedSlots()
 
@@ -59,13 +59,16 @@ function VisitEntryForm() {
     vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
   })
 
-  const [payment, setPayment] = useState({
+  const [payment, setPayment] = useState(() => ({
     record: true,
     amount: '',
     method: 'receptionist',
+    collectedBy: isReceptionist
+      ? (doctor?._receptionistName || 'Receptionist')
+      : '',
     description: 'Consultation Fee',
     status: 'draft',
-  })
+  }))
 
   const [historyOpen, setHistoryOpen] = useState(false)
 
@@ -184,6 +187,7 @@ function VisitEntryForm() {
           lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
           status:        payment.status,
           paymentMethod: payment.method,
+          collectedBy:   payment.collectedBy,
           paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
           taxRate:       0,
           discount:      0,
@@ -554,6 +558,12 @@ function VisitEntryForm() {
                 className="input-field">
                 {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <input value={payment.collectedBy}
+                onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))}
+                placeholder="Name of person collecting payment" className="input-field"/>
             </div>
             <div>
               <label className="form-label">Description</label>

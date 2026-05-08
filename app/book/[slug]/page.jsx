@@ -353,7 +353,12 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <span className="text-xs text-gray-400">
-              {workDays.map(d => DAYS_SHORT[d]).join(' · ')} &nbsp;·&nbsp; {formatTime(workingHours.start)} – {formatTime(workingHours.end)}
+              {workDays.map(d => DAYS_SHORT[d]).join(' · ')}
+              &nbsp;·&nbsp;
+              {formatTime(workingHours.session1?.start ?? workingHours.start)} – {formatTime(workingHours.session1?.end ?? workingHours.end)}
+              {workingHours.session2?.enabled && (
+                <> &nbsp;·&nbsp; {formatTime(workingHours.session2.start)} – {formatTime(workingHours.session2.end)}</>
+              )}
             </span>
           </div>
         )}
