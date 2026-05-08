@@ -67,7 +67,7 @@ function BookingHeader({ doctor }) {
     return (
       <div className="bg-white shadow-sm">
         <div className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-        <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl bg-white border border-gray-100 shadow-md flex items-center justify-center p-2 flex-shrink-0 overflow-hidden">
               <img
@@ -98,7 +98,7 @@ function BookingHeader({ doctor }) {
 
   return (
     <div className="bg-white border-b border-gray-100">
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
             <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,9 +159,14 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
   const isAvailable = (date) => date >= today && workDays.includes(date.getDay())
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full">
       <div className="px-5 py-4 border-b border-gray-50">
         <h2 className="font-semibold text-gray-900">Select a Date</h2>
+        {workingHours && (
+          <p className="text-xs text-gray-400 mt-0.5">
+            {workDays.map(d => DAYS[d]).join(', ')} · {formatTime(workingHours.start)} – {formatTime(workingHours.end)}
+          </p>
+        )}
       </div>
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">
@@ -214,12 +219,6 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
             )
           })}
         </div>
-
-        {workingHours && (
-          <p className="text-xs text-gray-400 mt-3 text-center">
-            Available {workDays.map(d => DAYS[d]).join(', ')} · {formatTime(workingHours.start)} – {formatTime(workingHours.end)}
-          </p>
-        )}
       </div>
     </div>
   )
@@ -230,11 +229,11 @@ function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect, bl
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
         <h2 className="font-semibold text-gray-900">
-          Available Times{' '}
-          <span className="text-sm font-normal text-gray-400">
-            {DAYS[selectedDate.getDay()]}, {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
-          </span>
+          Available Times
         </h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {DAYS[selectedDate.getDay()]}, {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
+        </p>
       </div>
       <div className="p-5">
         {blockedReasons.length > 0 && (
@@ -253,7 +252,7 @@ function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect, bl
         ) : slots.length === 0 ? (
           <p className="text-center text-sm text-gray-400 py-8">No available slots for this day.</p>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {slots.map(({ time, available }) => (
               <button
                 key={time}
@@ -276,7 +275,7 @@ function TimeSlotGrid({ selectedDate, slots, loading, selectedTime, onSelect, bl
   )
 }
 
-function BookingForm({ selectedDate, selectedTime, onSubmit, submitting, error }) {
+function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submitting, error }) {
   const [form, setForm] = useState({ name: '', phone: '', reason: '' })
   const update = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -288,10 +287,27 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, submitting, error }
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50">
-        <h2 className="font-semibold text-gray-900">Your Details</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Booking for {formatTime(selectedTime)} on {DAYS[selectedDate.getDay()]}, {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900">Your Details</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {DAYS[selectedDate.getDay()]}, {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
+            </p>
+          </div>
+          {/* Selected time badge + change button */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="bg-blue-500 text-white text-sm font-semibold px-3 py-1 rounded-lg">
+              {formatTime(selectedTime)}
+            </span>
+            <button
+              type="button"
+              onClick={onChangeTime}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors underline underline-offset-2"
+            >
+              Change
+            </button>
+          </div>
+        </div>
       </div>
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         <div>
@@ -354,8 +370,6 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, submitting, error }
 export default function BookingPage({ params }) {
   const { slug } = params
 
-  // Stable reference to today — computed once on mount so midnight rollovers
-  // during a session don't change what "today" means mid-interaction.
   const today = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -462,34 +476,53 @@ export default function BookingPage({ params }) {
     <div className="min-h-screen bg-gray-50">
       <BookingHeader doctor={doctor} />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        <DatePicker
-          today={today}
-          workingHours={workingHours}
-          selectedDate={selectedDate}
-          onSelect={handleDateSelect}
-        />
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {selectedDate && (
-          <TimeSlotGrid
-            selectedDate={selectedDate}
-            slots={slots}
-            loading={loadingSlots}
-            selectedTime={selectedTime}
-            onSelect={setSelectedTime}
-            blockedReasons={blockedReasons}
-          />
-        )}
+          {/* Left column: calendar */}
+          <div>
+            <DatePicker
+              today={today}
+              workingHours={workingHours}
+              selectedDate={selectedDate}
+              onSelect={handleDateSelect}
+            />
+          </div>
 
-        {selectedTime && (
-          <BookingForm
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            onSubmit={handleSubmit}
-            submitting={submitting}
-            error={submitError}
-          />
-        )}
+          {/* Right column: time slots → booking form */}
+          <div>
+            {!selectedDate ? (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 px-6 text-center h-full">
+                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+                  <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-600">Select a date</p>
+                <p className="text-xs text-gray-400 mt-1">Available times will appear here</p>
+              </div>
+            ) : selectedTime ? (
+              <BookingForm
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                onSubmit={handleSubmit}
+                onChangeTime={() => setSelectedTime(null)}
+                submitting={submitting}
+                error={submitError}
+              />
+            ) : (
+              <TimeSlotGrid
+                selectedDate={selectedDate}
+                slots={slots}
+                loading={loadingSlots}
+                selectedTime={selectedTime}
+                onSelect={setSelectedTime}
+                blockedReasons={blockedReasons}
+              />
+            )}
+          </div>
+
+        </div>
       </div>
 
       <footer className="text-center py-8 text-xs text-gray-400">

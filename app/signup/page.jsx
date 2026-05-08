@@ -118,7 +118,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex">
 
       {/* ── Left panel — 50% ───────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-500 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4 blur-3xl" />
