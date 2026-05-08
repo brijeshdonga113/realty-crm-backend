@@ -1560,7 +1560,7 @@ export default function PatientProfilePage() {
                 <textarea value={overviewForm.historyOf}
                   onChange={e => setOverviewForm(f => ({ ...f, historyOf: e.target.value }))}
                   rows={historyExpanded ? 10 : 3}
-                  className="input-field text-sm resize-y" placeholder="History of present illness, past medical history…"/>
+                  className="input-field text-sm resize" placeholder="History of present illness, past medical history…"/>
               ) : patient.historyOf ? (
                 <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
                   {patient.historyOf}

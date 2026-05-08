@@ -365,7 +365,7 @@ function VisitEntryForm() {
             {historyOpen && (
               <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={5}
                 placeholder="Detailed history, existing conditions, onset, duration…"
-                className="input-field resize-y" autoFocus/>
+                className="input-field resize" autoFocus/>
             )}
           </div>
 
