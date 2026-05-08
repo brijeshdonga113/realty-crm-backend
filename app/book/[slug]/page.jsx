@@ -406,6 +406,15 @@ export default function BookingPage({ params }) {
         setDoctor(data.doctor)
         setWorkingHours(data.workingHours)
         setPageState('booking')
+        if (data.doctor?.logoUrl) {
+          let link = document.querySelector("link[rel~='icon']")
+          if (!link) {
+            link = document.createElement('link')
+            link.rel = 'icon'
+            document.head.appendChild(link)
+          }
+          link.href = data.doctor.logoUrl
+        }
       })
       .catch(err => {
         if (err.name !== 'AbortError') {
