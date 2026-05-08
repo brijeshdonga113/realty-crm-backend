@@ -76,7 +76,15 @@ function InvoicePrint({ invoice, doctor }) {
           PAID
         </div>
       )}
-      {invoice.notes && <p className="mt-6 text-xs text-gray-400 border-t pt-4">{invoice.notes}</p>}
+      {(invoice.paymentMethod || invoice.collectedBy) && (
+        <div className="mt-4 text-xs text-gray-400 flex gap-4">
+          {invoice.paymentMethod && (
+            <span>Payment: {PAYMENT_METHODS.find(m => m.value === invoice.paymentMethod)?.label ?? invoice.paymentMethod}</span>
+          )}
+          {invoice.collectedBy && <span>Collected by: {invoice.collectedBy}</span>}
+        </div>
+      )}
+      {invoice.notes && <p className="mt-4 text-xs text-gray-400 border-t pt-4">{invoice.notes}</p>}
     </div>
   )
 }
@@ -101,10 +109,11 @@ function BillingPageInner() {
   const [filterDateTo,    setFilterDateTo]    = useState('')
   const [filterCreatedBy, setFilterCreatedBy] = useState('all')
   const [printInvoice, setPrintInvoice] = useState(null)
-  const [payModal, setPayModal]         = useState(null)
-  const [payMethod, setPayMethod]       = useState('cash')
-  const [editInvoice, setEditInvoice]   = useState(null)
-  const [editForm, setEditForm]         = useState({ description: '', amount: '', method: 'cash', status: 'paid' })
+  const [payModal, setPayModal]           = useState(null)
+  const [payMethod, setPayMethod]         = useState('cash')
+  const [payCollectedBy, setPayCollectedBy] = useState('')
+  const [editInvoice, setEditInvoice]     = useState(null)
+  const [editForm, setEditForm]           = useState({ description: '', amount: '', method: 'cash', status: 'paid', collectedBy: '' })
   const [editSaving, setEditSaving]     = useState(false)
 
   const openEdit = (inv) => {
@@ -114,6 +123,7 @@ function BillingPageInner() {
       amount:      String(inv.total ?? ''),
       method:      inv.paymentMethod || 'cash',
       status:      inv.status || 'paid',
+      collectedBy: inv.collectedBy || '',
     })
   }
 
@@ -130,6 +140,7 @@ function BillingPageInner() {
         subtotal:      newTotal,
         status:        editForm.status,
         paymentMethod: editForm.method,
+        collectedBy:   editForm.collectedBy,
         paymentDate:   editForm.status === 'paid' ? (editInvoice.paymentDate || editInvoice.issueDate) : null,
       })
       setEditInvoice(null)
@@ -298,6 +309,14 @@ function BillingPageInner() {
                   <td className="px-4 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3.5">
                     <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
+                    {inv.paymentMethod && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {PAYMENT_METHODS.find(m => m.value === inv.paymentMethod)?.label ?? inv.paymentMethod}
+                      </p>
+                    )}
+                    {inv.collectedBy && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500">by {inv.collectedBy}</p>
+                    )}
                   </td>
                   {!isReceptionist && (
                     <td className="px-4 py-3.5">
@@ -325,7 +344,7 @@ function BillingPageInner() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                        <button onClick={() => { setPayModal(inv.id); setPayMethod('cash') }}
+                        <button onClick={() => { setPayModal(inv.id); setPayMethod('cash'); setPayCollectedBy('') }}
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium">
                           Mark Paid
                         </button>
@@ -378,13 +397,22 @@ function BillingPageInner() {
               {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
           </div>
+          <div>
+            <label className="form-label">Collected By</label>
+            <input
+              value={payCollectedBy}
+              onChange={e => setPayCollectedBy(e.target.value)}
+              placeholder="Name of person collecting payment"
+              className="input-field"
+            />
+          </div>
         </div>
         <div className="flex gap-3 justify-end">
           <button onClick={() => setPayModal(null)}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button onClick={async () => { await markPaid(payModal, payMethod); setPayModal(null) }}
+          <button onClick={async () => { await markPaid(payModal, payMethod, payCollectedBy); setPayModal(null) }}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
             Confirm Payment
           </button>
@@ -410,6 +438,13 @@ function BillingPageInner() {
               <select value={editForm.method} onChange={e => setEditForm(f => ({ ...f, method: e.target.value }))} className="input-field">
                 {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <input value={editForm.collectedBy}
+                onChange={e => setEditForm(f => ({ ...f, collectedBy: e.target.value }))}
+                placeholder="Name of person who collected payment"
+                className="input-field"/>
             </div>
             <div>
               <label className="form-label">Status</label>

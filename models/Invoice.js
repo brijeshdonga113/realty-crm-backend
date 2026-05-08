@@ -69,6 +69,7 @@ export function createInvoice(data = {}) {
     status:        data.status ?? 'draft',
     paymentMethod: data.paymentMethod ?? null,
     paymentDate:   data.paymentDate ?? null,
+    collectedBy:   data.collectedBy ?? '',
 
     notes:     data.notes ?? '',
     createdBy: data.createdBy ?? null,
