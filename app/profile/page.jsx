@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { auth, db, storage } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 
 const SPECIALIZATIONS = [
   { value: 'general',       label: 'General Practitioner' },
@@ -86,19 +86,24 @@ export default function ProfilePage() {
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/')) { setLogoError('Please select an image file.'); return }
-    if (file.size > 2 * 1024 * 1024)    { setLogoError('File must be smaller than 2 MB.'); return }
+    if (!['image/svg+xml', 'image/png'].includes(file.type)) {
+      setLogoError('Only SVG and PNG files are accepted.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) { setLogoError('File must be smaller than 2 MB.'); return }
     setLogoUploading(true)
     setLogoError('')
     try {
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage')
-      const logoRef = ref(storage, `logos/${doctor.id}/clinic-logo`)
-      await uploadBytes(logoRef, file, { contentType: file.type })
-      const url = await getDownloadURL(logoRef)
-      await updateProfile({ logoUrl: url })
+      const formData = new FormData()
+      formData.append('file',     file)
+      formData.append('doctorId', doctor.id)
+      const res  = await fetch('/api/upload-logo', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed.')
+      await updateProfile({ logoUrl: data.url })
     } catch (err) {
       console.error('[logo upload]', err)
-      setLogoError('Upload failed. Please try again.')
+      setLogoError(err.message || 'Upload failed. Please try again.')
     } finally {
       setLogoUploading(false)
       e.target.value = ''
@@ -234,7 +239,7 @@ export default function ProfilePage() {
                       )}
                       <input
                         type="file"
-                        accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                        accept="image/svg+xml,image/png"
                         className="hidden"
                         onChange={handleLogoUpload}
                         disabled={logoUploading}
@@ -250,7 +255,7 @@ export default function ProfilePage() {
                       </button>
                     )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                      PNG, JPG, SVG or WebP · Max 2 MB · Shown on your patient booking page.
+                      SVG or PNG · Max 2 MB · Shown on your patient booking page.
                     </p>
                     {logoError && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{logoError}</p>}
                   </div>
