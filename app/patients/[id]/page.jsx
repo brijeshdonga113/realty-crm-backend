@@ -1718,7 +1718,7 @@ export default function PatientProfilePage() {
           )}
         </div>
 
-        </div>{/* end space-y-6 outer */}
+        </div>
       )}
 
       {/* Tab 1: Follow-ups */}
