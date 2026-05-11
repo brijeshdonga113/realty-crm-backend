@@ -21,6 +21,7 @@ export function createPatient(data = {}) {
     firstName:        data.firstName ?? '',
     lastName:         data.lastName ?? '',
     dateOfBirth:      data.dateOfBirth ?? '',
+    ageManual:        data.ageManual != null && data.ageManual !== '' ? Number(data.ageManual) : null,
     gender:           data.gender ?? 'male',
     bloodType:        data.bloodType ?? '',
     nationalId:       data.nationalId ?? '',

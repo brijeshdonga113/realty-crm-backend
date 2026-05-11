@@ -1632,14 +1632,15 @@ export default function PatientProfilePage() {
                     <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</td>
                     <td className="px-4 py-2">
                       {editingOverview ? (
-                        <input
+                        <textarea
+                          rows={1}
                           value={overviewForm.generals?.[key] ?? ''}
                           onChange={e => setOverviewForm(f => ({ ...f, generals: { ...f.generals, [key]: e.target.value } }))}
-                          className="input-field text-sm py-1.5 w-full"
+                          className="input-field text-sm py-1.5 w-full resize"
                           placeholder={`Describe ${label.toLowerCase()}…`}
                         />
                       ) : (
-                        <span className={`text-sm ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
                           {patient.generals?.[key] || '—'}
                         </span>
                       )}
@@ -1664,13 +1665,14 @@ export default function PatientProfilePage() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2">
-                            <input
+                            <textarea
+                              rows={1}
                               value={field.value}
                               onChange={e => setOverviewForm(f => ({
                                 ...f,
                                 customFields: f.customFields.map((cf, j) => j === i ? { ...cf, value: e.target.value } : cf),
                               }))}
-                              className="input-field text-sm py-1.5 flex-1"
+                              className="input-field text-sm py-1.5 flex-1 resize"
                               placeholder="Value"
                             />
                             <button type="button"
@@ -1684,7 +1686,7 @@ export default function PatientProfilePage() {
                       <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
                         <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-sm ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
                             {field.value || '—'}
                           </span>
                         </td>
