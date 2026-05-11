@@ -1319,7 +1319,7 @@ export default function PatientProfilePage() {
             )}
           </div>
           <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
-            {age && <span>{age} years old</span>}
+            {age != null && <span>{age} years old</span>}
             <span className="capitalize">{patient.gender}</span>
             {patient.bloodType && <span className="font-semibold text-white">{patient.bloodType}</span>}
             {patient.phone && (
