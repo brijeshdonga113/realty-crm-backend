@@ -12,6 +12,7 @@ import { billingService } from '@/services/billingService'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS } from '@/models/Invoice'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -19,26 +20,6 @@ const WA_ICON = (
   </svg>
 )
 
-function AutoTextarea({ value, onChange, className, placeholder }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [value])
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className={className}
-      placeholder={placeholder}
-      rows={1}
-      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
-    />
-  )
-}
 
 function VisitEntryForm() {
   const router = useRouter()

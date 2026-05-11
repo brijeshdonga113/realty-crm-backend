@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
 import { usePreferences } from '@/hooks/usePreferences'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 function EditVisitForm() {
   const router = useRouter()
@@ -130,8 +131,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">History of Present Illness</label>
-            <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={2}
-              placeholder="Detailed history…" className="input-field resize-none"/>
+            <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
+              placeholder="Detailed history…" className="input-field resize"/>
           </div>
 
           {/* Vitals */}
@@ -157,8 +158,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Clinical Findings</label>
-            <textarea value={form.findings} onChange={e => set('findings', e.target.value)} rows={2}
-              placeholder="Physical examination findings…" className="input-field resize-none"/>
+            <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
+              placeholder="Physical examination findings…" className="input-field resize"/>
           </div>
 
           {/* Diagnosis */}
@@ -184,8 +185,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Treatment Plan</label>
-            <textarea value={form.treatment} onChange={e => set('treatment', e.target.value)} rows={2}
-              placeholder="Treatment approach…" className="input-field resize-none"/>
+            <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
+              placeholder="Treatment approach…" className="input-field resize"/>
           </div>
 
           {/* Prescriptions */}
@@ -240,8 +241,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-              placeholder="Additional notes…" className="input-field resize-none"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Additional notes…" className="input-field resize"/>
           </div>
         </div>
 

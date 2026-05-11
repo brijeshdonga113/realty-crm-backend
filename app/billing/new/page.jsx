@@ -7,6 +7,7 @@ import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const COMMON_ITEMS = [
   { description: 'Consultation', unitPrice: 500 },
@@ -221,8 +222,8 @@ function NewInvoiceForm() {
           {/* Notes */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Payment instructions, terms, etc." rows={2} className="input-field resize-none"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Payment instructions, terms, etc." className="input-field resize"/>
           </div>
 
           {saveError && (
