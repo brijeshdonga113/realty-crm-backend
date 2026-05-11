@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Modal } from '@/components/ui/Modal'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 import { useInventory } from '@/hooks/useInventory'
 import { dataStore } from '@/lib/dataStore'
 
@@ -194,7 +195,7 @@ function ItemFormModal({ open, onClose, initial, onSave, title }) {
         </div>
         <div className="sm:col-span-2">
           <label className="form-label">Notes</label>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none" placeholder="Storage instructions, remarks…"/>
+          <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input-field resize" placeholder="Storage instructions, remarks…"/>
         </div>
       </div>
       <div className="flex gap-3 justify-end mt-5 pt-4 border-t dark:border-gray-700">

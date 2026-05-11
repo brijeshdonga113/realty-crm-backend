@@ -7,17 +7,8 @@ import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
-
-const COMMON_ITEMS = [
-  { description: 'Consultation', unitPrice: 500 },
-  { description: 'Follow-up Consultation', unitPrice: 300 },
-  { description: 'Blood Test (CBC)', unitPrice: 150 },
-  { description: 'Blood Sugar Test', unitPrice: 80 },
-  { description: 'ECG', unitPrice: 200 },
-  { description: 'X-Ray', unitPrice: 350 },
-  { description: 'Ultrasound', unitPrice: 600 },
-  { description: 'Urine Test', unitPrice: 100 },
-]
+import AutoTextarea from '@/components/ui/AutoTextarea'
+import { getBillingItems } from '@/lib/specialtyPresets'
 
 function NewInvoiceForm() {
   const router       = useRouter()
@@ -153,9 +144,9 @@ function NewInvoiceForm() {
 
             {/* Quick add */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {COMMON_ITEMS.map(item => (
+              {getBillingItems(doctor?.specialization).map(item => (
                 <button key={item.description} type="button" onClick={() => addItem(item)}
-                  className="text-xs px-3 py-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg font-medium transition-colors">
+                  className="text-xs px-3 py-1.5 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg font-medium transition-colors">
                   + {item.description}
                 </button>
               ))}
@@ -221,8 +212,8 @@ function NewInvoiceForm() {
           {/* Notes */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Payment instructions, terms, etc." rows={2} className="input-field resize-none"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Payment instructions, terms, etc." className="input-field resize"/>
           </div>
 
           {saveError && (

@@ -8,6 +8,7 @@ import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_TYPES } from '@/models/Appointment'
 import { generateSlotsFromWorkingHours, normalizeWorkingHours } from '@/lib/booking'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 function toMins(t) {
   if (!t) return 0
@@ -231,8 +232,8 @@ function NewAppointmentForm() {
           {/* Notes */}
           <div>
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Any additional notes…" rows={2} className="input-field resize-none"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Any additional notes…" className="input-field resize"/>
           </div>
 
           {saveError && (

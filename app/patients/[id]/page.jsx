@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -21,6 +21,7 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib, formatDateFull as fmtDateFullLib } from '@/lib/preferences'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 function getWADateFormat(fallback) {
   if (typeof window === 'undefined') return fallback
@@ -39,28 +40,6 @@ const WA_ICON = (
 function daysBetween(dateStr) {
   const today = new Date(); today.setHours(0,0,0,0)
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
-}
-
-/* ─────────────── AutoTextarea — grows as content is typed ─────────── */
-function AutoTextarea({ value, onChange, className, placeholder }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [value])
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className={className}
-      placeholder={placeholder}
-      rows={1}
-      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
-    />
-  )
 }
 
 /* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
@@ -223,7 +202,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
           </div>
           <div>
             <label className="form-label">Address</label>
-            <textarea value={form.address || ''} onChange={e => set('address', e.target.value)} rows={2} className="input-field resize-none"/>
+            <AutoTextarea value={form.address || ''} onChange={e => set('address', e.target.value)} className="input-field resize"/>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -240,7 +219,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
           </div>
           <div>
             <label className="form-label">Notes</label>
-            <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none"/>
+            <AutoTextarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={!!form.consentFormSigned} onChange={e => set('consentFormSigned', e.target.checked)} className="rounded border-gray-300"/>
@@ -255,7 +234,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
           <TagInput label="Current Medications" items={form.currentMedications ?? []} onChange={v => set('currentMedications', v)}/>
           <div>
             <label className="form-label">Family History</label>
-            <textarea value={form.familyHistory || ''} onChange={e => set('familyHistory', e.target.value)} rows={3} className="input-field resize-none" placeholder="Relevant family medical history…"/>
+            <AutoTextarea value={form.familyHistory || ''} onChange={e => set('familyHistory', e.target.value)} className="input-field resize" placeholder="Relevant family medical history…"/>
           </div>
         </>}
 
@@ -1418,8 +1397,8 @@ export default function PatientProfilePage() {
                 </div>
                 <div>
                   <label className="form-label text-xs">Address</label>
-                  <textarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
-                    rows={2} className="input-field py-2 text-sm resize-none" placeholder="Address"/>
+                  <AutoTextarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
+                    className="input-field py-2 text-sm resize" placeholder="Address"/>
                 </div>
               </div>
             ) : (

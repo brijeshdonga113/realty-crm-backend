@@ -12,6 +12,8 @@ import { billingService } from '@/services/billingService'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS } from '@/models/Invoice'
+import AutoTextarea from '@/components/ui/AutoTextarea'
+import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -19,26 +21,6 @@ const WA_ICON = (
   </svg>
 )
 
-function AutoTextarea({ value, onChange, className, placeholder }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [value])
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className={className}
-      placeholder={placeholder}
-      rows={1}
-      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
-    />
-  )
-}
 
 function VisitEntryForm() {
   const router = useRouter()
@@ -429,12 +411,23 @@ function VisitEntryForm() {
                 </span>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <input value={diagInput} onChange={e => setDiagInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}}
                 placeholder="Type and press Enter" className="input-field flex-1"/>
               <button type="button" onClick={() => { if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}
                 className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {getDiagnosisSuggestions(doctor?.specialization)
+                .filter(s => !form.diagnosis.includes(s) && (!diagInput || s.toLowerCase().includes(diagInput.toLowerCase())))
+                .map(s => (
+                  <button key={s} type="button"
+                    onClick={() => { set('diagnosis', [...form.diagnosis, s]); setDiagInput('') }}
+                    className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-teal-50 dark:hover:bg-teal-900/30 text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300 rounded-full transition-colors">
+                    + {s}
+                  </button>
+                ))}
             </div>
           </div>
 

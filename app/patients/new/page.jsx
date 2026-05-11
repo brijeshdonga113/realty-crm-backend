@@ -6,6 +6,7 @@ import { usePatients } from '@/hooks/usePatients'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const SPECIALIZATIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
 const ALLERGIES_LIST  = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
@@ -336,9 +337,9 @@ function NewPatientForm() {
                 <Field name="email" label="Email Address" type="email" placeholder="patient@email.com" {...fieldProps} />
                 <div>
                   <label className="form-label">Address</label>
-                  <textarea value={form.address} onChange={e => set('address', e.target.value)}
-                    placeholder="Full address including city, state, zip" rows={2}
-                    className="input-field resize-none"/>
+                  <AutoTextarea value={form.address} onChange={e => set('address', e.target.value)}
+                    placeholder="Full address including city, state, zip"
+                    className="input-field resize"/>
                 </div>
                 <Field name="status" label="Patient Status" options={[
                   { value: 'active', label: 'Active' },
@@ -355,13 +356,13 @@ function NewPatientForm() {
                 <TagInput label="Current Medications" items={form.currentMedications} onChange={v => set('currentMedications', v)} />
                 <div>
                   <label className="form-label">Family History</label>
-                  <textarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-                    placeholder="Any relevant family medical history…" rows={3} className="input-field resize-none"/>
+                  <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
+                    placeholder="Any relevant family medical history…" className="input-field resize"/>
                 </div>
                 <div>
                   <label className="form-label">Notes</label>
-                  <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                    placeholder="General notes about this patient…" rows={3} className="input-field resize-none"/>
+                  <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                    placeholder="General notes about this patient…" className="input-field resize"/>
                 </div>
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="consent" checked={form.consentFormSigned}

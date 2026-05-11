@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useStaff } from '@/hooks/useStaff'
 import { STAFF_ROLES, STAFF_STATUSES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const STATUS_COLOR = { active: 'green', on_leave: 'yellow', terminated: 'red' }
 
@@ -104,7 +105,7 @@ function StaffForm({ initial, onSave, onCancel }) {
       </div>
       <div>
         <label className="form-label">Notes</label>
-        <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="input-field resize-none"/>
+        <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
       </div>
 
       <div className="flex justify-end gap-3 pt-2">

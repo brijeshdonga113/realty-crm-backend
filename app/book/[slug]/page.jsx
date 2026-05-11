@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatTime, toDateStr } from '@/lib/booking'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const DAYS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const DAYS_FULL  = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -503,11 +504,10 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
             Reason for Visit <span className="text-gray-400 font-normal normal-case">(optional)</span>
           </label>
-          <textarea
+          <AutoTextarea
             value={form.reason} onChange={update('reason')}
             placeholder="Briefly describe your concern…"
-            rows={3}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize-none"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize"
           />
         </div>
 

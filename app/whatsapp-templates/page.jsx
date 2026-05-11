@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -81,11 +82,10 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
             <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-sans leading-relaxed">{previewMsg}</pre>
           </div>
         ) : (
-          <textarea
+          <AutoTextarea
             value={value || ''}
             onChange={e => onChange(id, e.target.value)}
-            rows={5}
-            className="input-field resize-none font-mono text-sm"
+            className="input-field resize font-mono text-sm"
             placeholder={config.template}
           />
         )}
