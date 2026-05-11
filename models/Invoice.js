@@ -12,6 +12,7 @@ export const INVOICE_STATUSES = [
 ]
 
 export const PAYMENT_METHODS = [
+  { value: 'receptionist',  label: 'Collected by Receptionist' },
   { value: 'cash',          label: 'Cash' },
   { value: 'card',          label: 'Card' },
   { value: 'upi',           label: 'UPI' },
@@ -68,6 +69,7 @@ export function createInvoice(data = {}) {
     status:        data.status ?? 'draft',
     paymentMethod: data.paymentMethod ?? null,
     paymentDate:   data.paymentDate ?? null,
+    collectedBy:   data.collectedBy ?? '',
 
     notes:     data.notes ?? '',
     createdBy: data.createdBy ?? null,

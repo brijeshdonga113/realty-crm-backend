@@ -21,6 +21,7 @@ export function createPatient(data = {}) {
     firstName:        data.firstName ?? '',
     lastName:         data.lastName ?? '',
     dateOfBirth:      data.dateOfBirth ?? '',
+    ageManual:        data.ageManual != null && data.ageManual !== '' ? Number(data.ageManual) : null,
     gender:           data.gender ?? 'male',
     bloodType:        data.bloodType ?? '',
     nationalId:       data.nationalId ?? '',
@@ -60,6 +61,28 @@ export function createPatient(data = {}) {
 
     // Sequential patient number (e.g. 2001, 2002, …)
     patientNumber:  data.patientNumber ?? null,
+
+    // Clinical history (homeopathic / general intake)
+    historyOf:  data.historyOf  ?? '',
+    lifeSpan:   data.lifeSpan   ?? '',
+    generals: {
+      appetite:     data.generals?.appetite     ?? '',
+      taste:        data.generals?.taste        ?? '',
+      thirst:       data.generals?.thirst       ?? '',
+      urine:        data.generals?.urine        ?? '',
+      stool:        data.generals?.stool        ?? '',
+      thermal:      data.generals?.thermal      ?? '',
+      perspiration: data.generals?.perspiration ?? '',
+      speed:        data.generals?.speed        ?? '',
+      fastidious:   data.generals?.fastidious   ?? '',
+      sleep:        data.generals?.sleep        ?? '',
+      dreams:       data.generals?.dreams       ?? '',
+    },
+    customFields: (data.customFields ?? []).map(f => ({
+      id:    f.id    ?? uid(),
+      label: f.label ?? '',
+      value: f.value ?? '',
+    })),
 
     // Meta
     notes:     data.notes ?? '',

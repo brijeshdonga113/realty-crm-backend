@@ -29,8 +29,8 @@ export function useBilling() {
     return billingService.update(id, patch)
   }, [])
 
-  const markPaid = useCallback(async (id, paymentMethod) => {
-    return billingService.markPaid(id, paymentMethod)
+  const markPaid = useCallback(async (id, paymentMethod, collectedBy = '') => {
+    return billingService.markPaid(id, paymentMethod, collectedBy)
   }, [])
 
   const remove = useCallback(async (id) => {

@@ -78,10 +78,11 @@ export const billingService = {
     return dataStore.update(COLLECTION, id, patch)
   },
 
-  async markPaid(id, paymentMethod) {
+  async markPaid(id, paymentMethod, collectedBy = '') {
     const updated = await dataStore.update(COLLECTION, id, {
       status: 'paid',
       paymentMethod,
+      collectedBy,
       paymentDate: new Date().toISOString().slice(0, 10),
     })
 

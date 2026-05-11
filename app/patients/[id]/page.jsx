@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -39,6 +39,28 @@ const WA_ICON = (
 function daysBetween(dateStr) {
   const today = new Date(); today.setHours(0,0,0,0)
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
+}
+
+/* ─────────────── AutoTextarea — grows as content is typed ─────────── */
+function AutoTextarea({ value, onChange, className, placeholder }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      className={className}
+      placeholder={placeholder}
+      rows={1}
+      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
+    />
+  )
 }
 
 /* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
@@ -512,13 +534,13 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">History</label>
-              <textarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Clinical Findings</label>
-              <textarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Diagnosis</label>
@@ -540,8 +562,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Treatment Plan</label>
-              <textarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Follow-up Date</label>
@@ -566,8 +588,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Notes</label>
-              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
+                className="input-field resize"/>
             </div>
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
@@ -817,8 +839,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">History of Present Illness</label>
-          <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={2}
-            placeholder="Detailed history..." className="input-field resize-none"/>
+          <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
+            placeholder="Detailed history..." className="input-field resize"/>
         </div>
 
         {/* Vitals */}
@@ -844,8 +866,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Clinical Findings</label>
-          <textarea value={form.findings} onChange={e => set('findings', e.target.value)} rows={2}
-            placeholder="Physical examination findings..." className="input-field resize-none"/>
+          <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
+            placeholder="Physical examination findings..." className="input-field resize"/>
         </div>
 
         {/* Diagnosis */}
@@ -869,8 +891,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Treatment Plan</label>
-          <textarea value={form.treatment} onChange={e => set('treatment', e.target.value)} rows={2}
-            placeholder="Treatment approach..." className="input-field resize-none"/>
+          <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
+            placeholder="Treatment approach..." className="input-field resize"/>
         </div>
 
         {/* Prescriptions */}
@@ -1019,8 +1041,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Notes</label>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-            placeholder="Additional notes..." className="input-field resize-none"/>
+          <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+            placeholder="Additional notes..." className="input-field resize"/>
         </div>
 
         {saveError && (
@@ -1135,6 +1157,7 @@ export default function PatientProfilePage() {
   const [editingOverview, setEditingOverview] = useState(false)
   const [overviewForm, setOverviewForm]       = useState({})
   const [overviewSaving, setOverviewSaving]   = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
 
   // Merge follow-ups for this patient from the followups collection (includes visit-linked ones)
   // plus a fallback for older visits that predate the auto-sync (no followup record yet).
@@ -1203,6 +1226,22 @@ export default function PatientProfilePage() {
       alternatePhone: patient.alternatePhone || '',
       email:          patient.email          || '',
       address:        patient.address        || '',
+      historyOf:      patient.historyOf      || '',
+      lifeSpan:       patient.lifeSpan       || '',
+      generals: {
+        appetite:     patient.generals?.appetite     || '',
+        taste:        patient.generals?.taste        || '',
+        thirst:       patient.generals?.thirst       || '',
+        urine:        patient.generals?.urine        || '',
+        stool:        patient.generals?.stool        || '',
+        thermal:      patient.generals?.thermal      || '',
+        perspiration: patient.generals?.perspiration || '',
+        speed:        patient.generals?.speed        || '',
+        fastidious:   patient.generals?.fastidious   || '',
+        sleep:        patient.generals?.sleep        || '',
+        dreams:       patient.generals?.dreams       || '',
+      },
+      customFields: patient.customFields ? [...patient.customFields] : [],
     })
     setEditingOverview(true)
   }
@@ -1210,7 +1249,7 @@ export default function PatientProfilePage() {
   const saveOverview = async () => {
     setOverviewSaving(true)
     try {
-      await patientService.update(id, overviewForm)
+      await update(overviewForm)   // uses usePatient's update which calls setPatient(updated)
       setEditingOverview(false)
     } catch (err) {
       alert(err?.message || 'Failed to save')
@@ -1323,6 +1362,7 @@ export default function PatientProfilePage() {
 
       {/* Tab 0: Overview */}
       {tab === 0 && (
+        <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Details — inline editable */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
@@ -1499,6 +1539,204 @@ export default function PatientProfilePage() {
               </div>
             )}
           </div>
+        </div>{/* end 2-col grid */}
+
+        {/* ── History & Life Span ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">History (H/o)</h3>
+            {!editingOverview ? (
+              <button onClick={startOverviewEdit}
+                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditingOverview(false)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+                <button onClick={saveOverview} disabled={overviewSaving}
+                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                  {overviewSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-3">
+              <div className="flex items-center justify-between mb-1">
+                <label className="form-label text-xs mb-0">Female / Male H/o</label>
+                {!editingOverview && patient.historyOf && (
+                  <button type="button" onClick={() => setHistoryExpanded(e => !e)}
+                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                    {historyExpanded ? 'Collapse' : 'Expand'}
+                    <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {editingOverview ? (
+                <AutoTextarea value={overviewForm.historyOf}
+                  onChange={e => setOverviewForm(f => ({ ...f, historyOf: e.target.value }))}
+                  className="input-field text-sm resize w-full" placeholder="History of present illness, past medical history…"/>
+              ) : patient.historyOf ? (
+                <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
+                  {patient.historyOf}
+                </p>
+              ) : (
+                <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
+              )}
+            </div>
+            <div>
+              <label className="form-label text-xs">Life Span</label>
+              {editingOverview ? (
+                <input value={overviewForm.lifeSpan}
+                  onChange={e => setOverviewForm(f => ({ ...f, lifeSpan: e.target.value }))}
+                  className="input-field text-sm" placeholder="e.g. 45 years"/>
+              ) : (
+                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.lifeSpan || '—'}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Generals + Custom Rows ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Generals</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Constitutional symptoms · custom rows can be added below</p>
+            </div>
+            {!editingOverview ? (
+              <button onClick={startOverviewEdit}
+                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditingOverview(false)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+                <button onClick={saveOverview} disabled={overviewSaving}
+                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                  {overviewSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+            <table className="w-full">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+
+                {/* ── Fixed generals rows ── */}
+                {[
+                  ['appetite',     'Appetite'],
+                  ['taste',        'Taste'],
+                  ['thirst',       'Thirst'],
+                  ['urine',        'Urine'],
+                  ['stool',        'Stool'],
+                  ['thermal',      'Thermal'],
+                  ['perspiration', 'Perspiration'],
+                  ['speed',        'Speed'],
+                  ['fastidious',   'Fastidious'],
+                  ['sleep',        'Sleep'],
+                  ['dreams',       'Dreams'],
+                ].map(([key, label], i) => (
+                  <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</td>
+                    <td className="px-4 py-2">
+                      {editingOverview ? (
+                        <AutoTextarea
+                          value={overviewForm.generals?.[key] ?? ''}
+                          onChange={e => setOverviewForm(f => ({ ...f, generals: { ...f.generals, [key]: e.target.value } }))}
+                          className="input-field text-sm py-1.5 w-full resize"
+                          placeholder={`Describe ${label.toLowerCase()}…`}
+                        />
+                      ) : (
+                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {patient.generals?.[key] || '—'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+
+                {/* ── Custom rows ── */}
+                {editingOverview
+                  ? (overviewForm.customFields ?? []).map((field, i) => (
+                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                        <td className="px-4 py-2 w-40">
+                          <input
+                            value={field.label}
+                            onChange={e => setOverviewForm(f => ({
+                              ...f,
+                              customFields: f.customFields.map((cf, j) => j === i ? { ...cf, label: e.target.value } : cf),
+                            }))}
+                            className="input-field text-sm py-1.5 w-full font-semibold"
+                            placeholder="Field name"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <AutoTextarea
+                              value={field.value}
+                              onChange={e => setOverviewForm(f => ({
+                                ...f,
+                                customFields: f.customFields.map((cf, j) => j === i ? { ...cf, value: e.target.value } : cf),
+                              }))}
+                              className="input-field text-sm py-1.5 flex-1 resize"
+                              placeholder="Value"
+                            />
+                            <button type="button"
+                              onClick={() => setOverviewForm(f => ({ ...f, customFields: f.customFields.filter((_, j) => j !== i) }))}
+                              className="text-gray-400 hover:text-red-500 transition-colors text-xl leading-none flex-shrink-0">×</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  : (patient.customFields ?? []).filter(f => f.label).map((field, i) => (
+                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                        <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                            {field.value || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                }
+
+                {/* ── Add row button (edit mode only) ── */}
+                {editingOverview && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-2">
+                      <button type="button"
+                        onClick={() => setOverviewForm(f => ({
+                          ...f,
+                          customFields: [...(f.customFields ?? []), { id: `${Date.now()}`, label: '', value: '' }],
+                        }))}
+                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add Row
+                      </button>
+                    </td>
+                  </tr>
+                )}
+
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         </div>
       )}
 
@@ -1586,12 +1824,41 @@ export default function PatientProfilePage() {
       {/* Tab 2: Visits */}
       {tab === 2 && (
         <div>
-          {visits.length === 0 ? (
+          {/* Draft visits */}
+          {visits.filter(v => v.status === 'draft').map(draft => (
+            <div key={draft.id} className="mb-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded-full">Draft</span>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {draft.chiefComplaint || 'Untitled visit'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Last saved {formatDate(draft.updatedAt?.slice(0, 10) || draft.visitDate?.slice(0, 10))}
+                </p>
+              </div>
+              <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
+                className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                Continue →
+              </button>
+            </div>
+          ))}
+
+          {/* Completed visits */}
+          {visits.filter(v => v.status !== 'draft').length === 0 && visits.filter(v => v.status === 'draft').length === 0 ? (
             <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
               action={() => setShowVisitModal(true)} actionLabel="Record Visit"/>
+          ) : visits.filter(v => v.status !== 'draft').length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
           ) : (
             <div className="space-y-4">
-              {visits.map(visit => (
+              {visits.filter(v => v.status !== 'draft').map(visit => (
                 <VisitCard
                   key={visit.id}
                   visit={visit}
