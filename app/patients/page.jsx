@@ -531,7 +531,7 @@ Now here is the patient data to convert:
                       </td>
                       {visibleCols.ageGender && (
                         <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
-                          {getPatientAge(patient) ? `${getPatientAge(patient)} yrs` : '—'} / {patient.gender}
+                          {getPatientAge(patient) != null ? `${getPatientAge(patient)} yrs` : '—'} / {patient.gender}
                         </td>
                       )}
                       {visibleCols.source && (

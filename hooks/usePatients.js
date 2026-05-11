@@ -34,7 +34,11 @@ export function usePatients() {
   }, [])
 
   const search = useCallback(async (q) => {
-    if (!q.trim()) return
+    if (!q.trim()) {
+      const all = await patientService.getAll()
+      setPatients(all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+      return
+    }
     const results = await patientService.search(q)
     setPatients(results)
   }, [])
