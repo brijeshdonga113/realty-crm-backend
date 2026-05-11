@@ -8,17 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-
-const COMMON_ITEMS = [
-  { description: 'Consultation', unitPrice: 500 },
-  { description: 'Follow-up Consultation', unitPrice: 300 },
-  { description: 'Blood Test (CBC)', unitPrice: 150 },
-  { description: 'Blood Sugar Test', unitPrice: 80 },
-  { description: 'ECG', unitPrice: 200 },
-  { description: 'X-Ray', unitPrice: 350 },
-  { description: 'Ultrasound', unitPrice: 600 },
-  { description: 'Urine Test', unitPrice: 100 },
-]
+import { getBillingItems } from '@/lib/specialtyPresets'
 
 function NewInvoiceForm() {
   const router       = useRouter()
@@ -154,9 +144,9 @@ function NewInvoiceForm() {
 
             {/* Quick add */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {COMMON_ITEMS.map(item => (
+              {getBillingItems(doctor?.specialization).map(item => (
                 <button key={item.description} type="button" onClick={() => addItem(item)}
-                  className="text-xs px-3 py-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg font-medium transition-colors">
+                  className="text-xs px-3 py-1.5 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg font-medium transition-colors">
                   + {item.description}
                 </button>
               ))}

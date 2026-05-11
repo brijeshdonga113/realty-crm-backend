@@ -4,12 +4,15 @@ import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
 import { usePreferences } from '@/hooks/usePreferences'
+import { useAuth } from '@/context/AuthContext'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 
 function EditVisitForm() {
   const router = useRouter()
   const { id } = useParams()
   const { formatDateFull } = usePreferences()
+  const { doctor } = useAuth()
 
   const [visit, setVisit]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -174,12 +177,23 @@ function EditVisitForm() {
                 </span>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <input value={diagInput} onChange={e => setDiagInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}}
                 placeholder="Type and press Enter" className="input-field flex-1"/>
               <button type="button" onClick={() => { if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}
                 className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {getDiagnosisSuggestions(doctor?.specialization)
+                .filter(s => !form.diagnosis.includes(s) && (!diagInput || s.toLowerCase().includes(diagInput.toLowerCase())))
+                .map(s => (
+                  <button key={s} type="button"
+                    onClick={() => { set('diagnosis', [...form.diagnosis, s]); setDiagInput('') }}
+                    className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-teal-50 dark:hover:bg-teal-900/30 text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300 rounded-full transition-colors">
+                    + {s}
+                  </button>
+                ))}
             </div>
           </div>
 
