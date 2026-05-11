@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -39,6 +39,28 @@ const WA_ICON = (
 function daysBetween(dateStr) {
   const today = new Date(); today.setHours(0,0,0,0)
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
+}
+
+/* ─────────────── AutoTextarea — grows as content is typed ─────────── */
+function AutoTextarea({ value, onChange, className, placeholder }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      className={className}
+      placeholder={placeholder}
+      rows={1}
+      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
+    />
+  )
 }
 
 /* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
@@ -1546,7 +1568,7 @@ export default function PatientProfilePage() {
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-1">
                 <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                {(editingOverview || patient.historyOf) && (
+                {!editingOverview && patient.historyOf && (
                   <button type="button" onClick={() => setHistoryExpanded(e => !e)}
                     className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
                     {historyExpanded ? 'Collapse' : 'Expand'}
@@ -1557,10 +1579,9 @@ export default function PatientProfilePage() {
                 )}
               </div>
               {editingOverview ? (
-                <textarea value={overviewForm.historyOf}
+                <AutoTextarea value={overviewForm.historyOf}
                   onChange={e => setOverviewForm(f => ({ ...f, historyOf: e.target.value }))}
-                  rows={historyExpanded ? 10 : 3}
-                  className="input-field text-sm resize" placeholder="History of present illness, past medical history…"/>
+                  className="input-field text-sm resize w-full" placeholder="History of present illness, past medical history…"/>
               ) : patient.historyOf ? (
                 <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
                   {patient.historyOf}
@@ -1632,8 +1653,7 @@ export default function PatientProfilePage() {
                     <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</td>
                     <td className="px-4 py-2">
                       {editingOverview ? (
-                        <textarea
-                          rows={1}
+                        <AutoTextarea
                           value={overviewForm.generals?.[key] ?? ''}
                           onChange={e => setOverviewForm(f => ({ ...f, generals: { ...f.generals, [key]: e.target.value } }))}
                           className="input-field text-sm py-1.5 w-full resize"
@@ -1665,8 +1685,7 @@ export default function PatientProfilePage() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2">
-                            <textarea
-                              rows={1}
+                            <AutoTextarea
                               value={field.value}
                               onChange={e => setOverviewForm(f => ({
                                 ...f,
