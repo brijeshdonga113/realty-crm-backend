@@ -534,13 +534,13 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">History</label>
-              <textarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Clinical Findings</label>
-              <textarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Diagnosis</label>
@@ -562,8 +562,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Treatment Plan</label>
-              <textarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
+                className="input-field resize"/>
             </div>
             <div>
               <label className="form-label">Follow-up Date</label>
@@ -588,8 +588,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Notes</label>
-              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
-                rows={2} className="input-field resize-none"/>
+              <AutoTextarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
+                className="input-field resize"/>
             </div>
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
@@ -839,8 +839,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">History of Present Illness</label>
-          <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={2}
-            placeholder="Detailed history..." className="input-field resize-none"/>
+          <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
+            placeholder="Detailed history..." className="input-field resize"/>
         </div>
 
         {/* Vitals */}
@@ -866,8 +866,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Clinical Findings</label>
-          <textarea value={form.findings} onChange={e => set('findings', e.target.value)} rows={2}
-            placeholder="Physical examination findings..." className="input-field resize-none"/>
+          <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
+            placeholder="Physical examination findings..." className="input-field resize"/>
         </div>
 
         {/* Diagnosis */}
@@ -891,8 +891,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Treatment Plan</label>
-          <textarea value={form.treatment} onChange={e => set('treatment', e.target.value)} rows={2}
-            placeholder="Treatment approach..." className="input-field resize-none"/>
+          <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
+            placeholder="Treatment approach..." className="input-field resize"/>
         </div>
 
         {/* Prescriptions */}
@@ -1041,8 +1041,8 @@ function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, pa
 
         <div>
           <label className="form-label">Notes</label>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-            placeholder="Additional notes..." className="input-field resize-none"/>
+          <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+            placeholder="Additional notes..." className="input-field resize"/>
         </div>
 
         {saveError && (

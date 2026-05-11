@@ -19,6 +19,27 @@ const WA_ICON = (
   </svg>
 )
 
+function AutoTextarea({ value, onChange, className, placeholder }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      className={className}
+      placeholder={placeholder}
+      rows={1}
+      style={{ overflow: 'hidden', minHeight: '2.25rem' }}
+    />
+  )
+}
+
 function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -363,7 +384,7 @@ function VisitEntryForm() {
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate px-1">{form.history}</p>
             )}
             {historyOpen && (
-              <textarea value={form.history} onChange={e => set('history', e.target.value)} rows={5}
+              <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
                 placeholder="Detailed history, existing conditions, onset, duration…"
                 className="input-field resize" autoFocus/>
             )}
@@ -392,8 +413,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Clinical Findings</label>
-            <textarea value={form.findings} onChange={e => set('findings', e.target.value)} rows={2}
-              placeholder="Physical examination findings…" className="input-field resize-none"/>
+            <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
+              placeholder="Physical examination findings…" className="input-field resize"/>
           </div>
 
           {/* Diagnosis */}
@@ -419,8 +440,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Treatment Plan</label>
-            <textarea value={form.treatment} onChange={e => set('treatment', e.target.value)} rows={2}
-              placeholder="Treatment approach…" className="input-field resize-none"/>
+            <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
+              placeholder="Treatment approach…" className="input-field resize"/>
           </div>
 
           {/* Prescriptions */}
@@ -475,8 +496,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-              placeholder="Additional notes…" className="input-field resize-none"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Additional notes…" className="input-field resize"/>
           </div>
         </div>
 
