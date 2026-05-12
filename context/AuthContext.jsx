@@ -40,6 +40,8 @@ function buildDoctorProfile(uid, data) {
     bookingSlug:   data.bookingSlug   ?? '',
     workingHours:  data.workingHours  ?? null,
     logoUrl:       data.logoUrl       ?? '',
+    waTemplates:   data.waTemplates   ?? null,
+    inventoryCustomFields: data.inventoryCustomFields ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }
