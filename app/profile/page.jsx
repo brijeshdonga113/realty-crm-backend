@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useId } from 'react'
+import { useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth, db } from '@/lib/firebase'
@@ -113,39 +113,6 @@ export default function ProfilePage() {
   const handleLogoRemove = async () => {
     setLogoError('')
     try { await updateProfile({ logoUrl: '' }) } catch (err) { console.error('[logo remove]', err) }
-  }
-
-  // ── Inventory custom fields ─────────────────────────────────────────────────
-  const [cfFields,    setCfFields]    = useState(() => doctor?.inventoryCustomFields ?? [])
-  const [cfLabel,     setCfLabel]     = useState('')
-  const [cfType,      setCfType]      = useState('text')
-  const [cfSaving,    setCfSaving]    = useState(false)
-  const [cfSaved,     setCfSaved]     = useState(false)
-  const cfUid = useId()
-
-  const addCfField = () => {
-    if (!cfLabel.trim()) return
-    const id = `${Date.now().toString(36)}`
-    setCfFields(f => [...f, { id, label: cfLabel.trim(), type: cfType }])
-    setCfLabel('')
-    setCfType('text')
-    setCfSaved(false)
-  }
-
-  const removeCfField = (id) => {
-    setCfFields(f => f.filter(x => x.id !== id))
-    setCfSaved(false)
-  }
-
-  const saveCfFields = async () => {
-    setCfSaving(true)
-    try {
-      await updateProfile({ inventoryCustomFields: cfFields })
-      setCfSaved(true)
-      setTimeout(() => setCfSaved(false), 2500)
-    } finally {
-      setCfSaving(false)
-    }
   }
 
   // ── Password change ─────────────────────────────────────────────────────────
@@ -412,77 +379,6 @@ export default function ProfilePage() {
             </button>
           </div>
         </form>
-
-        {/* ── Inventory Custom Fields ─────────────────────────────────────────── */}
-        {!isReceptionist && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="font-semibold text-gray-900 dark:text-white">Inventory — Custom Fields</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Add extra fields that appear on every inventory item (e.g. Location, Barcode, Colour).</p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Existing fields */}
-              {cfFields.length > 0 && (
-                <div className="space-y-2">
-                  {cfFields.map(cf => (
-                    <div key={cf.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{cf.label}</span>
-                      <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize">{cf.type}</span>
-                      <button type="button" onClick={() => removeCfField(cf.id)}
-                        className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add new field */}
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <label htmlFor={`${cfUid}-label`} className="form-label">Field Label</label>
-                  <input id={`${cfUid}-label`} value={cfLabel} onChange={e => { setCfLabel(e.target.value); setCfSaved(false) }}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCfField() } }}
-                    placeholder="e.g. Location, Barcode…" className="input-field"/>
-                </div>
-                <div className="w-32">
-                  <label htmlFor={`${cfUid}-type`} className="form-label">Type</label>
-                  <select id={`${cfUid}-type`} value={cfType} onChange={e => setCfType(e.target.value)} className="input-field">
-                    <option value="text">Text</option>
-                    <option value="number">Number</option>
-                    <option value="date">Date</option>
-                  </select>
-                </div>
-                <button type="button" onClick={addCfField}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors whitespace-nowrap">
-                  + Add
-                </button>
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-4">
-              {cfSaved && (
-                <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-                  </svg>
-                  Saved!
-                </p>
-              )}
-              <div className="ml-auto">
-                <button type="button" onClick={saveCfFields} disabled={cfSaving}
-                  className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
-                  {cfSaving ? (
-                    <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
-                  ) : 'Save Fields'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Change Password ─────────────────────────────────────────────────── */}
         <form onSubmit={handlePasswordChange} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
