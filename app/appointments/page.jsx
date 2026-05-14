@@ -100,9 +100,9 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
                     title={['scheduled','confirmed'].includes(a.status) && a.patientId ? 'Click to attend' : ''}
                     className={`text-xs px-1 py-0.5 rounded font-medium truncate
                     ${['scheduled','confirmed'].includes(a.status) && a.patientId ? 'cursor-pointer' : ''}
-                    ${a.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                      a.status === 'completed' ? 'bg-gray-100 text-gray-500' :
-                      'bg-primary-100 text-primary-700 hover:bg-primary-200'}`}>
+                    ${a.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                      a.status === 'completed' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' :
+                      'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-900/60'}`}>
                     {a.time} {a.patientName.split(' ')[0]}
                   </div>
                 ))}
@@ -262,7 +262,6 @@ export default function AppointmentsPage() {
     setRemindAppt(appt)
     setRemindPhone(appt.patientPhone || '')
     setCopied(false)
-    setApiResult(null)
   }
 
   const handleCopy = () => {
@@ -286,7 +285,7 @@ export default function AppointmentsPage() {
             {['list', 'calendar'].map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1 rounded text-sm font-medium transition-colors
-                  ${view === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
+                  ${view === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
@@ -460,7 +459,7 @@ export default function AppointmentsPage() {
         </div>
         <div className="flex gap-3 justify-end">
           <button onClick={() => setEditAppt(null)}
-            className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
           <button onClick={handleApptUpdate}
@@ -519,7 +518,7 @@ export default function AppointmentsPage() {
               <button onClick={handleCopy}
                 className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors
                   ${copied
-                    ? 'border-green-300 bg-green-50 text-green-700'
+                    ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                     : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 {copied ? (
