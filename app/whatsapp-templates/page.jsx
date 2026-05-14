@@ -118,20 +118,23 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
 }
 
 export default function WhatsAppTemplatesPage() {
-  const { doctor } = useAuth()
+  const { doctor, updateProfile } = useAuth()
   const [templates, setTemplates]   = useState({})
   const [countryCode, setCountryCode] = useState('+91')
   const [dateFormat, setDateFormat]   = useState(doctor?.dateFormat ?? 'DD/MM/YYYY')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-      setTemplates(stored)
-      setCountryCode(stored.countryCode || '+91')
-      setDateFormat(stored.dateFormat || doctor?.dateFormat || 'DD/MM/YYYY')
-    } catch {}
-  }, [doctor])
+    const wt = doctor?.waTemplates
+    if (wt) {
+      setTemplates(wt)
+      setCountryCode(wt.countryCode || '+91')
+      setDateFormat(wt.dateFormat || doctor?.dateFormat || 'DD/MM/YYYY')
+    } else {
+      setDateFormat(doctor?.dateFormat || 'DD/MM/YYYY')
+    }
+  }, [doctor?.waTemplates, doctor?.dateFormat])
 
   const handleChange = (id, value) => {
     setSaved(false)
@@ -143,11 +146,16 @@ export default function WhatsAppTemplatesPage() {
     setTemplates(t => { const next = { ...t }; delete next[id]; return next })
   }
 
-  const handleSave = () => {
-    const toStore = { ...templates, countryCode, dateFormat }
-    localStorage.setItem('whatsapp_templates', JSON.stringify(toStore))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const toStore = { ...templates, countryCode, dateFormat }
+      await updateProfile({ waTemplates: toStore })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const getValue = (id) => templates[id]?.template || DEFAULT_TEMPLATES[id]?.template || ''
@@ -156,18 +164,15 @@ export default function WhatsAppTemplatesPage() {
     <AppLayout
       title="WhatsApp Templates"
       action={
-        <button onClick={handleSave}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2
+        <button onClick={handleSave} disabled={saving}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-60
             ${saved
               ? 'bg-green-500 text-white'
               : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
-          {saved ? (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-              </svg>
-              Saved!
-            </>
+          {saving ? (
+            <><span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"/>Saving…</>
+          ) : saved ? (
+            <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>Saved!</>
           ) : 'Save All Templates'}
         </button>
       }
@@ -244,10 +249,10 @@ export default function WhatsAppTemplatesPage() {
         ))}
 
         <div className="flex justify-end pb-6">
-          <button onClick={handleSave}
-            className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors
+          <button onClick={handleSave} disabled={saving}
+            className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-60
               ${saved ? 'bg-green-500 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
-            {saved ? '✓ Saved!' : 'Save All Templates'}
+            {saving ? <><span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"/>Saving…</> : saved ? '✓ Saved!' : 'Save All Templates'}
           </button>
         </div>
       </div>

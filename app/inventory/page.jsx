@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Modal } from '@/components/ui/Modal'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { useInventory } from '@/hooks/useInventory'
+import { useAuth } from '@/context/AuthContext'
 import { dataStore } from '@/lib/dataStore'
 
 // ─── CSV import helper ────────────────────────────────────────────────────────
@@ -125,10 +126,11 @@ function QtyCell({ item, adjustQty, update }) {
 }
 
 // ─── Add / Edit form modal ────────────────────────────────────────────────────
-function ItemFormModal({ open, onClose, initial, onSave, title }) {
+function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs = [] }) {
   const [form, setForm] = useState(initial ?? BLANK_FORM)
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const setCF = (id, v) => setForm(f => ({ ...f, customFields: { ...(f.customFields || {}), [id]: v } }))
 
   // reset when re-opened
   useState(() => { if (open) setForm(initial ?? BLANK_FORM) }, [open])
@@ -197,6 +199,18 @@ function ItemFormModal({ open, onClose, initial, onSave, title }) {
           <label className="form-label">Notes</label>
           <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input-field resize" placeholder="Storage instructions, remarks…"/>
         </div>
+        {customFieldDefs.map(cf => (
+          <div key={cf.id} className={cf.type === 'textarea' ? 'sm:col-span-2' : ''}>
+            <label className="form-label">{cf.label}</label>
+            {cf.type === 'number' ? (
+              <input type="number" value={(form.customFields || {})[cf.id] ?? ''} onChange={e => setCF(cf.id, e.target.value)} className="input-field"/>
+            ) : cf.type === 'date' ? (
+              <input type="date" value={(form.customFields || {})[cf.id] ?? ''} onChange={e => setCF(cf.id, e.target.value)} className="input-field"/>
+            ) : (
+              <input type="text" value={(form.customFields || {})[cf.id] ?? ''} onChange={e => setCF(cf.id, e.target.value)} className="input-field"/>
+            )}
+          </div>
+        ))}
       </div>
       <div className="flex gap-3 justify-end mt-5 pt-4 border-t dark:border-gray-700">
         <button onClick={onClose} className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
@@ -213,6 +227,8 @@ function ItemFormModal({ open, onClose, initial, onSave, title }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
   const { items, loading, create, update, adjustQty, remove, bulkCreate } = useInventory()
+  const { doctor } = useAuth()
+  const customFieldDefs = doctor?.inventoryCustomFields ?? []
 
   const fileRef = useRef(null)
   const [query,      setQuery]      = useState('')
@@ -284,16 +300,21 @@ export default function InventoryPage() {
 
   const lowStock = useMemo(() => filtered.filter(m => (m.quantity ?? 0) <= (m.lowStockThreshold ?? 10)), [filtered])
 
-  const visibleColDefs = ALL_COLS.filter(c => c.always || visibleCols[c.key])
+  const allColsDynamic = useMemo(() => [
+    ...ALL_COLS,
+    ...customFieldDefs.map(cf => ({ key: `cf_${cf.id}`, label: cf.label })),
+  ], [customFieldDefs])
+
+  const visibleColDefs = allColsDynamic.filter(c => c.always || visibleCols[c.key])
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleAdd = async (form) => {
-    await create({ ...form, quantity: Number(form.quantity)||0, lowStockThreshold: Number(form.lowStockThreshold)||10 })
+    await create({ ...form, quantity: Number(form.quantity)||0, lowStockThreshold: Number(form.lowStockThreshold)||10, customFields: form.customFields || {} })
     setAddOpen(false)
   }
 
   const handleEdit = async (form) => {
-    await update(editItem.id, { ...form, quantity: Number(form.quantity)||0, lowStockThreshold: Number(form.lowStockThreshold)||10 })
+    await update(editItem.id, { ...form, quantity: Number(form.quantity)||0, lowStockThreshold: Number(form.lowStockThreshold)||10, customFields: form.customFields || {} })
     setEditItem(null)
   }
 
@@ -382,7 +403,7 @@ export default function InventoryPage() {
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Toggle columns</p>
             <div className="flex flex-wrap gap-2">
-              {ALL_COLS.map(c => (
+              {allColsDynamic.map(c => (
                 <button key={c.key} onClick={() => !c.always && toggleCol(c.key)} disabled={c.always}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
                     ${(c.always || visibleCols[c.key])
@@ -490,6 +511,7 @@ export default function InventoryPage() {
                           {c.key === 'batch'    && <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{item.batch    || '—'}</span>}
                           {c.key === 'supplier' && <span className="text-xs text-gray-500 dark:text-gray-400">{item.supplier || '—'}</span>}
                           {c.key === 'notes'    && <span className="text-xs text-gray-400 max-w-40 truncate block">{item.notes    || '—'}</span>}
+                          {c.key.startsWith('cf_') && <span className="text-sm text-gray-600 dark:text-gray-400">{(item.customFields || {})[c.key.slice(3)] || '—'}</span>}
                         </td>
                       ))}
                       <td className="px-4 py-3 pr-4">
@@ -529,6 +551,7 @@ export default function InventoryPage() {
         initial={BLANK_FORM}
         onSave={handleAdd}
         title="Add Inventory Item"
+        customFieldDefs={customFieldDefs}
       />
 
       {/* Edit modal */}
@@ -542,9 +565,11 @@ export default function InventoryPage() {
           mrp: editItem.mrp, expiry: editItem.expiry, batch: editItem.batch,
           supplier: editItem.supplier, lowStockThreshold: String(editItem.lowStockThreshold ?? 10),
           notes: editItem.notes,
+          customFields: editItem.customFields || {},
         } : BLANK_FORM}
         onSave={handleEdit}
         title="Edit Inventory Item"
+        customFieldDefs={customFieldDefs}
       />
 
       {/* Delete confirm */}

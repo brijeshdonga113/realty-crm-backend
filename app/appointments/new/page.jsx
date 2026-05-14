@@ -111,13 +111,13 @@ function NewAppointmentForm() {
   return (
     <AppLayout title="Schedule Appointment"
       action={
-        <button onClick={() => router.back()} className="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5">
+        <button onClick={() => router.back()} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
           ← Back
         </button>
       }
     >
       <div className="max-w-xl mx-auto">
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
 
           {/* Patient */}
           <div>
@@ -237,14 +237,14 @@ function NewAppointmentForm() {
           </div>
 
           {saveError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
               {saveError}
             </div>
           )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => router.back()}
-              className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+              className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={loading} className="btn-primary w-auto px-6">

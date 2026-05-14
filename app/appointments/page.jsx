@@ -10,7 +10,6 @@ import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
-import { isWhatsAppApiConnected, sendWhatsAppMessage } from '@/lib/whatsappApi'
 import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 
 function getWADateFormat(fallback) {
@@ -101,9 +100,9 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
                     title={['scheduled','confirmed'].includes(a.status) && a.patientId ? 'Click to attend' : ''}
                     className={`text-xs px-1 py-0.5 rounded font-medium truncate
                     ${['scheduled','confirmed'].includes(a.status) && a.patientId ? 'cursor-pointer' : ''}
-                    ${a.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                      a.status === 'completed' ? 'bg-gray-100 text-gray-500' :
-                      'bg-primary-100 text-primary-700 hover:bg-primary-200'}`}>
+                    ${a.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                      a.status === 'completed' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' :
+                      'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-900/60'}`}>
                     {a.time} {a.patientName.split(' ')[0]}
                   </div>
                 ))}
@@ -208,8 +207,6 @@ export default function AppointmentsPage() {
   const [remindAppt, setRemindAppt]     = useState(null)
   const [remindPhone, setRemindPhone]   = useState('')
   const [copied, setCopied]             = useState(false)
-  const [apiSending, setApiSending]     = useState(false)
-  const [apiResult, setApiResult]       = useState(null)
 
   const today    = localDateStr()
   const tomorrow = localDateStr(1)
@@ -265,7 +262,6 @@ export default function AppointmentsPage() {
     setRemindAppt(appt)
     setRemindPhone(appt.patientPhone || '')
     setCopied(false)
-    setApiResult(null)
   }
 
   const handleCopy = () => {
@@ -280,22 +276,6 @@ export default function AppointmentsPage() {
     window.open(buildWAUrl(remindPhone, getReminderMessage(remindAppt)), '_blank')
   }
 
-  const handleApiSend = async () => {
-    if (!remindAppt) return
-    const phone = remindPhone.trim() || remindAppt.patientPhone
-    if (!phone) { setApiResult({ ok: false, msg: 'Enter a phone number first.' }); return }
-    setApiSending(true)
-    setApiResult(null)
-    try {
-      await sendWhatsAppMessage(doctor, phone, getReminderMessage(remindAppt))
-      setApiResult({ ok: true, msg: 'Reminder sent successfully!' })
-    } catch (err) {
-      setApiResult({ ok: false, msg: err.message })
-    } finally {
-      setApiSending(false)
-    }
-  }
-
   return (
     <AppLayout
       title="Appointments"
@@ -305,7 +285,7 @@ export default function AppointmentsPage() {
             {['list', 'calendar'].map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1 rounded text-sm font-medium transition-colors
-                  ${view === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
+                  ${view === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
@@ -479,7 +459,7 @@ export default function AppointmentsPage() {
         </div>
         <div className="flex gap-3 justify-end">
           <button onClick={() => setEditAppt(null)}
-            className="px-4 py-2 border border-gray-200 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
           <button onClick={handleApptUpdate}
@@ -514,12 +494,12 @@ export default function AppointmentsPage() {
               <input
                 type="tel"
                 value={remindPhone}
-                onChange={e => { setRemindPhone(e.target.value); setApiResult(null) }}
+                onChange={e => setRemindPhone(e.target.value)}
                 placeholder="91XXXXXXXXXX (with country code)"
                 className="input-field"
               />
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
-                {isWhatsAppApiConnected(doctor) ? 'Number auto-filled from patient record. Edit if needed.' : 'Enter number to send directly, or leave blank to open WhatsApp picker.'}
+                Enter number or leave blank to open WhatsApp picker.
               </p>
             </div>
 
@@ -538,7 +518,7 @@ export default function AppointmentsPage() {
               <button onClick={handleCopy}
                 className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors
                   ${copied
-                    ? 'border-green-300 bg-green-50 text-green-700'
+                    ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                     : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 {copied ? (
@@ -553,37 +533,15 @@ export default function AppointmentsPage() {
                 {copied ? 'Copied!' : 'Copy'}
               </button>
 
-              {isWhatsAppApiConnected(doctor) ? (
-                <button onClick={handleApiSend} disabled={apiSending}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors">
-                  {apiSending ? (
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
-                  )}
-                  {apiSending ? 'Sending…' : 'Send Reminder'}
-                </button>
-              ) : (
-                <button onClick={handleWhatsApp}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
-                  Open WhatsApp
-                </button>
-              )}
+              <button onClick={handleWhatsApp}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                Open WhatsApp
+              </button>
             </div>
 
-            {apiResult && (
-              <p className={`text-xs px-3 py-2 rounded-lg ${apiResult.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
-                {apiResult.msg}
-              </p>
-            )}
           </div>
         )}
       </Modal>

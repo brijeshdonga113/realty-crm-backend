@@ -24,6 +24,7 @@ export function createInventoryItem(data = {}) {
     supplier:         data.supplier ?? '',
     lowStockThreshold: Number(data.lowStockThreshold) || 10,
     notes:            data.notes ?? '',
+    customFields:     data.customFields ?? {},
     createdAt:        data.createdAt ?? now,
   }
 }
