@@ -70,7 +70,7 @@ function NewInvoiceForm() {
     setLineItems(prev => prev.map(item => {
       if (item.id !== id) return item
       const desc      = inv ? `${inv.name}${inv.potency ? ` (${inv.potency})` : ''}` : ''
-      const unitPrice = inv?.mrp ? Number(inv.mrp) : 0
+      const unitPrice = inv ? (inv.billingPrice ? Number(inv.billingPrice) : (inv.mrp ? Number(inv.mrp) : 0)) : 0
       return { ...item, inventoryItemId: invId || null, description: desc, unitPrice, total: item.quantity * unitPrice }
     }))
   }
