@@ -1205,8 +1205,17 @@ export default function PatientProfilePage() {
       alternatePhone: patient.alternatePhone || '',
       email:          patient.email          || '',
       address:        patient.address        || '',
+      education:      patient.education      || '',
+      occupation:     patient.occupation     || '',
+      maritalStatus:  patient.maritalStatus  || '',
+      observation:    patient.observation    || '',
+      pastHistory:    patient.pastHistory    || '',
       historyOf:      patient.historyOf      || '',
       lifeSpan:       patient.lifeSpan       || '',
+      chiefComplaints: patient.chiefComplaints?.length
+        ? patient.chiefComplaints.map(c => ({ ...c }))
+        : [{ complaint: '', location: '', sensation: '', modality: '', concomitant: '' }],
+      prescriptionDetails: patient.prescriptionDetails || '',
       generals: {
         appetite:     patient.generals?.appetite     || '',
         taste:        patient.generals?.taste        || '',
@@ -1220,7 +1229,8 @@ export default function PatientProfilePage() {
         sleep:        patient.generals?.sleep        || '',
         dreams:       patient.generals?.dreams       || '',
       },
-      customFields: patient.customFields ? [...patient.customFields] : [],
+      customGenerals: patient.customGenerals ? [...patient.customGenerals.map(g => ({ ...g }))] : [],
+      customFields:   patient.customFields   ? [...patient.customFields]                        : [],
     })
     setEditingOverview(true)
   }
@@ -1400,6 +1410,34 @@ export default function PatientProfilePage() {
                   <AutoTextarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
                     className="input-field py-2 text-sm resize" placeholder="Address"/>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label text-xs">Education</label>
+                    <input value={overviewForm.education || ''} onChange={e => setOverviewForm(f => ({ ...f, education: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="e.g. Graduate"/>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Occupation</label>
+                    <input value={overviewForm.occupation || ''} onChange={e => setOverviewForm(f => ({ ...f, occupation: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="e.g. Engineer"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Marital Status</label>
+                  <div className="flex gap-2 flex-wrap mt-1">
+                    {['Single','Married','Divorced','Widowed'].map(s => (
+                      <button key={s} type="button"
+                        onClick={() => setOverviewForm(f => ({ ...f, maritalStatus: f.maritalStatus === s.toLowerCase() ? '' : s.toLowerCase() }))}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          overviewForm.maritalStatus === s.toLowerCase()
+                            ? 'bg-primary-500 text-white border-primary-500'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
@@ -1410,6 +1448,9 @@ export default function PatientProfilePage() {
               </div>
             )}
 
+            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
+            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
+            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
             )}
@@ -1543,6 +1584,34 @@ export default function PatientProfilePage() {
               </div>
             )}
           </div>
+          {/* Observation + Past History */}
+          {(patient.observation || patient.pastHistory || editingOverview) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+              <div>
+                <label className="form-label text-xs">Observation</label>
+                {editingOverview ? (
+                  <AutoTextarea value={overviewForm.observation || ''} onChange={e => setOverviewForm(f => ({ ...f, observation: e.target.value }))}
+                    className="input-field text-sm resize w-full" placeholder="Doctor's initial observations…"/>
+                ) : (
+                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                    {patient.observation || 'Not recorded'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="form-label text-xs">Past History</label>
+                {editingOverview ? (
+                  <AutoTextarea value={overviewForm.pastHistory || ''} onChange={e => setOverviewForm(f => ({ ...f, pastHistory: e.target.value }))}
+                    className="input-field text-sm resize w-full" placeholder="Past medical history, surgeries…"/>
+                ) : (
+                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                    {patient.pastHistory || 'Not recorded'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-1">
@@ -1647,19 +1716,19 @@ export default function PatientProfilePage() {
                   </tr>
                 ))}
 
-                {/* ── Custom rows ── */}
+                {/* ── Custom generals rows ── */}
                 {editingOverview
-                  ? (overviewForm.customFields ?? []).map((field, i) => (
+                  ? (overviewForm.customGenerals ?? []).map((field, i) => (
                       <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
                         <td className="px-4 py-2 w-40">
                           <input
                             value={field.label}
                             onChange={e => setOverviewForm(f => ({
                               ...f,
-                              customFields: f.customFields.map((cf, j) => j === i ? { ...cf, label: e.target.value } : cf),
+                              customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, label: e.target.value } : g),
                             }))}
                             className="input-field text-sm py-1.5 w-full font-semibold"
-                            placeholder="Field name"
+                            placeholder="Parameter name"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -1668,19 +1737,19 @@ export default function PatientProfilePage() {
                               value={field.value}
                               onChange={e => setOverviewForm(f => ({
                                 ...f,
-                                customFields: f.customFields.map((cf, j) => j === i ? { ...cf, value: e.target.value } : cf),
+                                customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, value: e.target.value } : g),
                               }))}
                               className="input-field text-sm py-1.5 flex-1 resize"
                               placeholder="Value"
                             />
                             <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, customFields: f.customFields.filter((_, j) => j !== i) }))}
+                              onClick={() => setOverviewForm(f => ({ ...f, customGenerals: f.customGenerals.filter((_, j) => j !== i) }))}
                               className="text-gray-400 hover:text-red-500 transition-colors text-xl leading-none flex-shrink-0">×</button>
                           </div>
                         </td>
                       </tr>
                     ))
-                  : (patient.customFields ?? []).filter(f => f.label).map((field, i) => (
+                  : (patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
                       <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
                         <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
                         <td className="px-4 py-3">
@@ -1699,13 +1768,13 @@ export default function PatientProfilePage() {
                       <button type="button"
                         onClick={() => setOverviewForm(f => ({
                           ...f,
-                          customFields: [...(f.customFields ?? []), { id: `${Date.now()}`, label: '', value: '' }],
+                          customGenerals: [...(f.customGenerals ?? []), { id: `${Date.now()}`, label: '', value: '' }],
                         }))}
                         className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
                         </svg>
-                        Add Row
+                        Add Parameter
                       </button>
                     </td>
                   </tr>
@@ -1715,6 +1784,87 @@ export default function PatientProfilePage() {
             </table>
           </div>
         </div>
+
+        {/* ── Chief Complaints ── */}
+        {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-blue-500">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Chief Complaints (C/o)</h3>
+              {editingOverview && (
+                <button type="button"
+                  onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
+                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  Add Row
+                </button>
+              )}
+            </div>
+            <div className="p-4 overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
+                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
+                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
+                    ))}
+                    {editingOverview && <th className="w-8"/>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {(editingOverview ? (overviewForm.chiefComplaints ?? []) : (patient.chiefComplaints ?? []).filter(c => c.complaint)).map((row, i) => (
+                    <tr key={i}>
+                      {['complaint','location','sensation','modality','concomitant'].map(field => (
+                        <td key={field} className="px-1.5 py-2">
+                          {editingOverview ? (
+                            <input value={row[field] ?? ''} onChange={e => setOverviewForm(f => {
+                              const list = [...(f.chiefComplaints ?? [])]
+                              list[i] = { ...list[i], [field]: e.target.value }
+                              return { ...f, chiefComplaints: list }
+                            })} placeholder="—" className="input-field text-sm py-2 w-full"/>
+                          ) : (
+                            <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
+                          )}
+                        </td>
+                      ))}
+                      {editingOverview && (
+                        <td className="px-1.5 py-2 text-center">
+                          {(overviewForm.chiefComplaints ?? []).length > 1 && (
+                            <button type="button"
+                              onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: f.chiefComplaints.filter((_, j) => j !== i) }))}
+                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 text-xl leading-none transition-colors">×</button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Prescription Details ── */}
+        {(editingOverview || patient.prescriptionDetails) && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-teal-500">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Prescription Details</h3>
+              {!editingOverview && (
+                <button onClick={startOverviewEdit}
+                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  Edit
+                </button>
+              )}
+            </div>
+            <div className="p-6">
+              {editingOverview ? (
+                <AutoTextarea value={overviewForm.prescriptionDetails || ''} onChange={e => setOverviewForm(f => ({ ...f, prescriptionDetails: e.target.value }))}
+                  className="input-field text-sm resize w-full min-h-[80px]" placeholder="Remedy, potency, dosage, repetition, diet…"/>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         </div>
       )}
