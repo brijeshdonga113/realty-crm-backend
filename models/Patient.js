@@ -32,11 +32,39 @@ export function createPatient(data = {}) {
     email:            data.email ?? '',
     address:          data.address ?? '',
 
+    // Demographics (extended)
+    education:     data.education     ?? '',
+    occupation:    data.occupation    ?? '',
+    maritalStatus: data.maritalStatus ?? '',
+
+    // Clinical intake
+    observation: data.observation ?? '',
+    pastHistory: data.pastHistory ?? '',
+
     // Medical
     allergies:        data.allergies ?? [],
     chronicConditions: data.chronicConditions ?? [],
     currentMedications: data.currentMedications ?? [],
     familyHistory:    data.familyHistory ?? '',
+
+    // Chief complaints (C/o)
+    chiefComplaints: (data.chiefComplaints ?? []).map(c => ({
+      complaint:   c.complaint   ?? '',
+      location:    c.location    ?? '',
+      sensation:   c.sensation   ?? '',
+      modality:    c.modality    ?? '',
+      concomitant: c.concomitant ?? '',
+    })),
+
+    // Prescription details
+    prescriptionDetails: data.prescriptionDetails ?? '',
+
+    // Custom generals (beyond the fixed set)
+    customGenerals: (data.customGenerals ?? []).map(g => ({
+      id:    g.id    ?? uid(),
+      label: g.label ?? '',
+      value: g.value ?? '',
+    })),
 
     // Emergency contact
     emergencyContact: {
