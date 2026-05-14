@@ -22,11 +22,13 @@ export const PAYMENT_METHODS = [
 
 export function createLineItem(data = {}) {
   return {
-    id:          data.id ?? uid(),
-    description: data.description ?? '',
-    quantity:    data.quantity ?? 1,
-    unitPrice:   data.unitPrice ?? 0,
-    total:       (data.quantity ?? 1) * (data.unitPrice ?? 0),
+    id:              data.id ?? uid(),
+    description:     data.description ?? '',
+    quantity:        data.quantity ?? 1,
+    unitPrice:       data.unitPrice ?? 0,
+    total:           (data.quantity ?? 1) * (data.unitPrice ?? 0),
+    itemType:        data.itemType ?? 'service',
+    inventoryItemId: data.inventoryItemId ?? null,
   }
 }
 
