@@ -97,7 +97,12 @@ export async function GET(request, { params }) {
         if (!b.startTime || !b.endTime) return false
         return time >= b.startTime && time < b.endTime
       })
-      return { time, available: !isBooked && !isBlocked }
+      // For today (UTC), also mark slots in the past as unavailable
+      const nowUTC     = new Date()
+      const todayUTC   = nowUTC.toISOString().slice(0, 10)
+      const currentHHMM = `${String(nowUTC.getUTCHours()).padStart(2, '0')}:${String(nowUTC.getUTCMinutes()).padStart(2, '0')}`
+      const isPast     = date === todayUTC && time <= currentHHMM
+      return { time, available: !isBooked && !isBlocked && !isPast }
     })
 
     return Response.json({ doctor: doctorInfo(profile), workingHours: wh, slots, blockedReasons })
@@ -122,6 +127,19 @@ export async function POST(request, { params }) {
 
     if (!date || !time || !name?.trim() || !phone?.trim()) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Validate phone — exactly 10 digits
+    const phoneDigits = phone.replace(/\D/g, '')
+    if (phoneDigits.length !== 10) {
+      return Response.json({ error: 'Please enter a valid 10-digit phone number.' }, { status: 400 })
+    }
+
+    // Reject bookings in the past
+    const nowUTC = new Date()
+    const todayUTC = nowUTC.toISOString().slice(0, 10)
+    if (date < todayUTC) {
+      return Response.json({ error: 'Cannot book an appointment in the past.' }, { status: 400 })
     }
 
     const db      = getAdminDb()

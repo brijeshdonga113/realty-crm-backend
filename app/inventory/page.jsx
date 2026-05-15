@@ -133,8 +133,8 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setCF = (id, v) => setForm(f => ({ ...f, customFields: { ...(f.customFields || {}), [id]: v } }))
 
-  // reset when re-opened
-  useState(() => { if (open) setForm(initial ?? BLANK_FORM) }, [open])
+  // reset form whenever the modal opens with new data
+  useEffect(() => { if (open) setForm(initial ?? BLANK_FORM) }, [open])
 
   const handleSave = async () => {
     if (!form.name.trim()) return

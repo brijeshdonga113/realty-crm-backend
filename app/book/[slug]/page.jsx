@@ -442,8 +442,23 @@ function TimeSlotGrid({ selectedDate, slots, loading, onSelect, blockedReasons =
 
 function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submitting, error }) {
   const [form, setForm] = useState({ name: '', phone: '', reason: '' })
-  const update = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
+  const [phoneError, setPhoneError] = useState('')
   const dateLabel = `${DAYS_FULL[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}`
+
+  const handlePhoneChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+    setForm(f => ({ ...f, phone: digits }))
+    if (phoneError) setPhoneError('')
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (form.phone.length !== 10) {
+      setPhoneError('Please enter a valid 10-digit mobile number.')
+      return
+    }
+    onSubmit(form)
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -467,7 +482,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
         </div>
       </div>
 
-      <form onSubmit={e => { e.preventDefault(); onSubmit(form) }} className="p-5 space-y-4">
+      <form onSubmit={handleSubmit} className="p-5 space-y-4">
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
             Full Name <span className="text-red-400">*</span>
@@ -477,7 +492,8 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
             <input
-              type="text" required value={form.name} onChange={update('name')}
+              type="text" required value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Enter your full name"
               className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
             />
@@ -493,11 +509,17 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
             </svg>
             <input
-              type="tel" required value={form.phone} onChange={update('phone')}
-              placeholder="e.g. 9876543210"
-              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              type="tel" required inputMode="numeric"
+              value={form.phone} onChange={handlePhoneChange}
+              maxLength={10} placeholder="10-digit mobile number"
+              className={`w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all
+                ${phoneError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-blue-400 focus:ring-blue-100'}`}
             />
           </div>
+          {phoneError
+            ? <p className="text-xs text-red-500 mt-1">{phoneError}</p>
+            : <p className="text-xs text-gray-400 mt-1">{form.phone.length}/10 digits</p>
+          }
         </div>
 
         <div>
@@ -599,7 +621,17 @@ export default function BookingPage({ params }) {
     try {
       const res  = await fetch(`/api/booking/${slug}?date=${toDateStr(date)}`)
       const data = await res.json()
-      setSlots(data.slots ?? [])
+
+      // Client-side past-slot filter using local time (more accurate than UTC server check)
+      const now = new Date()
+      const isToday = toDateStr(date) === toDateStr(now)
+      const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      const slots = (data.slots ?? []).map(s => ({
+        ...s,
+        available: s.available && (!isToday || s.time > currentHHMM),
+      }))
+
+      setSlots(slots)
       setBlockedReasons(data.blockedReasons ?? [])
     } catch {
       setSlots([]); setBlockedReasons([])
