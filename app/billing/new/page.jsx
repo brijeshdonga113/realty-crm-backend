@@ -31,7 +31,7 @@ function NewInvoiceForm() {
   const { add }                    = useBilling()
   const { patients }               = usePatients()
   const { doctor, isReceptionist } = useAuth()
-  const { inventory }              = useInventory()
+  const { items: inventory }              = useInventory()
   const { formatCurrency }         = usePreferences()
 
   const [loading,   setLoading]   = useState(false)
