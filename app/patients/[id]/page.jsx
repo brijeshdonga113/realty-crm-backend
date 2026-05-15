@@ -313,7 +313,7 @@ function InfoRow({ label, value }) {
 }
 
 /* ─────────────── VisitCard with edit + delete ─────────────── */
-function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [] }) {
+function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -365,7 +365,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
     }
   }
 
-  const daysRemaining = visit.followUpDate ? daysBetween(visit.followUpDate) : null
+  const daysRemaining  = visit.followUpDate ? daysBetween(visit.followUpDate) : null
+  const followUpDone   = linkedFollowUp?.status === 'done'
   const hasVitals = visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean)
 
   const Field = ({ label, value }) => value ? (
@@ -385,14 +386,20 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
           </span>
           {visit.followUpDate && (
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-              daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-              'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-            }`}>
-              Follow-up: {formatDate(visit.followUpDate)}
-              {daysRemaining === 0 ? ' (Today)' : daysRemaining < 0 ? ` (${Math.abs(daysRemaining)}d overdue)` : ` (in ${daysRemaining}d)`}
-            </span>
+            followUpDone ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                Follow-up: {formatDate(visit.followUpDate)} ✓ Done
+              </span>
+            ) : (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+              }`}>
+                Follow-up: {formatDate(visit.followUpDate)}
+                {daysRemaining === 0 ? ' (Today)' : daysRemaining < 0 ? ` (${Math.abs(daysRemaining)}d overdue)` : ` (in ${daysRemaining}d)`}
+              </span>
+            )
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -723,6 +730,13 @@ export default function PatientProfilePage() {
   const [overviewForm, setOverviewForm]       = useState({})
   const [overviewSaving, setOverviewSaving]   = useState(false)
   const [historyExpanded, setHistoryExpanded] = useState(false)
+
+  // Index follow-ups by visitId so VisitCard can reflect the done status in real time
+  const followupByVisitId = useMemo(() => {
+    const map = {}
+    followups.forEach(f => { if (f.visitId) map[f.visitId] = f })
+    return map
+  }, [followups])
 
   // Merge follow-ups for this patient from the followups collection (includes visit-linked ones)
   // plus a fallback for older visits that predate the auto-sync (no followup record yet).
@@ -1590,6 +1604,7 @@ export default function PatientProfilePage() {
                   patientName={`${patient.firstName} ${patient.lastName}`}
                   linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
                   blockedSlots={blockedSlots}
+                  linkedFollowUp={followupByVisitId[visit.id] ?? null}
                 />
               ))}
             </div>
