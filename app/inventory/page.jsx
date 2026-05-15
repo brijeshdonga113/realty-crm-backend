@@ -62,16 +62,17 @@ const ALL_COLS = [
   { key: 'category',   label: 'Category' },
   { key: 'quantity',   label: 'Quantity',             always: true },
   { key: 'unit',       label: 'Unit' },
-  { key: 'mrp',        label: 'MRP' },
-  { key: 'expiry',     label: 'Expiry' },
+  { key: 'mrp',          label: 'MRP' },
+  { key: 'billingPrice', label: 'Billing Price' },
+  { key: 'expiry',       label: 'Expiry' },
   { key: 'batch',      label: 'Batch No.' },
   { key: 'supplier',   label: 'Supplier' },
   { key: 'notes',      label: 'Notes' },
 ]
 
-const DEFAULT_VISIBLE = { name:true, generic:true, potency:true, dosageForm:true, category:true, quantity:true, unit:true, mrp:true, expiry:true, batch:false, supplier:true, notes:false }
+const DEFAULT_VISIBLE = { name:true, generic:true, potency:true, dosageForm:true, category:true, quantity:true, unit:true, mrp:true, billingPrice:true, expiry:true, batch:false, supplier:true, notes:false }
 
-const BLANK_FORM = { name:'', generic:'', potency:'', dosageForm:'', category:'', quantity:'', unit:'', mrp:'', expiry:'', batch:'', supplier:'', lowStockThreshold:'10', notes:'' }
+const BLANK_FORM = { name:'', generic:'', potency:'', dosageForm:'', category:'', quantity:'', unit:'', mrp:'', billingPrice:'', expiry:'', batch:'', supplier:'', lowStockThreshold:'10', notes:'' }
 
 // ─── Qty stepper cell ─────────────────────────────────────────────────────────
 function QtyCell({ item, adjustQty, update }) {
@@ -178,6 +179,11 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
         <div>
           <label className="form-label">MRP (₹)</label>
           <input value={form.mrp} onChange={e => set('mrp', e.target.value)} className="input-field" placeholder="e.g. 150"/>
+        </div>
+        <div>
+          <label className="form-label">Billing Price (₹)</label>
+          <input value={form.billingPrice} onChange={e => set('billingPrice', e.target.value)} className="input-field" placeholder="Leave blank to use MRP"/>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Used in invoices instead of MRP when set</p>
         </div>
         <div>
           <label className="form-label">Expiry Date</label>
@@ -506,7 +512,12 @@ export default function InventoryPage() {
                           )}
                           {c.key === 'unit'     && <span className="text-sm text-gray-600 dark:text-gray-400">{item.unit     || '—'}</span>}
                           {c.key === 'generic'  && <span className="text-xs text-gray-500 dark:text-gray-400 max-w-36 truncate block">{item.generic  || '—'}</span>}
-                          {c.key === 'mrp'      && <span className="text-sm text-gray-700 dark:text-gray-300">{item.mrp ? `₹${item.mrp}` : '—'}</span>}
+                          {c.key === 'mrp'          && <span className="text-sm text-gray-700 dark:text-gray-300">{item.mrp ? `₹${item.mrp}` : '—'}</span>}
+                          {c.key === 'billingPrice' && (
+                            item.billingPrice
+                              ? <span className="text-sm font-medium text-teal-700 dark:text-teal-300">₹{item.billingPrice}</span>
+                              : <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                          )}
                           {c.key === 'expiry'   && <span className="text-sm text-gray-600 dark:text-gray-400">{item.expiry   || '—'}</span>}
                           {c.key === 'batch'    && <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{item.batch    || '—'}</span>}
                           {c.key === 'supplier' && <span className="text-xs text-gray-500 dark:text-gray-400">{item.supplier || '—'}</span>}
@@ -562,7 +573,7 @@ export default function InventoryPage() {
           name: editItem.name, generic: editItem.generic, potency: editItem.potency,
           dosageForm: editItem.dosageForm, category: editItem.category,
           quantity: String(editItem.quantity ?? ''), unit: editItem.unit,
-          mrp: editItem.mrp, expiry: editItem.expiry, batch: editItem.batch,
+          mrp: editItem.mrp, billingPrice: editItem.billingPrice ?? '', expiry: editItem.expiry, batch: editItem.batch,
           supplier: editItem.supplier, lowStockThreshold: String(editItem.lowStockThreshold ?? 10),
           notes: editItem.notes,
           customFields: editItem.customFields || {},

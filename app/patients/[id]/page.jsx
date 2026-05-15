@@ -13,14 +13,14 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS, createLineItem } from '@/models/Invoice'
+import { PAYMENT_METHODS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
-import { formatDate as fmtDateLib, formatDateFull as fmtDateFullLib } from '@/lib/preferences'
+import { formatDate as fmtDateLib } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
 function getWADateFormat(fallback) {
@@ -627,423 +627,6 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   )
 }
 
-/* ─────────────── AddVisitModal with payment + billing ─────────────── */
-function AddVisitModal({ open, onClose, patientId, patientName, patientPhone, patientNumber, add, doctor, blockedSlots = [] }) {
-  const { formatDateFull, dateFormat } = usePreferences()
-  const [loading, setLoading] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  const [savedVisit, setSavedVisit] = useState(null)
-  const [nameCopied, setNameCopied] = useState(false)
-  const [customDays, setCustomDays] = useState('')
-  const [form, setForm] = useState({
-    visitDate: new Date().toISOString().slice(0, 10),
-    chiefComplaint: '', history: '', findings: '', diagnosis: [],
-    treatment: '', prescriptions: [], labOrders: [], followUpDate: '',
-    notes: '',
-    vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
-  })
-  const [payment, setPayment] = useState({
-    amount: '',
-    method: 'cash',
-    description: 'Consultation Fee',
-    status: 'paid',
-  })
-  const [diagInput, setDiagInput] = useState('')
-  const [labInput, setLabInput]   = useState('')
-  const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
-
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
-
-  const addFollowUpDays = (days) => {
-    const base = form.visitDate ? new Date(form.visitDate) : new Date()
-    const d = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10)
-    set('followUpDate', d)
-  }
-
-  const resetForm = () => {
-    setForm({ visitDate: new Date().toISOString().slice(0, 10), chiefComplaint: '', history: '', findings: '', diagnosis: [], treatment: '', prescriptions: [], labOrders: [], followUpDate: '', notes: '',
-      vitalSigns: { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' } })
-    setPayment({ amount: '', method: 'cash', description: 'Consultation Fee', status: 'paid' })
-    setDiagInput(''); setLabInput(''); setCustomDays('')
-    setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
-    setSaveError('')
-    setSavedVisit(null)
-    setNameCopied(false)
-  }
-
-  const handleSave = async (e) => {
-    e.preventDefault()
-    if (!form.followUpDate) { setSaveError('A follow-up date is required.'); return }
-    if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required.'); return }
-    setSaveError('')
-    setLoading(true)
-    try {
-      const visit = await add({
-        patientId,
-        patientName,
-        visitDate: form.visitDate ? new Date(form.visitDate).toISOString() : new Date().toISOString(),
-        chiefComplaint: form.chiefComplaint,
-        history: form.history,
-        examination: { vitalSigns: form.vitalSigns, findings: form.findings },
-        diagnosis: form.diagnosis,
-        treatment: form.treatment,
-        prescriptions: form.prescriptions,
-        labOrders: form.labOrders,
-        followUpDate: form.followUpDate || null,
-        notes: form.notes,
-      })
-
-      await billingService.create({
-        patientId,
-        patientName,
-        patientPhone:  patientPhone || '',
-        issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-        lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
-        status:        payment.status,
-        paymentMethod: payment.method,
-        paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-        taxRate:       0,
-        discount:      0,
-        visitId:       visit.id,
-        clinicName:    doctor?.clinicName ?? '',
-        doctorName:    doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
-        doctorPhone:   doctor?.phone ?? '',
-        doctorEmail:   doctor?.email ?? '',
-      })
-
-      setSavedVisit(visit)
-    } catch (err) {
-      alert(err?.message || 'Failed to save visit')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const openWhatsApp = () => {
-    if (!savedVisit) return
-    let stored = {}
-    try { stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
-    const tmpl = stored.followup?.template ||
-      'Hello {name},\n\nThank you for visiting {clinic} today! 🙏\n\nYour follow-up is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!'
-    const clinicName = doctor?.clinicName || 'our clinic'
-    const waFmt = getWADateFormat(dateFormat)
-    const msg = tmpl
-      .replace(/\{name\}/g,   patientName)
-      .replace(/\{clinic\}/g, clinicName)
-      .replace(/\{date\}/g,   fmtDateFullLib(savedVisit.followUpDate, waFmt))
-      .replace(/\{days\}/g,   '')
-    window.open(buildWAUrl(patientPhone || '', msg), '_blank')
-  }
-
-  if (!open) return null
-
-  // ── Success state ──
-  if (savedVisit) {
-    const contactName = patientNumber ? `${patientName} ${patientNumber}` : patientName
-    const copyName = () => {
-      navigator.clipboard.writeText(contactName)
-      setNameCopied(true)
-      setTimeout(() => setNameCopied(false), 2000)
-    }
-    return (
-      <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Visit Recorded" size="md">
-        <div className="space-y-5 py-2">
-          <div className="flex flex-col items-center text-center gap-2">
-            <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-              <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <p className="font-bold text-gray-900 dark:text-white text-lg">Visit Saved!</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{patientName}&apos;s visit and payment have been recorded.</p>
-          </div>
-
-          {savedVisit.followUpDate && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 rounded-xl p-4">
-              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-1">Follow-up Scheduled</p>
-              <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">{formatDateFull(savedVisit.followUpDate)}</p>
-              {patientPhone && (
-                <button onClick={openWhatsApp}
-                  className="mt-3 w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors">
-                  {WA_ICON}
-                  Send Follow-up Reminder via WhatsApp
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Save Contact As</p>
-            <div className="flex items-center gap-2">
-              <span className="flex-1 font-mono text-sm font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
-                {contactName}
-              </span>
-              <button onClick={copyName}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${nameCopied ? 'bg-green-50 border-green-300 text-green-700' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                {nameCopied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Copy and save this as the contact name in your phone.</p>
-          </div>
-
-          <button onClick={() => { resetForm(); onClose() }}
-            className="w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors">
-            Done — View Patient Profile
-          </button>
-        </div>
-      </Modal>
-    )
-  }
-
-  return (
-    <Modal open={open} onClose={() => { resetForm(); onClose() }} title="Record Visit" size="xl">
-      <form onSubmit={handleSave} className="space-y-5">
-        <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">Visit Date</label>
-          <input
-            type="date"
-            value={form.visitDate}
-            max={new Date().toISOString().slice(0, 10)}
-            onChange={e => set('visitDate', e.target.value)}
-            className="input-field text-sm py-1.5 flex-1"
-          />
-          <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">Defaults to today; change for past visits</span>
-        </div>
-        <div>
-          <label className="form-label">Chief Complaint *</label>
-          <input value={form.chiefComplaint} onChange={e => set('chiefComplaint', e.target.value)}
-            placeholder="Patient's main concern" className="input-field" required/>
-        </div>
-
-        <div>
-          <label className="form-label">History of Present Illness</label>
-          <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
-            placeholder="Detailed history..." className="input-field resize"/>
-        </div>
-
-        {/* Vitals */}
-        <div>
-          <p className="form-label">Vital Signs</p>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              ['bloodPressure', 'Blood Pressure', 'e.g. 120/80'],
-              ['heartRate', 'Heart Rate (bpm)', 'e.g. 72'],
-              ['temperature', 'Temperature (°C)', 'e.g. 36.6'],
-              ['weight', 'Weight (kg)', 'e.g. 70'],
-              ['height', 'Height (cm)', 'e.g. 175'],
-              ['oxygenSat', 'SpO₂ (%)', 'e.g. 98'],
-            ].map(([k, lbl, ph]) => (
-              <div key={k}>
-                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{lbl}</label>
-                <input value={form.vitalSigns[k]} onChange={e => setVital(k, e.target.value)}
-                  placeholder={ph} className="input-field text-sm py-2"/>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="form-label">Clinical Findings</label>
-          <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
-            placeholder="Physical examination findings..." className="input-field resize"/>
-        </div>
-
-        {/* Diagnosis */}
-        <div>
-          <label className="form-label">Diagnosis</label>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {form.diagnosis.map(d => (
-              <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs rounded-full font-medium">
-                {d} <button type="button" onClick={() => set('diagnosis', form.diagnosis.filter(x => x !== d))} className="hover:text-red-500">×</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input value={diagInput} onChange={e => setDiagInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') } }}}
-              placeholder="Type diagnosis and press Enter" className="input-field flex-1"/>
-            <button type="button" onClick={() => { if (diagInput.trim()) { set('diagnosis', [...form.diagnosis, diagInput.trim()]); setDiagInput('') }}}
-              className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
-          </div>
-        </div>
-
-        <div>
-          <label className="form-label">Treatment Plan</label>
-          <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
-            placeholder="Treatment approach..." className="input-field resize"/>
-        </div>
-
-        {/* Prescriptions */}
-        <div>
-          <label className="form-label">Prescriptions</label>
-          {form.prescriptions.map((p, i) => (
-            <div key={p.id ?? i} className="flex items-start gap-2 mb-2 bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3 text-sm">
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800 dark:text-gray-200">{p.medication} — {p.dosage}</p>
-                <p className="text-gray-500 dark:text-gray-400 text-xs">{p.frequency} · {p.duration}</p>
-              </div>
-              <button type="button" onClick={() => set('prescriptions', form.prescriptions.filter((_, j) => j !== i))}
-                className="text-gray-400 hover:text-red-500">×</button>
-            </div>
-          ))}
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <input value={rx.medication} onChange={e => setRx(p => ({...p, medication: e.target.value}))}
-              placeholder="Medication name" className="input-field text-sm py-2"/>
-            <input value={rx.dosage} onChange={e => setRx(p => ({...p, dosage: e.target.value}))}
-              placeholder="Dosage (e.g. 500mg)" className="input-field text-sm py-2"/>
-            <input value={rx.frequency} onChange={e => setRx(p => ({...p, frequency: e.target.value}))}
-              placeholder="Frequency (e.g. Twice daily)" className="input-field text-sm py-2"/>
-            <input value={rx.duration} onChange={e => setRx(p => ({...p, duration: e.target.value}))}
-              placeholder="Duration (e.g. 7 days)" className="input-field text-sm py-2"/>
-          </div>
-          <input value={rx.instructions} onChange={e => setRx(p => ({...p, instructions: e.target.value}))}
-            placeholder="Special instructions (e.g. Take after meals)" className="input-field text-sm py-2 mb-2"/>
-          <button type="button" onClick={() => {
-            if (rx.medication.trim()) {
-              set('prescriptions', [...form.prescriptions, { ...rx, id: `${Date.now()}` }])
-              setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
-            }
-          }} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">+ Add prescription</button>
-        </div>
-
-        {/* Lab Orders */}
-        <div>
-          <label className="form-label">Lab Orders</label>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {form.labOrders.map(l => (
-              <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full font-medium">
-                {l} <button type="button" onClick={() => set('labOrders', form.labOrders.filter(x => x !== l))} className="hover:text-red-500">×</button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input value={labInput} onChange={e => setLabInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (labInput.trim()) { set('labOrders', [...form.labOrders, labInput.trim()]); setLabInput('') } }}}
-              placeholder="Lab test name" className="input-field flex-1 text-sm py-2"/>
-            <button type="button" onClick={() => { if (labInput.trim()) { set('labOrders', [...form.labOrders, labInput.trim()]); setLabInput('') }}}
-              className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">Add</button>
-          </div>
-        </div>
-
-        {/* Follow-up Date */}
-        <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-xl p-4">
-          <p className="form-label text-orange-800 dark:text-orange-300">Follow-up Date</p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {[[7,'+7'],[10,'+10'],[15,'+15'],[21,'+21'],[30,'+30']].map(([days, label]) => (
-              <button key={days} type="button" onClick={() => addFollowUpDays(days)}
-                className="text-xs px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors">
-                {label}d
-              </button>
-            ))}
-            <div className="flex items-center gap-1.5">
-              <input type="number" min="1" max="365" value={customDays}
-                onChange={e => setCustomDays(e.target.value)} placeholder="Custom"
-                className="input-field text-xs py-1.5 w-20"/>
-              <button type="button"
-                onClick={() => { const d = parseInt(customDays); if (d > 0) { addFollowUpDays(d); setCustomDays('') } }}
-                disabled={!customDays || parseInt(customDays) < 1}
-                className="text-xs px-2.5 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium transition-colors disabled:opacity-40">
-                Set
-              </button>
-            </div>
-          </div>
-          <input type="date" value={form.followUpDate}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
-          {form.followUpDate && blockedSlots.some(b => b.date === form.followUpDate) && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
-              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-              </svg>
-              You are blocked on this day — consider picking another date.
-            </p>
-          )}
-          {form.followUpDate && (
-            <div className="mt-2 flex items-center gap-3">
-              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                {formatDateFull(form.followUpDate)}
-              </p>
-              <p className="text-xs text-gray-400">({daysBetween(form.followUpDate)} days from today)</p>
-              <button type="button" onClick={() => set('followUpDate', '')} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
-            </div>
-          )}
-        </div>
-
-        {/* Payment — required */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-gray-900 dark:text-white text-sm">Payment Collection <span className="text-red-500">*</span></p>
-            <span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">Required</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="form-label">Amount (₹) <span className="text-red-500">*</span></label>
-              <input type="number" min="0" value={payment.amount}
-                onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
-                placeholder="0" className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Method</label>
-              <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
-                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Description</label>
-              <input value={payment.description} onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
-                placeholder="Consultation Fee" className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Payment Status</label>
-              <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
-                <option value="paid">Paid</option>
-                <option value="draft">Due / Unpaid</option>
-              </select>
-            </div>
-          </div>
-          {Number(payment.amount) > 0 && (
-            <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${
-              payment.status === 'paid'
-                ? 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800'
-                : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800'
-            }`}>
-              <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
-                {payment.status === 'paid' ? 'Amount collected' : 'Amount due'}
-              </span>
-              <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                ₹{Number(payment.amount).toLocaleString('en-IN')}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="form-label">Notes</label>
-          <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
-            placeholder="Additional notes..." className="input-field resize"/>
-        </div>
-
-        {saveError && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
-            {saveError}
-          </div>
-        )}
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={() => { resetForm(); onClose() }}
-            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            Cancel
-          </button>
-          <button type="submit" disabled={loading || !form.chiefComplaint.trim() || !form.followUpDate || !payment.amount || Number(payment.amount) <= 0}
-            className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
-            {loading ? 'Saving…' : 'Save Visit'}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
 /* ─────────────── FollowUpRow for patient profile tab ─────────────── */
 function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   const { formatDate, dateFormat } = usePreferences()
@@ -1129,7 +712,6 @@ export default function PatientProfilePage() {
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
   const [tab, setTab]            = useState(0)
-  const [showVisitModal, setShowVisitModal]   = useState(false)
   const [showEditModal, setShowEditModal]     = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
@@ -1205,8 +787,17 @@ export default function PatientProfilePage() {
       alternatePhone: patient.alternatePhone || '',
       email:          patient.email          || '',
       address:        patient.address        || '',
+      education:      patient.education      || '',
+      occupation:     patient.occupation     || '',
+      maritalStatus:  patient.maritalStatus  || '',
+      observation:    patient.observation    || '',
+      pastHistory:    patient.pastHistory    || '',
       historyOf:      patient.historyOf      || '',
       lifeSpan:       patient.lifeSpan       || '',
+      chiefComplaints: patient.chiefComplaints?.length
+        ? patient.chiefComplaints.map(c => ({ ...c }))
+        : [{ complaint: '', location: '', sensation: '', modality: '', concomitant: '' }],
+      prescriptionDetails: patient.prescriptionDetails || '',
       generals: {
         appetite:     patient.generals?.appetite     || '',
         taste:        patient.generals?.taste        || '',
@@ -1220,7 +811,8 @@ export default function PatientProfilePage() {
         sleep:        patient.generals?.sleep        || '',
         dreams:       patient.generals?.dreams       || '',
       },
-      customFields: patient.customFields ? [...patient.customFields] : [],
+      customGenerals: patient.customGenerals ? [...patient.customGenerals.map(g => ({ ...g }))] : [],
+      customFields:   patient.customFields   ? [...patient.customFields]                        : [],
     })
     setEditingOverview(true)
   }
@@ -1267,7 +859,7 @@ export default function PatientProfilePage() {
             </svg>
             Delete
           </button>
-          <button onClick={() => setShowVisitModal(true)}
+          <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
             className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
@@ -1400,6 +992,34 @@ export default function PatientProfilePage() {
                   <AutoTextarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
                     className="input-field py-2 text-sm resize" placeholder="Address"/>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label text-xs">Education</label>
+                    <input value={overviewForm.education || ''} onChange={e => setOverviewForm(f => ({ ...f, education: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="e.g. Graduate"/>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Occupation</label>
+                    <input value={overviewForm.occupation || ''} onChange={e => setOverviewForm(f => ({ ...f, occupation: e.target.value }))}
+                      className="input-field py-2 text-sm" placeholder="e.g. Engineer"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Marital Status</label>
+                  <div className="flex gap-2 flex-wrap mt-1">
+                    {['Single','Married','Divorced','Widowed'].map(s => (
+                      <button key={s} type="button"
+                        onClick={() => setOverviewForm(f => ({ ...f, maritalStatus: f.maritalStatus === s.toLowerCase() ? '' : s.toLowerCase() }))}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          overviewForm.maritalStatus === s.toLowerCase()
+                            ? 'bg-primary-500 text-white border-primary-500'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
@@ -1410,6 +1030,9 @@ export default function PatientProfilePage() {
               </div>
             )}
 
+            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
+            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
+            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
             )}
@@ -1543,6 +1166,34 @@ export default function PatientProfilePage() {
               </div>
             )}
           </div>
+          {/* Observation + Past History */}
+          {(patient.observation || patient.pastHistory || editingOverview) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+              <div>
+                <label className="form-label text-xs">Observation</label>
+                {editingOverview ? (
+                  <AutoTextarea value={overviewForm.observation || ''} onChange={e => setOverviewForm(f => ({ ...f, observation: e.target.value }))}
+                    className="input-field text-sm resize w-full" placeholder="Doctor's initial observations…"/>
+                ) : (
+                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                    {patient.observation || 'Not recorded'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="form-label text-xs">Past History</label>
+                {editingOverview ? (
+                  <AutoTextarea value={overviewForm.pastHistory || ''} onChange={e => setOverviewForm(f => ({ ...f, pastHistory: e.target.value }))}
+                    className="input-field text-sm resize w-full" placeholder="Past medical history, surgeries…"/>
+                ) : (
+                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                    {patient.pastHistory || 'Not recorded'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-1">
@@ -1647,19 +1298,19 @@ export default function PatientProfilePage() {
                   </tr>
                 ))}
 
-                {/* ── Custom rows ── */}
+                {/* ── Custom generals rows ── */}
                 {editingOverview
-                  ? (overviewForm.customFields ?? []).map((field, i) => (
+                  ? (overviewForm.customGenerals ?? []).map((field, i) => (
                       <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
                         <td className="px-4 py-2 w-40">
                           <input
                             value={field.label}
                             onChange={e => setOverviewForm(f => ({
                               ...f,
-                              customFields: f.customFields.map((cf, j) => j === i ? { ...cf, label: e.target.value } : cf),
+                              customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, label: e.target.value } : g),
                             }))}
                             className="input-field text-sm py-1.5 w-full font-semibold"
-                            placeholder="Field name"
+                            placeholder="Parameter name"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -1668,19 +1319,19 @@ export default function PatientProfilePage() {
                               value={field.value}
                               onChange={e => setOverviewForm(f => ({
                                 ...f,
-                                customFields: f.customFields.map((cf, j) => j === i ? { ...cf, value: e.target.value } : cf),
+                                customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, value: e.target.value } : g),
                               }))}
                               className="input-field text-sm py-1.5 flex-1 resize"
                               placeholder="Value"
                             />
                             <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, customFields: f.customFields.filter((_, j) => j !== i) }))}
+                              onClick={() => setOverviewForm(f => ({ ...f, customGenerals: f.customGenerals.filter((_, j) => j !== i) }))}
                               className="text-gray-400 hover:text-red-500 transition-colors text-xl leading-none flex-shrink-0">×</button>
                           </div>
                         </td>
                       </tr>
                     ))
-                  : (patient.customFields ?? []).filter(f => f.label).map((field, i) => (
+                  : (patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
                       <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
                         <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
                         <td className="px-4 py-3">
@@ -1699,13 +1350,13 @@ export default function PatientProfilePage() {
                       <button type="button"
                         onClick={() => setOverviewForm(f => ({
                           ...f,
-                          customFields: [...(f.customFields ?? []), { id: `${Date.now()}`, label: '', value: '' }],
+                          customGenerals: [...(f.customGenerals ?? []), { id: `${Date.now()}`, label: '', value: '' }],
                         }))}
                         className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
                         </svg>
-                        Add Row
+                        Add Parameter
                       </button>
                     </td>
                   </tr>
@@ -1715,6 +1366,87 @@ export default function PatientProfilePage() {
             </table>
           </div>
         </div>
+
+        {/* ── Chief Complaints ── */}
+        {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-blue-500">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Chief Complaints (C/o)</h3>
+              {editingOverview && (
+                <button type="button"
+                  onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
+                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  Add Row
+                </button>
+              )}
+            </div>
+            <div className="p-4 overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
+                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
+                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
+                    ))}
+                    {editingOverview && <th className="w-8"/>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {(editingOverview ? (overviewForm.chiefComplaints ?? []) : (patient.chiefComplaints ?? []).filter(c => c.complaint)).map((row, i) => (
+                    <tr key={i}>
+                      {['complaint','location','sensation','modality','concomitant'].map(field => (
+                        <td key={field} className="px-1.5 py-2">
+                          {editingOverview ? (
+                            <input value={row[field] ?? ''} onChange={e => setOverviewForm(f => {
+                              const list = [...(f.chiefComplaints ?? [])]
+                              list[i] = { ...list[i], [field]: e.target.value }
+                              return { ...f, chiefComplaints: list }
+                            })} placeholder="—" className="input-field text-sm py-2 w-full"/>
+                          ) : (
+                            <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
+                          )}
+                        </td>
+                      ))}
+                      {editingOverview && (
+                        <td className="px-1.5 py-2 text-center">
+                          {(overviewForm.chiefComplaints ?? []).length > 1 && (
+                            <button type="button"
+                              onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: f.chiefComplaints.filter((_, j) => j !== i) }))}
+                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 text-xl leading-none transition-colors">×</button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Prescription Details ── */}
+        {(editingOverview || patient.prescriptionDetails) && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-teal-500">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Prescription Details</h3>
+              {!editingOverview && (
+                <button onClick={startOverviewEdit}
+                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  Edit
+                </button>
+              )}
+            </div>
+            <div className="p-6">
+              {editingOverview ? (
+                <AutoTextarea value={overviewForm.prescriptionDetails || ''} onChange={e => setOverviewForm(f => ({ ...f, prescriptionDetails: e.target.value }))}
+                  className="input-field text-sm resize w-full min-h-[80px]" placeholder="Remedy, potency, dosage, repetition, diet…"/>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         </div>
       )}
@@ -1726,7 +1458,7 @@ export default function PatientProfilePage() {
             <EmptyState
               title="No follow-ups scheduled"
               description="Follow-up dates are set when recording a visit. You can also set a reminder from the patient list."
-              action={() => setShowVisitModal(true)}
+              action={() => router.push(`/visits/new?patientId=${id}`)}
               actionLabel="Record Visit with Follow-up"
             />
           ) : (
@@ -1832,7 +1564,7 @@ export default function PatientProfilePage() {
           {/* Completed visits */}
           {visits.filter(v => v.status !== 'draft').length === 0 && visits.filter(v => v.status === 'draft').length === 0 ? (
             <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
-              action={() => setShowVisitModal(true)} actionLabel="Record Visit"/>
+              action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
           ) : visits.filter(v => v.status !== 'draft').length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
           ) : (
@@ -1933,18 +1665,6 @@ export default function PatientProfilePage() {
           )}
         </div>
       )}
-
-      <AddVisitModal
-        open={showVisitModal}
-        onClose={() => setShowVisitModal(false)}
-        patientId={id}
-        patientName={`${patient.firstName} ${patient.lastName}`}
-        patientPhone={patient.phone}
-        patientNumber={patient.patientNumber}
-        add={addVisit}
-        doctor={doctor}
-        blockedSlots={blockedSlots}
-      />
 
       <EditPatientModal
         open={showEditModal}

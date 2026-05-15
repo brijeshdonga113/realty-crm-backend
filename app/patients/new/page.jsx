@@ -3,224 +3,234 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
-import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
+import { BLOOD_TYPES } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
-const SPECIALIZATIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
-const ALLERGIES_LIST  = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
+const GENERALS_CONFIG = [
+  { key: 'appetite',     label: 'Appetite'     },
+  { key: 'taste',        label: 'Taste'        },
+  { key: 'thirst',       label: 'Thirst'       },
+  { key: 'urine',        label: 'Urine'        },
+  { key: 'stool',        label: 'Stool'        },
+  { key: 'thermal',      label: 'Thermal'      },
+  { key: 'perspiration', label: 'Perspiration' },
+  { key: 'speed',        label: 'Speed'        },
+  { key: 'fastidious',   label: 'Fastidious'   },
+  { key: 'sleep',        label: 'Sleep'        },
+  { key: 'dreams',       label: 'Dreams'       },
+]
 
-function TagInput({ label, items, onChange, suggestions }) {
-  const [input, setInput] = useState('')
-  const add = (val) => {
-    const trimmed = val.trim()
-    if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
-    setInput('')
-  }
-  const remove = (item) => onChange(items.filter(i => i !== item))
+const EMPTY_COMPLAINT = { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }
+
+const ACCENT = {
+  teal:   'border-l-teal-500',
+  blue:   'border-l-blue-500',
+  green:  'border-l-green-500',
+  purple: 'border-l-purple-500',
+  orange: 'border-l-orange-500',
+}
+
+function SectionCard({ icon, title, accentColor = 'teal', children }) {
   return (
-    <div>
-      <label className="form-label">{label}</label>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {items.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs rounded-full font-medium">
-            {item}
-            <button type="button" onClick={() => remove(item)} className="hover:text-primary-900">×</button>
-          </span>
-        ))}
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className={`flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT[accentColor]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30`}>
+        <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">{icon}</span>
+        <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
       </div>
-      <div className="flex gap-2">
-        <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
-          placeholder="Type and press Enter"
-          className="input-field flex-1"
-          list={`${label}-suggestions`}
-        />
-        <datalist id={`${label}-suggestions`}>
-          {suggestions?.map(s => <option key={s} value={s}/>)}
-        </datalist>
-        <button type="button" onClick={() => add(input)}
-          className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
-          Add
-        </button>
+      <div className="p-6 space-y-4">
+        {children}
       </div>
     </div>
   )
 }
 
-const TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
-
-function Field({ name, label, type = 'text', placeholder, required, nested, options, form, errors, set, setNested }) {
-  const value = nested ? form[nested][name] : form[name]
-  const onChange = nested
-    ? (e) => setNested(nested, name, e.target.value)
-    : (e) => set(name, e.target.value)
+function Spinner() {
   return (
-    <div>
-      <label className="form-label">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
-      {options ? (
-        <select value={value} onChange={onChange} className={`input-field ${errors[name] ? 'border-red-400' : ''}`}>
-          <option value="">Select…</option>
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      ) : (
-        <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-          className={`input-field ${errors[name] ? 'border-red-400' : ''}`}/>
-      )}
-      {errors[name] && <p className="error-text">{errors[name]}</p>}
-    </div>
+    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
   )
 }
 
-function NewPatientForm() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+function NewCaseForm() {
+  const router         = useRouter()
+  const searchParams   = useSearchParams()
   const { add, patients } = usePatients()
-  const referralSources = useReferralSources()
-  const [tab, setTab]       = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors]   = useState({})
-  const [saveError, setSaveError] = useState('')
-  const [duplicates, setDuplicates] = useState([])
-  const [forceSubmit, setForceSubmit] = useState(false)
+  const referralSources   = useReferralSources()
 
-  const [form, setForm] = useState({
-    patientNumber: '',
+  const [loading,      setLoading]      = useState(false)
+  const [errors,       setErrors]       = useState({})
+  const [saveError,    setSaveError]    = useState('')
+  const [duplicates,   setDuplicates]   = useState([])
+  const [forceSubmit,  setForceSubmit]  = useState(false)
+
+  const [form, setFormState] = useState({
+    patientNumber:    '',
     registrationDate: new Date().toISOString().slice(0, 10),
-    firstName: '', lastName: '', dateOfBirth: '', ageManual: '', gender: 'male', bloodType: '',
-    nationalId: '', phone: '', alternatePhone: '', email: '', address: '',
+    // Profile
+    firstName: '', lastName: '',
+    dateOfBirth: '', ageManual: '', gender: 'male', bloodType: '',
+    education: '', occupation: '', maritalStatus: '',
+    phone: '', alternatePhone: '', email: '', address: '',
     referralSource: '', referralNotes: '',
+    // Clinical intake
+    observation: '', pastHistory: '', familyHistory: '',
+    // Chief complaints
+    chiefComplaints: [{ ...EMPTY_COMPLAINT }],
+    // Physical generals
+    generals: {
+      appetite: '', taste: '', thirst: '', urine: '', stool: '',
+      thermal: '', perspiration: '', speed: '', fastidious: '', sleep: '', dreams: '',
+    },
+    customGenerals: [],
+    // History sections
+    historyOf: '', lifeSpan: '', prescriptionDetails: '',
+    // Meta / other
+    status: 'active', notes: '',
     allergies: [], chronicConditions: [], currentMedications: [],
-    familyHistory: '', notes: '', status: 'active',
+    nationalId: '',
+    emergencyContact: { name: '', phone: '', relationship: '' },
     insuranceProvider: '', insurancePolicyNumber: '', insuranceExpiry: '', insuranceGroupNumber: '',
     consentFormSigned: false,
-    emergencyContact: { name: '', phone: '', relationship: '' },
   })
 
-  // Pre-fill from URL params (e.g. coming from booking contacts)
   useEffect(() => {
-    const name  = searchParams.get('name') || ''
+    const name  = searchParams.get('name')  || ''
     const phone = searchParams.get('phone') || ''
     if (name || phone) {
-      const parts     = name.trim().split(' ')
-      const firstName = parts[0] ?? ''
-      const lastName  = parts.slice(1).join(' ')
-      setForm(prev => ({ ...prev, firstName, lastName, phone }))
+      const parts = name.trim().split(' ')
+      setFormState(p => ({
+        ...p,
+        firstName: parts[0] ?? '',
+        lastName:  parts.slice(1).join(' '),
+        ...(phone ? { phone } : {}),
+      }))
     }
   }, [searchParams])
 
-  // Pre-fill the next sequential patient number on mount
   useEffect(() => {
     patientService.peekNextPatientNumber().then(n => {
-      setForm(prev => ({ ...prev, patientNumber: String(n) }))
+      setFormState(p => ({ ...p, patientNumber: String(n) }))
     }).catch(() => {})
   }, [])
 
-  const set = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }))
-    setErrors(prev => ({ ...prev, [field]: '' }))
-    if (['firstName', 'lastName', 'phone'].includes(field)) {
+  const set = (k, v) => {
+    setFormState(p => ({ ...p, [k]: v }))
+    setErrors(e => ({ ...e, [k]: '' }))
+    if (['firstName', 'lastName', 'phone'].includes(k)) {
       setDuplicates([])
       setForceSubmit(false)
     }
   }
 
-  const setNested = (parent, field, value) =>
-    setForm(prev => ({ ...prev, [parent]: { ...prev[parent], [field]: value } }))
+  const setGeneral   = (k, v) => setFormState(p => ({ ...p, generals: { ...p.generals, [k]: v } }))
+
+  const setComplaint = (i, field, v) =>
+    setFormState(p => {
+      const list = [...p.chiefComplaints]
+      list[i] = { ...list[i], [field]: v }
+      return { ...p, chiefComplaints: list }
+    })
+
+  const addComplaint    = () => setFormState(p => ({ ...p, chiefComplaints: [...p.chiefComplaints, { ...EMPTY_COMPLAINT }] }))
+  const removeComplaint = (i) => setFormState(p => ({ ...p, chiefComplaints: p.chiefComplaints.filter((_, j) => j !== i) }))
+
+  const addCustomGeneral    = () => setFormState(p => ({ ...p, customGenerals: [...p.customGenerals, { id: Date.now().toString(36), label: '', value: '' }] }))
+  const removeCustomGeneral = (id) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.filter(g => g.id !== id) }))
+  const setCustomGeneral    = (id, field, v) =>
+    setFormState(p => ({ ...p, customGenerals: p.customGenerals.map(g => g.id === id ? { ...g, [field]: v } : g) }))
 
   const validate = () => {
     const errs = {}
-    if (!form.patientNumber || isNaN(Number(form.patientNumber))) errs.patientNumber = 'Required (numeric)'
     if (!form.firstName.trim()) errs.firstName = 'Required'
     if (!form.lastName.trim())  errs.lastName  = 'Required'
     if (!form.phone.trim())     errs.phone     = 'Required'
-    if (!form.gender)           errs.gender    = 'Required'
     return errs
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (checkDuplicate = true) => {
     const errs = validate()
-    if (Object.keys(errs).length) { setErrors(errs); setTab(0); return }
+    if (Object.keys(errs).length) { setErrors(errs); return }
 
-    if (!forceSubmit) {
-      const nameMatch = `${form.firstName} ${form.lastName}`.toLowerCase()
+    if (checkDuplicate && !forceSubmit) {
+      const nameMatch  = `${form.firstName} ${form.lastName}`.toLowerCase()
       const phoneDigits = form.phone.replace(/\D/g, '')
       const found = patients.filter(p => {
-        const pName = `${p.firstName} ${p.lastName}`.toLowerCase()
+        const pName  = `${p.firstName} ${p.lastName}`.toLowerCase()
         const pPhone = (p.phone || '').replace(/\D/g, '')
         return pName === nameMatch || (phoneDigits && pPhone === phoneDigits)
       })
-      if (found.length) {
-        setDuplicates(found)
-        setTab(0)
-        return
-      }
+      if (found.length) { setDuplicates(found); return }
     }
 
     setSaveError('')
     setLoading(true)
     try {
-      const patient = await add({
+      const saved = await add({
         ...form,
-        patientNumber: Number(form.patientNumber),
-        createdAt: form.registrationDate
-          ? new Date(form.registrationDate).toISOString()
-          : undefined,
+        patientNumber: form.patientNumber ? Number(form.patientNumber) : undefined,
+        createdAt: form.registrationDate ? new Date(form.registrationDate).toISOString() : undefined,
       })
-      router.push(`/patients/${patient.id}`)
+      router.push(`/patients/${saved.id}`)
     } catch (err) {
-      setSaveError(err?.message || 'Failed to save patient. Please try again.')
-    } finally {
+      setSaveError(err?.message || 'Failed to save. Please try again.')
       setLoading(false)
     }
   }
 
-  const fieldProps = { form, errors, set, setNested }
+  const ActionButtons = ({ compact = false }) => (
+    <div className={`flex items-center gap-2 ${compact ? '' : 'justify-end'}`}>
+      <button type="button" onClick={() => router.back()}
+        className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+        Cancel
+      </button>
+      <button type="button" onClick={() => handleSubmit(false)} disabled={loading}
+        className="px-4 py-2 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-60 flex items-center gap-2">
+        {loading && <Spinner/>}
+        Save Draft
+      </button>
+      <button type="button" onClick={() => handleSubmit(true)} disabled={loading}
+        className="px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-60">
+        {loading ? <Spinner/> : (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+          </svg>
+        )}
+        Finalize Case
+      </button>
+    </div>
+  )
 
   return (
-    <AppLayout title="Add New Patient"
-      action={
-        <button onClick={() => router.back()}
-          className="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5">
-          ← Back
-        </button>
-      }
+    <AppLayout
+      title="New Case"
+      action={<ActionButtons compact/>}
     >
-      <div className="max-w-3xl mx-auto">
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit">
-          {TABS.map((t, i) => (
-            <button key={t} onClick={() => setTab(i)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
+      <div className="max-w-5xl mx-auto pb-12 space-y-5">
 
-        {/* Save error */}
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Create a high-fidelity digital case record. Complete all clinical parameters to ensure holistic remedy selection.
+        </p>
+
         {saveError && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4 mb-4">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Error saving patient</p>
-            <p className="text-sm text-red-600 dark:text-red-400 mt-0.5">{saveError}</p>
+          <div className="p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+            {saveError}
           </div>
         )}
 
-        {/* Duplicate warning */}
         {duplicates.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 mb-4">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
               ⚠ Possible duplicate{duplicates.length > 1 ? 's' : ''} found
             </p>
             <div className="space-y-1.5 mb-3">
               {duplicates.map(p => (
                 <div key={p.id} className="flex items-center justify-between">
-                  <span className="text-sm text-amber-700 dark:text-amber-300">
-                    {p.firstName} {p.lastName} · {p.phone}
-                  </span>
-                  <button type="button"
-                    onClick={() => router.push(`/patients/${p.id}`)}
+                  <span className="text-sm text-amber-700 dark:text-amber-300">{p.firstName} {p.lastName} · {p.phone}</span>
+                  <button type="button" onClick={() => router.push(`/patients/${p.id}`)}
                     className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
                     Open →
                   </button>
@@ -228,13 +238,11 @@ function NewPatientForm() {
               ))}
             </div>
             <div className="flex gap-2">
-              <button type="button"
-                onClick={() => { setDuplicates([]); setForceSubmit(true) }}
+              <button type="button" onClick={() => { setDuplicates([]); setForceSubmit(true) }}
                 className="text-xs font-semibold px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors">
                 Save anyway (new patient)
               </button>
-              <button type="button"
-                onClick={() => setDuplicates([])}
+              <button type="button" onClick={() => setDuplicates([])}
                 className="text-xs font-medium px-3 py-1.5 text-amber-700 dark:text-amber-400 hover:underline">
                 Cancel
               </button>
@@ -242,186 +250,374 @@ function NewPatientForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
-
-            {/* Tab 0: Basic Info */}
-            {tab === 0 && (
-              <>
-                {/* Patient Number */}
+        {/* ── Patient Profile ───────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="teal"
+          title="Patient Profile"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          }
+        >
+          {/* Name + Date + Patient No */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-2">
+              <label className="form-label">Name <span className="text-red-500">*</span></label>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="form-label">Patient ID <span className="text-red-500 ml-0.5">*</span> <span className="text-xs text-gray-400 font-normal">(auto-assigned, editable)</span></label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      value={form.patientNumber}
-                      onChange={e => { set('patientNumber', e.target.value); setErrors(prev => ({ ...prev, patientNumber: '' })) }}
-                      placeholder="e.g. 2001"
-                      className={`input-field w-40 font-mono font-semibold ${errors.patientNumber ? 'border-red-400' : ''}`}
-                    />
-                    <span className="text-xs text-gray-400">Sequential number assigned automatically. You may override it.</span>
-                  </div>
-                  {errors.patientNumber && <p className="error-text">{errors.patientNumber}</p>}
-                </div>
-
-                {/* Registration Date */}
-                <div>
-                  <label className="form-label">
-                    Registration Date <span className="text-gray-400 font-normal text-xs">(defaults to today)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={form.registrationDate}
-                    onChange={e => set('registrationDate', e.target.value)}
-                    className="input-field"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="firstName" label="First Name" placeholder="John" required {...fieldProps} />
-                  <Field name="lastName" label="Last Name" placeholder="Smith" required {...fieldProps} />
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <Field name="dateOfBirth" label="Date of Birth" type="date" {...fieldProps} />
-                  <div>
-                    <label className="form-label">
-                      Age <span className="text-gray-400 font-normal text-xs">(if no DOB)</span>
-                    </label>
-                    <input
-                      type="number" min="0" max="150"
-                      value={form.dateOfBirth ? '' : form.ageManual}
-                      disabled={!!form.dateOfBirth}
-                      onChange={e => set('ageManual', e.target.value)}
-                      placeholder={form.dateOfBirth ? 'Auto' : 'e.g. 45'}
-                      className="input-field disabled:opacity-50"
-                    />
-                    {form.dateOfBirth && (
-                      <p className="text-xs text-primary-600 dark:text-primary-400 mt-1 font-medium">
-                        Age: {(() => {
-                          const dob = new Date(form.dateOfBirth)
-                          const today = new Date()
-                          let age = today.getFullYear() - dob.getFullYear()
-                          const m = today.getMonth() - dob.getMonth()
-                          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
-                          return age
-                        })()} yrs
-                      </p>
-                    )}
-                  </div>
-                  <Field name="gender" label="Gender" required options={[
-                    { value: 'male', label: 'Male' },
-                    { value: 'female', label: 'Female' },
-                    { value: 'other', label: 'Other' },
-                  ]} {...fieldProps} />
-                  <Field name="bloodType" label="Blood Type" options={BLOOD_TYPES.map(b => ({ value: b, label: b }))} {...fieldProps} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="referralSource" label="Referral / Visit Source"
-                    options={[{ value: '', label: 'Select source…' }, ...referralSources]} {...fieldProps} />
-                  <div>
-                    <label className="form-label">Referral Details <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
-                    <input
-                      type="text"
-                      value={form.referralNotes}
-                      onChange={e => set('referralNotes', e.target.value)}
-                      placeholder="e.g. referred by Dr. Sharma, saw ad on Instagram…"
-                      className="input-field"
-                    />
-                  </div>
-                </div>
-                <Field name="nationalId" label="National ID / Patient ID" placeholder="e.g. PAN, Aadhaar, Passport" {...fieldProps} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="phone" label="Phone Number" placeholder="+1 234 567 8900" required {...fieldProps} />
-                  <Field name="alternatePhone" label="Alternate Phone" placeholder="+1 234 567 8901" {...fieldProps} />
-                </div>
-                <Field name="email" label="Email Address" type="email" placeholder="patient@email.com" {...fieldProps} />
-                <div>
-                  <label className="form-label">Address</label>
-                  <AutoTextarea value={form.address} onChange={e => set('address', e.target.value)}
-                    placeholder="Full address including city, state, zip"
-                    className="input-field resize"/>
-                </div>
-                <Field name="status" label="Patient Status" options={[
-                  { value: 'active', label: 'Active' },
-                  { value: 'inactive', label: 'Inactive' },
-                ]} {...fieldProps} />
-              </>
-            )}
-
-            {/* Tab 1: Medical */}
-            {tab === 1 && (
-              <>
-                <TagInput label="Allergies" items={form.allergies} onChange={v => set('allergies', v)} suggestions={ALLERGIES_LIST} />
-                <TagInput label="Chronic Conditions" items={form.chronicConditions} onChange={v => set('chronicConditions', v)} suggestions={SPECIALIZATIONS} />
-                <TagInput label="Current Medications" items={form.currentMedications} onChange={v => set('currentMedications', v)} />
-                <div>
-                  <label className="form-label">Family History</label>
-                  <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-                    placeholder="Any relevant family medical history…" className="input-field resize"/>
+                  <input value={form.firstName} onChange={e => set('firstName', e.target.value)}
+                    placeholder="First name"
+                    className={`input-field ${errors.firstName ? 'border-red-400' : ''}`}/>
+                  {errors.firstName && <p className="error-text">{errors.firstName}</p>}
                 </div>
                 <div>
-                  <label className="form-label">Notes</label>
-                  <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                    placeholder="General notes about this patient…" className="input-field resize"/>
+                  <input value={form.lastName} onChange={e => set('lastName', e.target.value)}
+                    placeholder="Last name"
+                    className={`input-field ${errors.lastName ? 'border-red-400' : ''}`}/>
+                  {errors.lastName && <p className="error-text">{errors.lastName}</p>}
                 </div>
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" id="consent" checked={form.consentFormSigned}
-                    onChange={e => set('consentFormSigned', e.target.checked)}
-                    className="w-4 h-4 accent-primary-600"/>
-                  <label htmlFor="consent" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer">
-                    Patient has signed the consent form
-                  </label>
-                </div>
-              </>
-            )}
-
-            {/* Tab 2: Insurance */}
-            {tab === 2 && (
-              <>
-                <Field name="insuranceProvider" label="Insurance Provider" placeholder="e.g. BlueCross, Aetna" {...fieldProps} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="insurancePolicyNumber" label="Policy Number" placeholder="POL-123456" {...fieldProps} />
-                  <Field name="insuranceGroupNumber" label="Group Number" placeholder="GRP-789" {...fieldProps} />
-                </div>
-                <Field name="insuranceExpiry" label="Policy Expiry Date" type="date" {...fieldProps} />
-              </>
-            )}
-
-            {/* Tab 3: Emergency Contact */}
-            {tab === 3 && (
-              <>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Emergency contact details for this patient.</p>
-                <Field name="name" label="Contact Name" placeholder="Jane Smith" nested="emergencyContact" {...fieldProps} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="phone" label="Contact Phone" placeholder="+1 234 567 8900" nested="emergencyContact" {...fieldProps} />
-                  <Field name="relationship" label="Relationship" placeholder="e.g. Spouse, Parent" nested="emergencyContact" {...fieldProps} />
-                </div>
-              </>
-            )}
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" value={form.registrationDate} onChange={e => set('registrationDate', e.target.value)}
+                className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">
+                Patient No. <span className="text-xs text-gray-400 font-normal">(auto)</span>
+              </label>
+              <input type="number" value={form.patientNumber} onChange={e => set('patientNumber', e.target.value)}
+                placeholder="Auto" className="input-field font-mono"/>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-              {tab > 0 && (
-                <button type="button" onClick={() => setTab(t => t - 1)}
-                  className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  ← Previous
-                </button>
-              )}
-              {tab < TABS.length - 1 && (
-                <button type="button" onClick={() => setTab(t => t + 1)}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
-                  Next →
-                </button>
+          {/* DOB / Age / Sex / Blood */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label className="form-label">Date of Birth</label>
+              <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)}
+                className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Age <span className="text-xs text-gray-400">(if no DOB)</span></label>
+              <input type="number" min="0" max="150"
+                value={form.dateOfBirth ? '' : form.ageManual}
+                disabled={!!form.dateOfBirth}
+                onChange={e => set('ageManual', e.target.value)}
+                placeholder={form.dateOfBirth ? 'Auto' : 'e.g. 45'}
+                className="input-field disabled:opacity-50"/>
+              {form.dateOfBirth && (
+                <p className="text-xs text-primary-600 dark:text-primary-400 mt-1 font-medium">
+                  {(() => {
+                    const [y, mo, d] = form.dateOfBirth.split('-').map(Number)
+                    const today = new Date()
+                    let age = today.getFullYear() - y
+                    const m = today.getMonth() - (mo - 1)
+                    if (m < 0 || (m === 0 && today.getDate() < d)) age--
+                    return `${age} yrs`
+                  })()}
+                </p>
               )}
             </div>
-            <button type="submit" disabled={loading}
-              className="btn-primary w-auto px-6">
-              {loading ? 'Saving…' : 'Save Patient'}
+            <div>
+              <label className="form-label">Sex</label>
+              <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Blood Type</label>
+              <select value={form.bloodType} onChange={e => set('bloodType', e.target.value)} className="input-field">
+                <option value="">—</option>
+                {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Education + Occupation */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Education</label>
+              <input value={form.education} onChange={e => set('education', e.target.value)}
+                placeholder="e.g. Graduate, Post-graduate" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Occupation</label>
+              <input value={form.occupation} onChange={e => set('occupation', e.target.value)}
+                placeholder="e.g. Engineer, Teacher" className="input-field"/>
+            </div>
+          </div>
+
+          {/* Phone + Email */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Mobile No. <span className="text-red-500">*</span></label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)}
+                placeholder="+91 XXXXXXXXXX"
+                className={`input-field ${errors.phone ? 'border-red-400' : ''}`}/>
+              {errors.phone && <p className="error-text">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="form-label">Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                placeholder="patient@email.com" className="input-field"/>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="form-label">Address</label>
+            <AutoTextarea value={form.address} onChange={e => set('address', e.target.value)}
+              placeholder="Full address including city, state, zip" className="input-field resize"/>
+          </div>
+
+          {/* Marital Status */}
+          <div>
+            <label className="form-label">Marital Status</label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {['Single', 'Married', 'Divorced', 'Widowed'].map(s => (
+                <button key={s} type="button"
+                  onClick={() => set('maritalStatus', form.maritalStatus === s.toLowerCase() ? '' : s.toLowerCase())}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    form.maritalStatus === s.toLowerCase()
+                      ? 'bg-primary-500 text-white border-primary-500'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reference */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Reference</label>
+              <select value={form.referralSource} onChange={e => set('referralSource', e.target.value)} className="input-field">
+                <option value="">Select source…</option>
+                {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Reference Details</label>
+              <input value={form.referralNotes} onChange={e => set('referralNotes', e.target.value)}
+                placeholder="e.g. referred by Dr. Sharma" className="input-field"/>
+            </div>
+          </div>
+
+          {/* Observation */}
+          <div>
+            <label className="form-label">Observation</label>
+            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
+              placeholder="Doctor's initial observations…" className="input-field resize"/>
+          </div>
+
+          {/* Past History */}
+          <div>
+            <label className="form-label">Past History</label>
+            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
+          </div>
+
+          {/* Family History */}
+          <div>
+            <label className="form-label">Family History</label>
+            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
+              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
+          </div>
+        </SectionCard>
+
+        {/* ── Chief Complaints ─────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="blue"
+          title="Chief Complaints (C/o)"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+          }
+        >
+          <div className="overflow-x-auto -mx-2 px-2">
+            <table className="w-full min-w-[680px]">
+              <thead>
+                <tr className="border-b-2 border-gray-100 dark:border-gray-700">
+                  {[
+                    'Complaint (C/O)',
+                    'Location (LO)',
+                    'Sensation (S)',
+                    'Modality (M)',
+                    'Concomitant (C)',
+                  ].map(h => (
+                    <th key={h} className="px-2 pb-3 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                  <th className="w-8"/>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {form.chiefComplaints.map((row, i) => (
+                  <tr key={i}>
+                    {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map(field => (
+                      <td key={field} className="px-1.5 py-2">
+                        <input
+                          value={row[field]}
+                          onChange={e => setComplaint(i, field, e.target.value)}
+                          placeholder="—"
+                          className="input-field text-sm py-2 w-full"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-1.5 py-2 text-center">
+                      {form.chiefComplaints.length > 1 && (
+                        <button type="button" onClick={() => removeComplaint(i)}
+                          className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none transition-colors">
+                          ×
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" onClick={addComplaint}
+            className="mt-1 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Another Complaint
+          </button>
+        </SectionCard>
+
+        {/* ── Physical Generals ────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="green"
+          title="Physical Generals"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+          }
+        >
+          <div className="divide-y divide-gray-50 dark:divide-gray-700/50 -mt-2">
+            {GENERALS_CONFIG.map(({ key, label }) => (
+              <div key={key} className="flex items-start gap-4 py-3">
+                <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">
+                  {label}
+                </label>
+                <AutoTextarea
+                  value={form.generals[key]}
+                  onChange={e => setGeneral(key, e.target.value)}
+                  placeholder={`Enter ${label.toLowerCase()}…`}
+                  className="input-field flex-1 text-sm py-2 resize"
+                />
+              </div>
+            ))}
+
+            {form.customGenerals.map(g => (
+              <div key={g.id} className="flex items-start gap-3 py-3">
+                <input
+                  value={g.label}
+                  onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  placeholder="Parameter…"
+                  className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"
+                />
+                <AutoTextarea
+                  value={g.value}
+                  onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  placeholder="Enter value…"
+                  className="input-field flex-1 text-sm py-2 resize"
+                />
+                <button type="button" onClick={() => removeCustomGeneral(g.id)}
+                  className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addCustomGeneral}
+            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Another Parameter
+          </button>
+        </SectionCard>
+
+        {/* ── History of (H/o) ─────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="purple"
+          title={`${form.gender === 'female' ? 'Female' : 'Male'} — History of (H/o)`}
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
+            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
+
+        {/* ── Life Span ─────────────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="orange"
+          title="Life Span"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
+            placeholder="Key life events, miasmatic background, constitutional timeline…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
+
+        {/* ── Prescription Details ──────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="teal"
+          title="Prescription Details"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
+            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
+
+        {/* ── Footer Actions ────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+          <button type="button" onClick={() => router.back()}
+            className="px-4 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            ← Cancel
+          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => handleSubmit(false)} disabled={loading}
+              className="px-5 py-2.5 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-60 flex items-center gap-2">
+              {loading && <Spinner/>}
+              Save Draft
+            </button>
+            <button type="button" onClick={() => handleSubmit(true)} disabled={loading}
+              className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-60">
+              {loading ? <Spinner/> : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+              )}
+              Finalize Case
             </button>
           </div>
-        </form>
+        </div>
+
       </div>
     </AppLayout>
   )
@@ -430,7 +626,7 @@ function NewPatientForm() {
 export default function NewPatientPage() {
   return (
     <Suspense>
-      <NewPatientForm />
+      <NewCaseForm />
     </Suspense>
   )
 }
