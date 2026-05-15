@@ -59,6 +59,9 @@ function saveSessionLocally(doctor) {
 function clearSessionLocally() {
   try { localStorage.removeItem('clinic_crm_doctor') } catch {}
 }
+function getLocalSession() {
+  try { return JSON.parse(localStorage.getItem('clinic_crm_doctor') ?? 'null') } catch { return null }
+}
 
 async function loadFirebaseProfile(uid) {
   const { doc, getDoc, setDoc } = await import('firebase/firestore')
@@ -108,7 +111,9 @@ async function loadReceptionistSession(uid, userEmail) {
 }
 
 export function AuthProvider({ children }) {
-  const [doctor, setDoctor]   = useState(null)
+  // Hydrate from localStorage immediately so the app renders without a login flash.
+  // Firebase onAuthStateChanged then validates and refreshes the session in the background.
+  const [doctor, setDoctor]   = useState(() => typeof window !== 'undefined' ? getLocalSession() : null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
