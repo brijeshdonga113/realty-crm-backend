@@ -685,7 +685,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
           className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
           {WA_ICON} Remind
         </button>
-        {entry.source === 'standalone' && entry.status === 'pending' && onMarkDone && (
+        {entry.hasRecord && entry.status === 'pending' && onMarkDone && (
           <button onClick={() => onMarkDone(entry.id)}
             className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,7 +728,7 @@ export default function PatientProfilePage() {
   // plus a fallback for older visits that predate the auto-sync (no followup record yet).
   const patientName = patient ? `${patient.firstName} ${patient.lastName}` : ''
   const patientFollowUps = useMemo(() => {
-    // All follow-ups from the collection for this patient (pending only)
+    // Pending follow-ups from collection for display
     const fromCollection = followups
       .filter(f => f.patientId === id && f.status === 'pending')
       .map(f => ({
@@ -740,12 +740,18 @@ export default function PatientProfilePage() {
         status:      f.status,
         phone:       f.phone || '',
         visitId:     f.visitId ?? null,
+        hasRecord:   true,
       }))
 
-    // Collect visit IDs already represented in the collection
-    const syncedVisitIds = new Set(fromCollection.map(f => f.visitId).filter(Boolean))
+    // Track visit IDs with ANY follow-up record (any status) so that marking a
+    // visit-linked follow-up done doesn't cause the visit to re-appear via legacy.
+    const syncedVisitIds = new Set(
+      followups
+        .filter(f => f.patientId === id && f.visitId)
+        .map(f => f.visitId)
+    )
 
-    // Fallback for old visits that were created before the auto-sync existed
+    // Fallback for old visits that predate the auto-sync (no collection record yet)
     const legacy = visits
       .filter(v => v.followUpDate && !syncedVisitIds.has(v.id))
       .map(v => ({
@@ -757,6 +763,7 @@ export default function PatientProfilePage() {
         status:      'pending',
         phone:       '',
         visitId:     v.id,
+        hasRecord:   false,
       }))
 
     return [...fromCollection, ...legacy]
@@ -1490,7 +1497,7 @@ export default function PatientProfilePage() {
                     <span className="text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-full border border-red-200 dark:border-red-700">{overdueFollowUps.length}</span>
                   </div>
                   <div className="divide-y divide-gray-50 dark:divide-gray-700">
-                    {overdueFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}
+                    {overdueFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.hasRecord ? markDone : null}/>)}
                   </div>
                 </div>
               )}
@@ -1503,7 +1510,7 @@ export default function PatientProfilePage() {
                 </div>
                 {todayFollowUps.length === 0
                   ? <div className="px-4 py-6 text-center text-sm text-gray-400">No follow-ups today.</div>
-                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{todayFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}</div>
+                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{todayFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.hasRecord ? markDone : null}/>)}</div>
                 }
               </div>
 
@@ -1515,7 +1522,7 @@ export default function PatientProfilePage() {
                 </div>
                 {tomorrowFollowUps.length === 0
                   ? <div className="px-4 py-6 text-center text-sm text-gray-400">No follow-ups tomorrow.</div>
-                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{tomorrowFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}</div>
+                  : <div className="divide-y divide-gray-50 dark:divide-gray-700">{tomorrowFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.hasRecord ? markDone : null}/>)}</div>
                 }
               </div>
 
@@ -1527,7 +1534,7 @@ export default function PatientProfilePage() {
                     <span className="text-xs font-bold bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 px-2.5 py-1 rounded-full border border-primary-200 dark:border-primary-700">{upcomingFollowUps.length}</span>
                   </div>
                   <div className="divide-y divide-gray-50 dark:divide-gray-700">
-                    {upcomingFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.source === 'standalone' ? markDone : null}/>)}
+                    {upcomingFollowUps.map(e => <ProfileFollowUpRow key={`${e.source}-${e.id}`} entry={e} phone={patient.phone} router={router} doctor={doctor} onMarkDone={e.hasRecord ? markDone : null}/>)}
                   </div>
                 </div>
               )}
