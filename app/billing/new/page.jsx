@@ -120,8 +120,17 @@ function NewInvoiceForm() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setLoading(true)
     setSaveError('')
+
+    const withTimeout = (promise, ms = 15000) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
+        ),
+      ])
+
     try {
-      await add({
+      await withTimeout(add({
         ...form,
         patientName:   selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
         patientPhone:  selectedPatient?.phone ?? '',
@@ -138,7 +147,7 @@ function NewInvoiceForm() {
         createdBy: isReceptionist
           ? { role: 'receptionist', name: doctor._receptionistName ?? '', uid: doctor._receptionistUid ?? '' }
           : { role: 'doctor', name: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '', uid: doctor?.id ?? '' },
-      })
+      }))
 
       // Deduct inventory stock for medicine items (fire-and-forget on individual failures)
       const medicineItems = lineItems.filter(i => i.inventoryItemId && i.quantity > 0)

@@ -5,6 +5,7 @@ import { useReports } from '@/hooks/useReports'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
 import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
+import { PAYMENT_METHODS } from '@/models/Invoice'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,43 @@ export default function ReportsPage() {
     computeMonthlyData(rawInvoices.filter(i => i.status === 'paid'), 'issueDate', 'total', incomeRange.from, incomeRange.to),
     [rawInvoices, incomeRange])
 
+  const paymentMethodData = useMemo(() => {
+    const paid = rawInvoices.filter(i =>
+      i.status === 'paid' && (i.issueDate ?? '') >= from && (i.issueDate ?? '') <= to
+    )
+    const map = {}
+    paid.forEach(inv => {
+      const key = inv.paymentMethod || 'unknown'
+      if (!map[key]) map[key] = { amount: 0, count: 0 }
+      map[key].amount += inv.total ?? 0
+      map[key].count++
+    })
+    return Object.entries(map)
+      .map(([key, { amount, count }]) => ({
+        key,
+        label: PAYMENT_METHODS.find(m => m.value === key)?.label ?? (key === 'unknown' ? 'Not specified' : key),
+        amount,
+        count,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [rawInvoices, from, to])
+
+  const collectedByData = useMemo(() => {
+    const paid = rawInvoices.filter(i =>
+      i.status === 'paid' && (i.issueDate ?? '') >= from && (i.issueDate ?? '') <= to && i.collectedBy
+    )
+    const map = {}
+    paid.forEach(inv => {
+      const key = inv.collectedBy
+      if (!map[key]) map[key] = { amount: 0, count: 0 }
+      map[key].amount += inv.total ?? 0
+      map[key].count++
+    })
+    return Object.entries(map)
+      .map(([key, { amount, count }]) => ({ key, label: key, amount, count }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [rawInvoices, from, to])
+
   const patientChartData = useMemo(() =>
     computeMonthlyData(rawPatients, 'createdAt', 'count', patientRange.from, patientRange.to),
     [rawPatients, patientRange])
@@ -498,6 +536,71 @@ export default function ReportsPage() {
 
           </div>
         )}
+
+        {/* ── Payment Collection Breakdown ─────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Payment Method</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">How payments were collected in the selected period</p>
+            {paymentMethodData.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No paid invoices in this period</p>
+            ) : (
+              <div className="space-y-3">
+                {paymentMethodData.map((item, idx) => {
+                  const total = paymentMethodData.reduce((s, i) => s + i.amount, 0)
+                  const pct   = total > 0 ? Math.round((item.amount / total) * 100) : 0
+                  return (
+                    <div key={item.key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">{item.count} inv · {pct}%</span>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(item.amount)}</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                        <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2 rounded-full transition-all`}
+                          style={{ width: `${pct}%` }}/>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Collected By</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Revenue by person who collected the payment</p>
+            {collectedByData.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No collection data in this period</p>
+            ) : (
+              <div className="space-y-3">
+                {collectedByData.map((item, idx) => {
+                  const total = collectedByData.reduce((s, i) => s + i.amount, 0)
+                  const pct   = total > 0 ? Math.round((item.amount / total) * 100) : 0
+                  return (
+                    <div key={item.key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">{item.count} inv · {pct}%</span>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(item.amount)}</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                        <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2 rounded-full transition-all`}
+                          style={{ width: `${pct}%` }}/>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
 
       </div>
     </AppLayout>
