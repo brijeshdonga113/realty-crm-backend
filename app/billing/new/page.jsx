@@ -6,7 +6,7 @@ import { useBilling } from '@/hooks/useBilling'
 import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { useInventory } from '@/hooks/useInventory'
-import { createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
+import { createLineItem, PAYMENT_METHODS } from '@/models/Invoice'
 import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -39,13 +39,15 @@ function NewInvoiceForm() {
   const [saveError, setSaveError] = useState('')
 
   const [form, setForm] = useState({
-    patientId: searchParams.get('patientId') ?? '',
-    issueDate: new Date().toISOString().slice(0, 10),
-    dueDate:   '',
-    taxRate:   0,
-    discount:  0,
-    notes:     '',
-    status:    'draft',
+    patientId:     searchParams.get('patientId') ?? '',
+    issueDate:     new Date().toISOString().slice(0, 10),
+    dueDate:       '',
+    taxRate:       0,
+    discount:      0,
+    notes:         '',
+    status:        'draft',
+    paymentMethod: '',
+    collectedBy:   '',
   })
 
   const [lineItems, setLineItems] = useState([createLineItem({ itemType: 'service' })])
@@ -95,11 +97,10 @@ function NewInvoiceForm() {
     return map
   }, [lineItems, inventory])
 
-  const { subtotal, taxAmount, total } = calculateInvoiceTotals(
-    lineItems,
-    Number(form.taxRate) / 100,
-    Number(form.discount),
-  )
+  const subtotal         = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  const taxableSubtotal  = lineItems.filter(i => i.taxable !== false).reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  const taxAmount        = Math.round(taxableSubtotal * Number(form.taxRate) / 100)
+  const total            = subtotal + taxAmount - Number(form.discount)
 
   // ── Validation ───────────────────────────────────────────────────────────────
 
@@ -122,11 +123,14 @@ function NewInvoiceForm() {
     try {
       await add({
         ...form,
-        patientName:  selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
-        patientPhone: selectedPatient?.phone ?? '',
+        patientName:   selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
+        patientPhone:  selectedPatient?.phone ?? '',
         lineItems,
-        taxRate:  Number(form.taxRate) / 100,
-        discount: Number(form.discount),
+        taxRate:       Number(form.taxRate) / 100,
+        discount:      Number(form.discount),
+        paymentMethod: form.paymentMethod || null,
+        collectedBy:   form.collectedBy,
+        paymentDate:   form.status === 'paid' ? form.issueDate : null,
         clinicName:  doctor?.clinicName ?? '',
         doctorName:  doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
         doctorPhone: doctor?.phone ?? '',
@@ -194,13 +198,39 @@ function NewInvoiceForm() {
             </div>
 
             <div>
-              <label className="form-label">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
-                <option value="draft">Due / Unpaid</option>
-                <option value="sent">Sent to Patient</option>
-                <option value="paid">Paid</option>
+              <label className="form-label">Payment Method</label>
+              <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className="input-field">
+                <option value="">Not specified</option>
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
             </div>
+
+            {form.paymentMethod && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    <button type="button" onClick={() => set('status', 'paid')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                      Paid
+                    </button>
+                    <button type="button" onClick={() => set('status', 'draft')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      Due
+                    </button>
+                  </div>
+                </div>
+                {form.paymentMethod === 'receptionist' && (
+                  <div>
+                    <label className="form-label">Collected By</label>
+                    <input value={form.collectedBy} onChange={e => set('collectedBy', e.target.value)}
+                      className="input-field" placeholder="Receptionist name"/>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Line Items ── */}
@@ -256,7 +286,8 @@ function NewInvoiceForm() {
             <div className="space-y-3">
               {/* Column headers */}
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3">
-                <span className="col-span-6">Description / Medicine</span>
+                <span className="col-span-5">Description / Medicine</span>
+                <span className="col-span-1 text-center">Tax</span>
                 <span className="col-span-2 text-center">Qty</span>
                 <span className="col-span-2">Unit Price</span>
                 <span className="col-span-1 text-right">Total</span>
@@ -278,7 +309,7 @@ function NewInvoiceForm() {
                     }`}>
 
                     {/* Description / Medicine select */}
-                    <div className="col-span-6">
+                    <div className="col-span-5">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                           isMedicine
@@ -320,6 +351,23 @@ function NewInvoiceForm() {
                           className="input-field text-sm py-2 w-full"
                         />
                       )}
+                    </div>
+
+                    {/* Tax toggle */}
+                    <div className="col-span-1 pt-7 flex justify-center">
+                      <button type="button"
+                        title={item.taxable !== false ? 'Click to exempt from tax' : 'Click to apply tax'}
+                        onClick={() => updateItem(item.id, 'taxable', item.taxable !== false ? false : true)}
+                        className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                          item.taxable !== false
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40'
+                            : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                        }`}>
+                        {item.taxable !== false
+                          ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                        }
+                      </button>
                     </div>
 
                     {/* Qty */}
@@ -386,7 +434,12 @@ function NewInvoiceForm() {
                 </div>
                 {taxAmount > 0 && (
                   <div className="flex gap-8 text-gray-600 dark:text-gray-300">
-                    <span>Tax ({form.taxRate}%)</span>
+                    <span>
+                      Tax ({form.taxRate}%)
+                      {taxableSubtotal < subtotal && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">on {formatCurrency(taxableSubtotal)}</span>
+                      )}
+                    </span>
                     <span className="font-medium w-28 text-right">{formatCurrency(taxAmount)}</span>
                   </div>
                 )}

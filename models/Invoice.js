@@ -29,6 +29,7 @@ export function createLineItem(data = {}) {
     total:           (data.quantity ?? 1) * (data.unitPrice ?? 0),
     itemType:        data.itemType ?? 'service',
     inventoryItemId: data.inventoryItemId ?? null,
+    taxable:         data.taxable ?? true,
   }
 }
 
