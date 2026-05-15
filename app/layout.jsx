@@ -1,5 +1,6 @@
 import './globals.css'
 import { AuthProvider } from '@/context/AuthContext'
+import { ToastProvider } from '@/components/ui/Toast'
 import { getThemeScript } from '@/lib/themes'
 import { Analytics } from '@vercel/analytics/next'
 
@@ -17,7 +18,9 @@ export default function RootLayout({ children }) {
       </head>
       <body className="bg-gray-50 dark:bg-gray-900 min-h-screen font-sans">
         <AuthProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </AuthProvider>
         <Analytics />
       </body>

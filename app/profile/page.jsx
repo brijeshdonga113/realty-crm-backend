@@ -56,8 +56,8 @@ export default function ProfilePage() {
         await setDoc(doc(db, 'receptionists', doctor._receptionistUid), { name: form.recName.trim() }, { merge: true })
         await updateProfile({ _receptionistName: form.recName.trim() })
         setSaved(true)
-      } catch (err) {
-        setError(err.message)
+      } catch {
+        setError('Failed to save. Please try again.')
       } finally {
         setSaving(false)
       }
@@ -72,8 +72,8 @@ export default function ProfilePage() {
     try {
       await updateProfile(form)
       setSaved(true)
-    } catch (err) {
-      setError(err.message)
+    } catch {
+      setError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -103,7 +103,7 @@ export default function ProfilePage() {
       await updateProfile({ logoUrl: data.url })
     } catch (err) {
       console.error('[logo upload]', err)
-      setLogoError(err.message || 'Upload failed. Please try again.')
+      setLogoError('Upload failed. Please try again.')
     } finally {
       setLogoUploading(false)
       e.target.value = ''
@@ -137,11 +137,16 @@ export default function ProfilePage() {
       setPwForm({ current: '', next: '', confirm: '' })
       setPwSaved(true)
     } catch (err) {
-      setPwError(
-        err.message?.includes('auth/wrong-password') || err.message?.includes('auth/invalid-credential')
-          ? 'Current password is incorrect.'
-          : err.message
-      )
+      const code = err?.code ?? ''
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setPwError('Current password is incorrect.')
+      } else if (code === 'auth/network-request-failed') {
+        setPwError('No internet connection. Please try again.')
+      } else if (code === 'auth/too-many-requests') {
+        setPwError('Too many attempts. Please wait and try again.')
+      } else {
+        setPwError('Failed to change password. Please try again.')
+      }
     } finally {
       setPwSaving(false)
     }

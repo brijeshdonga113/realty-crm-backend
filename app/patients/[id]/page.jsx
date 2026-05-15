@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
 import { usePatientAppointments } from '@/hooks/useAppointments'
@@ -88,6 +89,7 @@ const EDIT_TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
 /* ─────────────── EditPatientModal ─────────────── */
 function EditPatientModal({ open, onClose, patient, onSave }) {
   const referralSources = useReferralSources()
+  const toast = useToast()
   const [form, setForm]   = useState(null)
   const [tab, setTab]     = useState(0)
   const [saving, setSaving] = useState(false)
@@ -102,7 +104,7 @@ function EditPatientModal({ open, onClose, patient, onSave }) {
 
   const handleSave = async () => {
     setSaving(true)
-    try { await onSave(form) } catch (err) { alert(err?.message || 'Failed to save') } finally { setSaving(false) }
+    try { await onSave(form) } catch { toast.error('Failed to save patient. Please try again.') } finally { setSaving(false) }
   }
 
   return (
@@ -313,6 +315,7 @@ function InfoRow({ label, value }) {
 /* ─────────────── VisitCard with edit + delete ─────────────── */
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [] }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
+  const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [editForm, setEditForm] = useState(null)
@@ -356,7 +359,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
       }
       setEditing(false)
     } catch (err) {
-      alert(err?.message || 'Failed to update visit')
+      toast.error('Failed to update visit. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -702,6 +705,7 @@ export default function PatientProfilePage() {
   const router  = useRouter()
   const { doctor } = useAuth()
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
+  const toast = useToast()
   const referralSources  = useReferralSources()
   const billingStatuses  = getBillingStatuses(doctor?.billingStatuses)
   const INV_COLORS       = buildStatusColorMap(billingStatuses)
@@ -823,7 +827,7 @@ export default function PatientProfilePage() {
       await update(overviewForm)   // uses usePatient's update which calls setPatient(updated)
       setEditingOverview(false)
     } catch (err) {
-      alert(err?.message || 'Failed to save')
+      toast.error('Failed to save. Please try again.')
     } finally {
       setOverviewSaving(false)
     }

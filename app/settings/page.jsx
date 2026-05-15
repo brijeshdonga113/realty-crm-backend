@@ -358,7 +358,7 @@ export default function SettingsPage() {
       setGcalConnected(true)
       updateProfile({ googleCalendarConnected: true }).catch(() => {})
     } catch (err) {
-      setGcalError(err.message)
+      setGcalError('Something went wrong. Please try again.')
     } finally {
       setGcalLoading(false)
     }
@@ -379,7 +379,7 @@ export default function SettingsPage() {
       const result = await appointmentService.syncAllToGoogleCalendar()
       setGcalSyncResult(result)
     } catch (err) {
-      setGcalError(err.message)
+      setGcalError('Something went wrong. Please try again.')
     } finally {
       setGcalSyncing(false)
     }

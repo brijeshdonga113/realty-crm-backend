@@ -11,6 +11,7 @@ import { PAYMENT_METHODS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
+import { useToast } from '@/components/ui/Toast'
 
 function InvoicePrint({ invoice, doctor }) {
   const { formatCurrency, formatDate } = usePreferences()
@@ -102,6 +103,7 @@ function BillingPageInner() {
   const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, update, remove } = useBilling()
+  const toast = useToast()
   const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
   const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
   const [filterStatus,    setFilterStatus]    = useState(() => isReceptionist ? 'draft' : 'all')
@@ -145,7 +147,7 @@ function BillingPageInner() {
       })
       setEditInvoice(null)
     } catch (err) {
-      alert(err?.message || 'Failed to update invoice')
+      toast.error('Failed to update invoice. Please try again.')
     } finally {
       setEditSaving(false)
     }
