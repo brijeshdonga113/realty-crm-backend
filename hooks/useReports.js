@@ -125,6 +125,7 @@ export function useReports() {
   const [rawPatients,       setRawPatients]     = useState([])
   const [rawAppointments,   setRawAppointments] = useState([])
   const [rawVisits,         setRawVisits]       = useState([])
+  const [rawFollowups,      setRawFollowups]    = useState([])
   const [loading,           setLoading]         = useState(true)
 
   // Stable ref holds the latest snapshot from each listener
@@ -147,6 +148,7 @@ export function useReports() {
       setRawPatients(d.patients)
       setRawAppointments(d.appointments)
       setRawVisits(d.visits)
+      setRawFollowups(d.followups)
       setLoading(false)
     }
   }, [])
@@ -173,5 +175,5 @@ export function useReports() {
     return () => unsubs.forEach(u => u())
   }, [doctor, recompute])
 
-  return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, rawPatients, rawAppointments, rawVisits, loading }
+  return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, rawPatients, rawAppointments, rawVisits, rawFollowups, loading }
 }

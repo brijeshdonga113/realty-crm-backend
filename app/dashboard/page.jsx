@@ -1,14 +1,11 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/context/AuthContext'
 import { useReports } from '@/hooks/useReports'
-import { useAppointments } from '@/hooks/useAppointments'
-import { usePatients } from '@/hooks/usePatients'
-import { useFollowUps } from '@/hooks/useFollowUps'
 import { usePreferences } from '@/hooks/usePreferences'
 import { localDateStr } from '@/lib/preferences'
 import { dataStore } from '@/lib/dataStore'
@@ -70,10 +67,7 @@ export default function DashboardPage() {
   const { doctor, isReceptionist } = useAuth()
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
-  const { stats, loading: reportLoading } = useReports()
-  const { appointments } = useAppointments()
-  const { patients } = usePatients()
-  const { followups } = useFollowUps()
+  const { stats, rawAppointments: appointments, rawPatients: patients, rawFollowups: followups, loading: reportLoading } = useReports()
 
   const [layout, setLayout]         = useState(DEFAULT_LAYOUT)
   const [customizing, setCustomizing] = useState(false)
@@ -102,10 +96,11 @@ export default function DashboardPage() {
   const todayStr    = localDateStr()
   const tomorrowStr = localDateStr(1)
   const twoDaysStr  = localDateStr(2)
-  const todayAppts  = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5)
-  const todayFollowups    = followups.filter(f => f.dueDate === todayStr    && f.status === 'pending')
-  const tomorrowFollowups = followups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending')
-  const twoDayFollowups   = followups.filter(f => f.dueDate === twoDaysStr  && f.status === 'pending')
+
+  const todayAppts        = useMemo(() => appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5), [appointments, todayStr])
+  const todayFollowups    = useMemo(() => followups.filter(f => f.dueDate === todayStr    && f.status === 'pending'), [followups, todayStr])
+  const tomorrowFollowups = useMemo(() => followups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending'), [followups, tomorrowStr])
+  const twoDayFollowups   = useMemo(() => followups.filter(f => f.dueDate === twoDaysStr  && f.status === 'pending'), [followups, twoDaysStr])
   const specLabel = SPECIALIZATION_LABELS[doctor?.specialization] ?? doctor?.specialization
 
   const quickActions = [
