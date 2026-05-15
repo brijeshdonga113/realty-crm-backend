@@ -5,6 +5,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 
+function friendlyAuthError(err) {
+  const code = err?.code ?? ''
+  if (code === 'auth/network-request-failed') return 'No internet connection. Please check your network and try again.'
+  if (code === 'auth/email-already-in-use') return 'An account with this email already exists. Try signing in instead.'
+  if (code === 'auth/invalid-email') return 'Please enter a valid email address.'
+  if (code === 'auth/weak-password') return 'Password is too weak. Please use at least 6 characters.'
+  if (code === 'auth/too-many-requests') return 'Too many attempts. Please wait a moment and try again.'
+  if ((err?.message ?? '').toLowerCase().includes('network')) return 'Network error. Please check your connection and try again.'
+  if ((err?.message ?? '').toLowerCase().includes('invite')) return err.message
+  return 'Something went wrong. Please try again.'
+}
+
 export default function ReceptionistSignupPage() {
   const { signupReceptionist } = useAuth()
   const router = useRouter()
@@ -45,7 +57,7 @@ export default function ReceptionistSignupPage() {
       await signupReceptionist(form.name, form.email, form.password, form.inviteCode)
       router.push('/dashboard')
     } catch (err) {
-      setGlobalError(err.message)
+      setGlobalError(friendlyAuthError(err))
     } finally {
       setLoading(false)
     }

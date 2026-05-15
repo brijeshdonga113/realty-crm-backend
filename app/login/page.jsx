@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
@@ -24,14 +24,34 @@ const LEFT_FEATURES = [
   },
 ]
 
+function friendlyAuthError(err) {
+  const code = err?.code ?? ''
+  if (code === 'auth/network-request-failed') return 'No internet connection. Please check your network and try again.'
+  if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Incorrect email or password. Please try again.'
+  if (code === 'auth/user-not-found') return 'No account found with this email address.'
+  if (code === 'auth/invalid-email') return 'Please enter a valid email address.'
+  if (code === 'auth/too-many-requests') return 'Too many failed attempts. Please wait a moment and try again.'
+  if (code === 'auth/user-disabled') return 'This account has been disabled. Please contact support.'
+  if (code === 'auth/email-already-in-use') return 'An account with this email already exists.'
+  // Strip any "Firebase: " prefix before showing fallback
+  const msg = err?.message ?? ''
+  if (msg.toLowerCase().includes('network')) return 'Network error. Please check your connection and try again.'
+  return 'Something went wrong. Please try again.'
+}
+
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, doctor, loading: authLoading } = useAuth()
   const router = useRouter()
 
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  // Already logged in — redirect to dashboard
+  useEffect(() => {
+    if (!authLoading && doctor) router.replace('/dashboard')
+  }, [authLoading, doctor, router])
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -49,7 +69,7 @@ export default function LoginPage() {
       await login(form.email, form.password)
       router.push('/dashboard')
     } catch (err) {
-      setError(err.message)
+      setError(friendlyAuthError(err))
     } finally {
       setLoading(false)
     }
