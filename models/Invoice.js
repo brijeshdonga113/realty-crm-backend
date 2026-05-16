@@ -25,12 +25,17 @@ export const COLLECTED_BY_OPTIONS = [
 ]
 
 export function createLineItem(data = {}) {
+  const qty   = data.quantity ?? 1
+  const price = data.unitPrice ?? 0
+  const disc  = data.discountPct ?? 0
+  const lineTotal = qty * price
   return {
     id:              data.id ?? uid(),
     description:     data.description ?? '',
-    quantity:        data.quantity ?? 1,
-    unitPrice:       data.unitPrice ?? 0,
-    total:           (data.quantity ?? 1) * (data.unitPrice ?? 0),
+    quantity:        qty,
+    unitPrice:       price,
+    discountPct:     disc,
+    total:           lineTotal - lineTotal * disc / 100,
     itemType:        data.itemType ?? 'service',
     inventoryItemId: data.inventoryItemId ?? null,
     taxable:         data.taxable ?? true,

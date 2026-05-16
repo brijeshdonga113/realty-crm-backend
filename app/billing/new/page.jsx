@@ -61,9 +61,11 @@ function NewInvoiceForm() {
   const updateItem = (id, field, raw) => {
     setLineItems(prev => prev.map(item => {
       if (item.id !== id) return item
-      const value   = (field === 'quantity' || field === 'unitPrice') ? Number(raw) : raw
+      const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...item, [field]: value }
-      return { ...updated, total: updated.quantity * updated.unitPrice }
+      const lineTotal  = updated.quantity * updated.unitPrice
+      const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
+      return { ...updated, total: lineTotal - discAmount }
     }))
   }
 
@@ -73,7 +75,9 @@ function NewInvoiceForm() {
       if (item.id !== id) return item
       const desc      = inv ? `${inv.name}${inv.potency ? ` (${inv.potency})` : ''}` : ''
       const unitPrice = inv ? (inv.billingPrice ? Number(inv.billingPrice) : (inv.mrp ? Number(inv.mrp) : 0)) : 0
-      return { ...item, inventoryItemId: invId || null, description: desc, unitPrice, total: item.quantity * unitPrice }
+      const lineTotal  = item.quantity * unitPrice
+      const discAmount = lineTotal * (Number(item.discountPct) || 0) / 100
+      return { ...item, inventoryItemId: invId || null, description: desc, unitPrice, total: lineTotal - discAmount }
     }))
   }
 
@@ -97,8 +101,8 @@ function NewInvoiceForm() {
     return map
   }, [lineItems, inventory])
 
-  const subtotal         = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxableSubtotal  = lineItems.filter(i => i.taxable !== false).reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  const subtotal         = lineItems.reduce((s, i) => s + i.total, 0)
+  const taxableSubtotal  = lineItems.filter(i => i.taxable !== false).reduce((s, i) => s + i.total, 0)
   const taxAmount        = Math.round(taxableSubtotal * Number(form.taxRate) / 100)
   const total            = subtotal + taxAmount - Number(form.discount)
 
@@ -294,8 +298,9 @@ function NewInvoiceForm() {
             <div className="space-y-3">
               {/* Column headers */}
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3">
-                <span className="col-span-5">Description / Medicine</span>
+                <span className="col-span-4">Description / Medicine</span>
                 <span className="col-span-1 text-center">Tax</span>
+                <span className="col-span-1 text-center">Disc</span>
                 <span className="col-span-2 text-center">Qty</span>
                 <span className="col-span-2">Unit Price</span>
                 <span className="col-span-1 text-right">Total</span>
@@ -317,7 +322,7 @@ function NewInvoiceForm() {
                     }`}>
 
                     {/* Description / Medicine select */}
-                    <div className="col-span-5">
+                    <div className="col-span-4">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                           isMedicine
@@ -378,6 +383,28 @@ function NewInvoiceForm() {
                       </button>
                     </div>
 
+                    {/* Discount toggle */}
+                    <div className="col-span-1 pt-7 flex flex-col items-center gap-1">
+                      <button type="button"
+                        title={item.discountPct > 0 ? 'Remove item discount' : 'Add item discount (%)'}
+                        onClick={() => updateItem(item.id, 'discountPct', item.discountPct > 0 ? 0 : 10)}
+                        className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors text-xs font-bold ${
+                          item.discountPct > 0
+                            ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                            : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                        }`}>
+                        %
+                      </button>
+                      {item.discountPct > 0 && (
+                        <input
+                          type="number" min="0" max="100"
+                          value={item.discountPct}
+                          onChange={e => updateItem(item.id, 'discountPct', e.target.value)}
+                          className="w-12 text-center text-xs py-1 border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                        />
+                      )}
+                    </div>
+
                     {/* Qty */}
                     <div className="col-span-2 pt-7">
                       <input
@@ -402,8 +429,13 @@ function NewInvoiceForm() {
                     {/* Total */}
                     <div className="col-span-1 pt-8 text-right">
                       <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        {formatCurrency(item.quantity * item.unitPrice)}
+                        {formatCurrency(item.total)}
                       </span>
+                      {item.discountPct > 0 && (
+                        <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">
+                          -{item.discountPct}%
+                        </p>
+                      )}
                     </div>
 
                     {/* Delete */}
