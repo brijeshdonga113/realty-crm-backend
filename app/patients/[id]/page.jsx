@@ -313,9 +313,10 @@ function InfoRow({ label, value }) {
 }
 
 /* ─────────────── VisitCard with edit + delete ─────────────── */
-function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp }) {
+function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp, defaultExpanded = false }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [editForm, setEditForm] = useState(null)
@@ -378,139 +379,191 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30">
-        <div className="flex items-center gap-3">
-          <p className="text-sm font-bold text-gray-900 dark:text-white">{formatDate(visit.visitDate)}</p>
-          <span className="text-xs text-gray-400 dark:text-gray-500">
+
+      {/* ── Clickable summary row ── */}
+      <div
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-gray-50/80 dark:hover:bg-gray-700/30 transition-colors"
+        onClick={() => setExpanded(e => !e)}
+      >
+        {/* Date / Time */}
+        <div className="flex-shrink-0 min-w-[72px]">
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatDate(visit.visitDate)}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
             {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
-          </span>
-          {visit.followUpDate && (
-            followUpDone ? (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                Follow-up: {formatDate(visit.followUpDate)} ✓ Done
-              </span>
-            ) : (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                daysRemaining < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                daysRemaining === 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-              }`}>
-                Follow-up: {formatDate(visit.followUpDate)}
-                {daysRemaining === 0 ? ' (Today)' : daysRemaining < 0 ? ` (${Math.abs(daysRemaining)}d overdue)` : ` (in ${daysRemaining}d)`}
-              </span>
-            )
+          </p>
+        </div>
+
+        <div className="w-px h-9 bg-gray-100 dark:bg-gray-700 flex-shrink-0"/>
+
+        {/* Chief complaint + diagnosis chips */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+            {visit.chiefComplaint || <span className="italic font-normal text-gray-400 dark:text-gray-500">No chief complaint</span>}
+          </p>
+          {visit.diagnosis?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {visit.diagnosis.slice(0, 3).map(d => (
+                <span key={d} className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
+                  {d}
+                </span>
+              ))}
+              {visit.diagnosis.length > 3 && (
+                <span className="text-xs text-gray-400 dark:text-gray-500 self-center">+{visit.diagnosis.length - 3}</span>
+              )}
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Follow-up badge */}
+        {visit.followUpDate && (
+          followUpDone ? (
+            <span className="flex-shrink-0 hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+              Follow-up done
+            </span>
+          ) : (
+            <span className={`flex-shrink-0 hidden sm:inline-block text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+              daysRemaining < 0   ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800' :
+              daysRemaining === 0 ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-100 dark:border-orange-800' :
+              'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800'
+            }`}>
+              {daysRemaining === 0 ? 'Follow-up today' : daysRemaining < 0 ? `${Math.abs(daysRemaining)}d overdue` : `Follow-up in ${daysRemaining}d`}
+            </span>
+          )
+        )}
+
+        {/* Payment badge */}
+        {linkedInvoice && (
+          <span className={`flex-shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+            linkedInvoice.status === 'paid'
+              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800'
+              : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-100 dark:border-yellow-800'
+          }`}>
+            {formatCurrency(linkedInvoice.total)}
+            {linkedInvoice.status === 'paid'
+              ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+              : <span className="opacity-60 font-normal">due</span>}
+          </span>
+        )}
+
+        {/* Actions — stop propagation so they don't toggle expand */}
+        <div className="flex-shrink-0 flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+          <button onClick={openEdit} title="Edit visit"
+            className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
           {onDelete && (
-            <button onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) onDelete(visit.id) }}
-              className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button title="Delete visit"
+              onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) onDelete(visit.id) }}
+              className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
               </svg>
             </button>
           )}
-          <button onClick={openEdit}
-            className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline px-1">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
-            Edit
-          </button>
         </div>
+
+        {/* Chevron */}
+        <svg className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
       </div>
 
-      {/* Full visit detail — always visible */}
-      <div className="p-5 space-y-4">
-        <Field label="Chief Complaint" value={visit.chiefComplaint} />
-        <Field label="History" value={visit.history} />
+      {/* ── Expandable detail body ── */}
+      {expanded && (
+        <div className="border-t border-gray-100 dark:border-gray-700 p-5 space-y-4">
+          <Field label="Chief Complaint" value={visit.chiefComplaint} />
+          <Field label="History" value={visit.history} />
 
-        {hasVitals && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Vital Signs</p>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
-              {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
-                <div key={k}>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
-                </div>
-              ) : null)}
-            </div>
-          </div>
-        )}
-
-        <Field label="Clinical Findings" value={visit.examination?.findings} />
-
-        {visit.diagnosis?.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Diagnosis</p>
-            <div className="flex flex-wrap gap-1.5">
-              {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
-            </div>
-          </div>
-        )}
-
-        <Field label="Treatment Plan" value={visit.treatment} />
-
-        {visit.prescriptions?.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Prescriptions</p>
-            <div className="space-y-2">
-              {visit.prescriptions.map(rx => (
-                <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/40 rounded-lg px-4 py-3">
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{rx.medication}</p>
-                    {rx.dosage && <span className="text-xs font-medium text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/40 px-2 py-0.5 rounded-full">{rx.dosage}</span>}
-                  </div>
-                  <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {rx.frequency && <span>{rx.frequency}</span>}
-                    {rx.duration  && <span>· {rx.duration}</span>}
-                  </div>
-                  {rx.instructions && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">{rx.instructions}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {visit.labOrders?.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Lab Orders</p>
-            <div className="flex flex-wrap gap-1.5">
-              {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
-            </div>
-          </div>
-        )}
-
-        <Field label="Notes" value={visit.notes} />
-
-        {linkedInvoice && (
-          <div className={`rounded-xl px-4 py-3 border flex items-center justify-between ${
-            linkedInvoice.status === 'paid'
-              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
-              : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
-          }`}>
+          {hasVitals && (
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Payment</p>
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                {linkedInvoice.invoiceNumber}
-                {linkedInvoice.paymentMethod && (
-                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2 capitalize">
-                    via {linkedInvoice.paymentMethod.replace('_', ' ')}
-                  </span>
-                )}
-              </p>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Vital Signs</p>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+                {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
+                  <div key={k}>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v}</p>
+                  </div>
+                ) : null)}
+              </div>
             </div>
-            <div className="text-right">
-              <p className={`text-lg font-bold ${linkedInvoice.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                {formatCurrency(linkedInvoice.total)}
-              </p>
-              <Badge label={linkedInvoice.status} color={linkedInvoice.status === 'paid' ? 'green' : 'yellow'} />
+          )}
+
+          <Field label="Clinical Findings" value={visit.examination?.findings} />
+
+          {visit.diagnosis?.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Diagnosis</p>
+              <div className="flex flex-wrap gap-1.5">
+                {visit.diagnosis.map(d => <Badge key={d} label={d} color="teal"/>)}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+
+          <Field label="Treatment Plan" value={visit.treatment} />
+
+          {visit.prescriptions?.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Prescriptions</p>
+              <div className="space-y-2">
+                {visit.prescriptions.map(rx => (
+                  <div key={rx.id} className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/40 rounded-lg px-4 py-3">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{rx.medication}</p>
+                      {rx.dosage && <span className="text-xs font-medium text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/40 px-2 py-0.5 rounded-full">{rx.dosage}</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {rx.frequency && <span>{rx.frequency}</span>}
+                      {rx.duration  && <span>· {rx.duration}</span>}
+                    </div>
+                    {rx.instructions && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">{rx.instructions}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {visit.labOrders?.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Lab Orders</p>
+              <div className="flex flex-wrap gap-1.5">
+                {visit.labOrders.map(l => <Badge key={l} label={l} color="purple"/>)}
+              </div>
+            </div>
+          )}
+
+          <Field label="Notes" value={visit.notes} />
+
+          {linkedInvoice && (
+            <div className={`rounded-xl px-4 py-3 border flex items-center justify-between ${
+              linkedInvoice.status === 'paid'
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
+            }`}>
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Payment</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  {linkedInvoice.invoiceNumber}
+                  {linkedInvoice.paymentMethod && (
+                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2 capitalize">
+                      via {linkedInvoice.paymentMethod.replace('_', ' ')}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className={`text-lg font-bold ${linkedInvoice.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                  {formatCurrency(linkedInvoice.total)}
+                </p>
+                <Badge label={linkedInvoice.status} color={linkedInvoice.status === 'paid' ? 'green' : 'yellow'} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Modal */}
       <Modal open={editing} onClose={() => setEditing(false)} title="Edit Visit" size="lg">
@@ -1586,29 +1639,58 @@ export default function PatientProfilePage() {
             </div>
           ))}
 
-          {/* Completed visits */}
-          {visits.filter(v => v.status !== 'draft').length === 0 && visits.filter(v => v.status === 'draft').length === 0 ? (
-            <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
-              action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
-          ) : visits.filter(v => v.status !== 'draft').length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {visits.filter(v => v.status !== 'draft').map(visit => (
-                <VisitCard
-                  key={visit.id}
-                  visit={visit}
-                  onUpdate={updateVisit}
-                  onDelete={removeVisit}
-                  patientId={id}
-                  patientName={`${patient.firstName} ${patient.lastName}`}
-                  linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
-                  blockedSlots={blockedSlots}
-                  linkedFollowUp={followupByVisitId[visit.id] ?? null}
-                />
-              ))}
-            </div>
-          )}
+          {/* Completed visits — timeline */}
+          {(() => {
+            const completedVisits = visits.filter(v => v.status !== 'draft')
+            const draftCount = visits.filter(v => v.status === 'draft').length
+            if (completedVisits.length === 0 && draftCount === 0) {
+              return (
+                <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
+                  action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
+              )
+            }
+            if (completedVisits.length === 0) {
+              return <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
+            }
+            return (
+              <div className="relative">
+                {/* Timeline spine */}
+                <div className="absolute left-5 top-10 bottom-6 w-0.5 bg-gradient-to-b from-primary-300 via-gray-200 to-transparent dark:from-primary-700 dark:via-gray-700 dark:to-transparent"/>
+
+                <div className="space-y-3">
+                  {completedVisits.map((visit, idx) => (
+                    <div key={visit.id} className="relative flex gap-4 items-start">
+                      {/* Timeline node */}
+                      <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-gray-900 shadow-sm ${
+                          idx === 0
+                            ? 'bg-primary-500 dark:bg-primary-500 text-white'
+                            : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                        }`}>
+                          {completedVisits.length - idx}
+                        </div>
+                      </div>
+
+                      {/* Card */}
+                      <div className="flex-1 min-w-0">
+                        <VisitCard
+                          visit={visit}
+                          onUpdate={updateVisit}
+                          onDelete={removeVisit}
+                          patientId={id}
+                          patientName={`${patient.firstName} ${patient.lastName}`}
+                          linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
+                          blockedSlots={blockedSlots}
+                          linkedFollowUp={followupByVisitId[visit.id] ?? null}
+                          defaultExpanded={idx === 0}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
