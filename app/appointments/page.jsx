@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useAppointments } from '@/hooks/useAppointments'
+import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '@/models/Appointment'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -118,7 +119,9 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
   )
 }
 
-function AppointmentTable({ appointments, formatDate, formatTime, router, onEdit, onRemind, onRemove, muted = false }) {
+function normalizePhone(p) { return (p || '').replace(/\D/g, '') }
+
+function AppointmentTable({ appointments, formatDate, formatTime, router, onEdit, onRemind, onRemove, patientPhoneSet = new Set(), muted = false }) {
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm overflow-hidden overflow-x-auto ${muted ? 'border-gray-200 dark:border-gray-600 opacity-80' : 'border-gray-100 dark:border-gray-700'}`}>
       <table className="w-full min-w-[640px]">
@@ -157,7 +160,7 @@ function AppointmentTable({ appointments, formatDate, formatTime, router, onEdit
                       Attend Now
                     </button>
                   )}
-                  {appt.source === 'booking_link' && !appt.patientId && (
+                  {appt.source === 'booking_link' && !appt.patientId && !patientPhoneSet.has(normalizePhone(appt.patientPhone)) && (
                     <button
                       onClick={() => router.push(`/patients/new?name=${encodeURIComponent(appt.patientName || '')}&phone=${encodeURIComponent(appt.patientPhone || '')}`)}
                       className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-white dark:text-blue-300 bg-blue-50 hover:bg-blue-500 dark:bg-blue-900/30 dark:hover:bg-blue-600 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
@@ -207,6 +210,12 @@ export default function AppointmentsPage() {
   const { doctor } = useAuth()
   const { formatDate, formatDateFull, dateFormat } = usePreferences()
   const { appointments, loading, update, remove } = useAppointments()
+  const { patients } = usePatients()
+
+  const patientPhoneSet = useMemo(
+    () => new Set(patients.map(p => normalizePhone(p.phone)).filter(Boolean)),
+    [patients]
+  )
 
   const [view, setView]                 = useState('list')
   const [selectedDate, setSelectedDate] = useState(() => localDateStr())
@@ -402,6 +411,7 @@ export default function AppointmentsPage() {
                   onEdit={(appt) => { setEditAppt(appt); setEditForm({ status: appt.status, date: appt.date, time: appt.time }) }}
                   onRemind={openRemind}
                   onRemove={remove}
+                  patientPhoneSet={patientPhoneSet}
                 />
               )}
 
@@ -437,6 +447,7 @@ export default function AppointmentsPage() {
                         onEdit={(appt) => { setEditAppt(appt); setEditForm({ status: appt.status, date: appt.date, time: appt.time }) }}
                         onRemind={openRemind}
                         onRemove={remove}
+                        patientPhoneSet={patientPhoneSet}
                         muted
                       />
                     </div>
