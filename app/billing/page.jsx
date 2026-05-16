@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
-import { PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
@@ -113,7 +113,7 @@ function BillingPageInner() {
   const [printInvoice, setPrintInvoice] = useState(null)
   const [payModal, setPayModal]           = useState(null)
   const [payMethod, setPayMethod]         = useState('cash')
-  const [payCollectedBy, setPayCollectedBy] = useState('')
+  const [payCollectedBy, setPayCollectedBy] = useState(() => isReceptionist ? 'receptionist' : 'doctor')
   const [editInvoice, setEditInvoice]     = useState(null)
   const [editForm, setEditForm]           = useState({ description: '', amount: '', method: 'cash', status: 'paid', collectedBy: '' })
   const [editSaving, setEditSaving]     = useState(false)
@@ -125,7 +125,7 @@ function BillingPageInner() {
       amount:      String(inv.total ?? ''),
       method:      inv.paymentMethod || 'cash',
       status:      inv.status || 'paid',
-      collectedBy: inv.collectedBy || '',
+      collectedBy: inv.collectedBy || (isReceptionist ? 'receptionist' : 'doctor'),
     })
   }
 
@@ -346,7 +346,7 @@ function BillingPageInner() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                        <button onClick={() => { setPayModal(inv.id); setPayMethod('cash'); setPayCollectedBy('') }}
+                        <button onClick={() => { setPayModal(inv.id); setPayMethod('cash'); setPayCollectedBy(isReceptionist ? 'receptionist' : 'doctor') }}
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium">
                           Mark Paid
                         </button>
@@ -401,12 +401,9 @@ function BillingPageInner() {
           </div>
           <div>
             <label className="form-label">Collected By</label>
-            <input
-              value={payCollectedBy}
-              onChange={e => setPayCollectedBy(e.target.value)}
-              placeholder="Name of person collecting payment"
-              className="input-field"
-            />
+            <select value={payCollectedBy} onChange={e => setPayCollectedBy(e.target.value)} className="input-field">
+              {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </div>
         </div>
         <div className="flex gap-3 justify-end">
@@ -443,10 +440,9 @@ function BillingPageInner() {
             </div>
             <div>
               <label className="form-label">Collected By</label>
-              <input value={editForm.collectedBy}
-                onChange={e => setEditForm(f => ({ ...f, collectedBy: e.target.value }))}
-                placeholder="Name of person who collected payment"
-                className="input-field"/>
+              <select value={editForm.collectedBy} onChange={e => setEditForm(f => ({ ...f, collectedBy: e.target.value }))} className="input-field">
+                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
             <div>
               <label className="form-label">Status</label>

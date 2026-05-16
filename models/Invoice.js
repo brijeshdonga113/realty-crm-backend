@@ -12,12 +12,16 @@ export const INVOICE_STATUSES = [
 ]
 
 export const PAYMENT_METHODS = [
-  { value: 'receptionist',  label: 'Collected by Receptionist' },
   { value: 'cash',          label: 'Cash' },
   { value: 'card',          label: 'Card' },
   { value: 'upi',           label: 'UPI' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'insurance',     label: 'Insurance' },
+]
+
+export const COLLECTED_BY_OPTIONS = [
+  { value: 'doctor',       label: 'Doctor' },
+  { value: 'receptionist', label: 'Receptionist' },
 ]
 
 export function createLineItem(data = {}) {

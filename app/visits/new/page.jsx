@@ -11,7 +11,7 @@ import { appointmentService } from '@/services/appointmentService'
 import { billingService } from '@/services/billingService'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
-import { PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 
@@ -65,10 +65,8 @@ function VisitEntryForm() {
   const [payment, setPayment] = useState(() => ({
     record: true,
     amount: '',
-    method: 'receptionist',
-    collectedBy: isReceptionist
-      ? (doctor?._receptionistName || 'Receptionist')
-      : '',
+    method: 'cash',
+    collectedBy: isReceptionist ? 'receptionist' : 'doctor',
     description: 'Consultation Fee',
     status: 'draft',
   }))
@@ -575,9 +573,11 @@ function VisitEntryForm() {
             </div>
             <div>
               <label className="form-label">Collected By</label>
-              <input value={payment.collectedBy}
+              <select value={payment.collectedBy}
                 onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))}
-                placeholder="Name of person collecting payment" className="input-field"/>
+                className="input-field">
+                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
             <div>
               <label className="form-label">Description</label>

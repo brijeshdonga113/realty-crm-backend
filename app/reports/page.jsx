@@ -5,7 +5,7 @@ import { useReports } from '@/hooks/useReports'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
 import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
-import { PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -338,7 +338,12 @@ export default function ReportsPage() {
       map[key].count++
     })
     return Object.entries(map)
-      .map(([key, { amount, count }]) => ({ key, label: key, amount, count }))
+      .map(([key, { amount, count }]) => ({
+        key,
+        label: COLLECTED_BY_OPTIONS.find(o => o.value === key)?.label ?? key,
+        amount,
+        count,
+      }))
       .sort((a, b) => b.amount - a.amount)
   }, [rawInvoices, from, to])
 

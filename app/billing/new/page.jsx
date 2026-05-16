@@ -6,7 +6,7 @@ import { useBilling } from '@/hooks/useBilling'
 import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { useInventory } from '@/hooks/useInventory'
-import { createLineItem, PAYMENT_METHODS } from '@/models/Invoice'
+import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -47,7 +47,7 @@ function NewInvoiceForm() {
     notes:         '',
     status:        'draft',
     paymentMethod: '',
-    collectedBy:   '',
+    collectedBy:   isReceptionist ? 'receptionist' : 'doctor',
   })
 
   const [lineItems, setLineItems] = useState([createLineItem({ itemType: 'service' })])
@@ -231,13 +231,12 @@ function NewInvoiceForm() {
                     </button>
                   </div>
                 </div>
-                {form.paymentMethod === 'receptionist' && (
-                  <div>
-                    <label className="form-label">Collected By</label>
-                    <input value={form.collectedBy} onChange={e => set('collectedBy', e.target.value)}
-                      className="input-field" placeholder="Receptionist name"/>
-                  </div>
-                )}
+                <div>
+                  <label className="form-label">Collected By</label>
+                  <select value={form.collectedBy} onChange={e => set('collectedBy', e.target.value)} className="input-field">
+                    {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
               </div>
             )}
           </div>
