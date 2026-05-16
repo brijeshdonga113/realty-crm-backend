@@ -527,7 +527,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
             Reason for Visit <span className="text-gray-400 font-normal normal-case">(optional)</span>
           </label>
           <AutoTextarea
-            value={form.reason} onChange={update('reason')}
+            value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
             placeholder="Briefly describe your concern…"
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize"
           />
