@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
 import { DEFAULT_REFERRAL_SOURCES, getReferralSources } from '@/lib/referralSources'
+import { SPECIALIZATIONS, getDefaultFields, isHomeopathy } from '@/lib/patientIntakePresets'
 import { DEFAULT_BILLING_STATUSES, BILLING_STATUS_COLORS, getBillingStatuses } from '@/lib/billingStatuses'
 import {
   isGoogleCalendarEnabled,
@@ -331,6 +332,51 @@ export default function SettingsPage() {
   const [cfSaved,   setCfSaved]   = useState(false)
   const cfUid = useId()
 
+  // ── Patient form fields ─────────────────────────────────────────────────────
+  const [pfFields,   setPfFields]   = useState(() => doctor?.patientFormFields ?? [])
+  const [pfSaving,   setPfSaving]   = useState(false)
+  const [pfSaved,    setPfSaved]    = useState(false)
+  const [pfNewLabel, setPfNewLabel] = useState('')
+  const [pfNewType,  setPfNewType]  = useState('text')
+  const [pfNewOpts,  setPfNewOpts]  = useState('')
+  const [pfNewSec,   setPfNewSec]   = useState('')
+  const pfUid = useId()
+
+  const pfSections = [...new Set(pfFields.map(f => f.section).filter(Boolean))]
+
+  const loadPfDefaults = (spec) => {
+    const defaults = getDefaultFields(spec)
+    setPfFields(defaults)
+    setPfSaved(false)
+  }
+
+  const addPfField = () => {
+    if (!pfNewLabel.trim()) return
+    const opts = pfNewOpts.split(',').map(s => s.trim()).filter(Boolean)
+    setPfFields(prev => [...prev, {
+      id:      `f${Date.now().toString(36)}`,
+      label:   pfNewLabel.trim(),
+      type:    pfNewType,
+      options: opts,
+      section: pfNewSec.trim() || 'Clinical Information',
+    }])
+    setPfNewLabel(''); setPfNewOpts(''); setPfSaved(false)
+  }
+
+  const removePfField = (id) => { setPfFields(f => f.filter(x => x.id !== id)); setPfSaved(false) }
+
+  const updatePfField = (id, key, val) =>
+    setPfFields(prev => prev.map(f => f.id === id ? { ...f, [key]: val } : f))
+
+  const savePfFields = async () => {
+    setPfSaving(true); setPfSaved(false)
+    try {
+      await updateProfile({ patientFormFields: pfFields })
+      setPfSaved(true)
+      setTimeout(() => setPfSaved(false), 2500)
+    } finally { setPfSaving(false) }
+  }
+
   const addCfField = () => {
     if (!cfLabel.trim()) return
     setCfFields(f => [...f, { id: Date.now().toString(36), label: cfLabel.trim(), type: cfType }])
@@ -386,8 +432,9 @@ export default function SettingsPage() {
   }
 
   const [prefForm, setPrefForm]   = useState({
-    dateFormat: doctor?.dateFormat ?? 'DD/MM/YYYY',
-    currency:   doctor?.currency   ?? 'INR',
+    dateFormat:      doctor?.dateFormat      ?? 'DD/MM/YYYY',
+    currency:        doctor?.currency        ?? 'INR',
+    specialization:  doctor?.specialization  ?? '',
   })
   const [prefSaving, setPrefSaving] = useState(false)
   const [prefSaved,  setPrefSaved]  = useState(false)
@@ -575,11 +622,27 @@ export default function SettingsPage() {
         {/* ── Regional Preferences ─────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Regional Preferences</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Date format and currency used across the entire app.</p>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Practice & Regional Preferences</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Your specialty, date format and currency used across the entire app.</p>
           </div>
 
           <div className="p-6 space-y-5">
+            <div>
+              <label className="form-label">Medical Specialization</label>
+              <select
+                value={prefForm.specialization}
+                onChange={e => setPrefForm(p => ({ ...p, specialization: e.target.value }))}
+                className="input-field"
+              >
+                <option value="">Select your specialty…</option>
+                {SPECIALIZATIONS.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                This tailors the patient registration form with fields specific to your practice.
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="form-label">Date Format</label>
@@ -1013,6 +1076,146 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Patient Registration Fields ──────────────────────────────────── */}
+        {!isHomeopathy(prefForm.specialization) && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Patient Registration Fields</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Fields shown when registering a new patient. Loaded from your specialty — customise as needed.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {/* Load defaults button */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="button"
+                onClick={() => loadPfDefaults(prefForm.specialization)}
+                className="text-sm font-medium px-4 py-2 rounded-lg border border-primary-200 dark:border-primary-700 text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
+                ↺ Load defaults for {SPECIALIZATIONS.find(s => s.value === prefForm.specialization)?.label ?? 'this specialty'}
+              </button>
+              <p className="text-xs text-gray-400 dark:text-gray-500">This will replace the current list with default fields for your specialty.</p>
+            </div>
+
+            {/* Existing fields — grouped by section */}
+            {pfSections.length > 0 && pfSections.map(sec => (
+              <div key={sec} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{sec}</span>
+                </div>
+                <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {pfFields.filter(f => f.section === sec).map(field => (
+                    <div key={field.id} className="px-4 py-2.5 flex items-center gap-3">
+                      <input
+                        value={field.label}
+                        onChange={e => updatePfField(field.id, 'label', e.target.value)}
+                        className="flex-1 text-sm text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-500 focus:border-primary-400 dark:focus:border-primary-500 outline-none py-0.5 transition-colors"
+                      />
+                      <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize flex-shrink-0">
+                        {field.type}
+                      </span>
+                      {field.options?.length > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[140px]">
+                          {field.options.join(', ')}
+                        </span>
+                      )}
+                      <button type="button" onClick={() => removePfField(field.id)}
+                        className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0 rounded">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {pfFields.filter(f => !f.section).map(field => (
+              <div key={field.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <input
+                  value={field.label}
+                  onChange={e => updatePfField(field.id, 'label', e.target.value)}
+                  className="flex-1 text-sm bg-transparent outline-none text-gray-800 dark:text-gray-200"
+                />
+                <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize">{field.type}</span>
+                <button type="button" onClick={() => removePfField(field.id)}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {pfFields.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+                No fields yet. Load defaults or add one below.
+              </p>
+            )}
+
+            {/* Add custom field */}
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Add custom field</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`${pfUid}-label`} className="form-label">Field Label</label>
+                  <input id={`${pfUid}-label`} value={pfNewLabel}
+                    onChange={e => setPfNewLabel(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPfField() } }}
+                    placeholder="e.g. Skin Type, Pain Score…" className="input-field"/>
+                </div>
+                <div>
+                  <label htmlFor={`${pfUid}-type`} className="form-label">Field Type</label>
+                  <select id={`${pfUid}-type`} value={pfNewType} onChange={e => setPfNewType(e.target.value)} className="input-field">
+                    <option value="text">Text (short)</option>
+                    <option value="textarea">Textarea (long)</option>
+                    <option value="number">Number</option>
+                    <option value="chips">Chips (multi-select)</option>
+                    <option value="scale">Scale (0–10)</option>
+                  </select>
+                </div>
+                {pfNewType === 'chips' && (
+                  <div className="sm:col-span-2">
+                    <label className="form-label">Options <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+                    <input value={pfNewOpts} onChange={e => setPfNewOpts(e.target.value)}
+                      placeholder="e.g. Oily, Dry, Combination, Normal" className="input-field"/>
+                  </div>
+                )}
+                <div>
+                  <label className="form-label">Section / Group <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input value={pfNewSec} onChange={e => setPfNewSec(e.target.value)}
+                    placeholder="e.g. Skin Assessment, Vitals…"
+                    list={`${pfUid}-sections`} className="input-field"/>
+                  <datalist id={`${pfUid}-sections`}>
+                    {pfSections.map(s => <option key={s} value={s}/>)}
+                  </datalist>
+                </div>
+              </div>
+              <button type="button" onClick={addPfField}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                + Add Field
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            {pfSaved && (
+              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                Fields saved to your profile.
+              </p>
+            )}
+            <button type="button" onClick={savePfFields} disabled={pfSaving}
+              className="ml-auto bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              {pfSaving
+                ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                : 'Save Fields'}
+            </button>
+          </div>
+        </div>
+        )}
 
         {/* ── Booking Page ─────────────────────────────────────────────────── */}
         <BookingSettings doctor={doctor} updateProfile={updateProfile} />
