@@ -93,7 +93,7 @@ const FAQS = [
   { q: 'Can my receptionist use it too?', a: 'Yes. You can add receptionists and staff with their own login. Role-based access ensures they only see what they need to.' },
   { q: 'Is patient data secure?', a: "All data is stored in Firebase with 256-bit SSL encryption and strict access controls. Your patients' data is private and never shared." },
   { q: 'Can patients book appointments themselves?', a: 'Yes. Each doctor gets a shareable public booking link. Patients pick a date and time without calling your clinic.' },
-  { q: 'What happens after my trial ends?', a: "You can subscribe for ₹600/month or ₹5,000/year (save 30%). We'll notify you before your trial expires — no surprise charges." },
+  { q: 'What happens after my trial ends?', a: "Reach out to us at prijeshdonga14@gmail.com and we'll set you up with the right plan. We'll notify you before your trial expires — no surprise charges." },
 ]
 
 const PRICING_ITEMS = [
@@ -126,7 +126,6 @@ function ChevronDown({ open }) {
 }
 
 export default function LandingPage() {
-  const [billing, setBilling] = useState('monthly')
   const [openFaq, setOpenFaq] = useState(null)
 
   return (
@@ -146,7 +145,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-7 text-sm font-medium text-gray-500">
             <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-gray-900 transition-colors">How it works</a>
-            <a href="#pricing" className="hover:text-gray-900 transition-colors">Pricing</a>
+            <a href="#contact" className="hover:text-gray-900 transition-colors">Contact</a>
             <a href="#testimonials" className="hover:text-gray-900 transition-colors">Testimonials</a>
             <a href="#faq" className="hover:text-gray-900 transition-colors">FAQ</a>
           </div>
@@ -500,36 +499,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-24 bg-gray-50">
+      {/* Contact for Pricing */}
+      <section id="contact" className="py-24 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Simple, transparent pricing</h2>
-            <p className="text-gray-500 text-lg mb-8">Start with a 7-day free trial. No credit card required.</p>
-            <div className="inline-flex items-center bg-white border border-gray-200 rounded-xl p-1 gap-1">
-              <button
-                onClick={() => setBilling('monthly')}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${billing === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >Monthly</button>
-              <button
-                onClick={() => setBilling('yearly')}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${billing === 'yearly' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Yearly
-                <span className="ml-1.5 bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full">Save 30%</span>
-              </button>
-            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Pricing & Setup</h2>
+            <p className="text-gray-500 text-lg">Get a plan tailored to your clinic. Reach out and we'll set everything up for you.</p>
           </div>
-          <div className="max-w-sm mx-auto">
+          <div className="max-w-lg mx-auto">
             <div className="bg-white rounded-3xl border-2 border-blue-600 shadow-2xl shadow-blue-100 p-8 text-center">
-              <div className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wide">All Features Included</div>
-              <div className="text-5xl font-extrabold text-gray-900 mb-1">
-                ₹{billing === 'monthly' ? '600' : '5,000'}
+              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
               </div>
-              <div className="text-gray-400 text-sm mb-8">
-                per {billing === 'monthly' ? 'month' : 'year'}
-                {billing === 'yearly' && <span className="ml-2 text-green-600 font-medium">(≈ ₹417/mo)</span>}
-              </div>
+              <div className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wide">Contact Us for Pricing</div>
+              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                Every clinic is different. Mail us and we'll share pricing details and get your clinic set up quickly.
+              </p>
               <ul className="text-left text-sm text-gray-600 space-y-3 mb-8">
                 {PRICING_ITEMS.map(item => (
                   <li key={item} className="flex items-center gap-2.5">
@@ -538,10 +525,13 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/signup" className="block w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition-colors">
-                Start Free 7-Day Trial
-              </Link>
-              <p className="text-xs text-gray-400 mt-3">No credit card required</p>
+              <a
+                href="mailto:prijeshdonga14@gmail.com?subject=ClinicCRM%20Pricing%20%26%20Setup"
+                className="block w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                Mail Us for Pricing
+              </a>
+              <p className="text-xs text-gray-400 mt-3">prijeshdonga14@gmail.com</p>
             </div>
           </div>
         </div>
