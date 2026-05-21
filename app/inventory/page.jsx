@@ -62,7 +62,7 @@ const ALL_COLS = [
   { key: 'category',   label: 'Category' },
   { key: 'quantity',   label: 'Quantity',             always: true },
   { key: 'unit',       label: 'Unit' },
-  { key: 'mrp',          label: 'MRP' },
+  { key: 'mrp',          label: 'Purchase Price' },
   { key: 'billingPrice', label: 'Billing Price' },
   { key: 'expiry',       label: 'Expiry' },
   { key: 'batch',      label: 'Batch No.' },
@@ -130,14 +130,19 @@ function QtyCell({ item, adjustQty, update }) {
 function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs = [] }) {
   const [form, setForm] = useState(initial ?? BLANK_FORM)
   const [saving, setSaving] = useState(false)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const [errors, setErrors] = useState({})
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
   const setCF = (id, v) => setForm(f => ({ ...f, customFields: { ...(f.customFields || {}), [id]: v } }))
 
   // reset form whenever the modal opens with new data
-  useEffect(() => { if (open) setForm(initial ?? BLANK_FORM) }, [open])
+  useEffect(() => { if (open) { setForm(initial ?? BLANK_FORM); setErrors({}) } }, [open])
 
   const handleSave = async () => {
-    if (!form.name.trim()) return
+    const errs = {}
+    if (!form.name.trim()) errs.name = 'Required'
+    if (!String(form.mrp).trim()) errs.mrp = 'Required'
+    if (!String(form.billingPrice).trim()) errs.billingPrice = 'Required'
+    if (Object.keys(errs).length) { setErrors(errs); return }
     setSaving(true)
     try { await onSave(form) } finally { setSaving(false) }
   }
@@ -146,8 +151,9 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
     <Modal open={open} onClose={onClose} title={title} size="lg">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
-          <label className="form-label">Medicine / Product Name *</label>
-          <input value={form.name} onChange={e => set('name', e.target.value)} className="input-field" placeholder="e.g. Arnica Montana"/>
+          <label className="form-label">Medicine / Product Name <span className="text-red-500">*</span></label>
+          <input value={form.name} onChange={e => set('name', e.target.value)} className={`input-field ${errors.name ? 'border-red-400' : ''}`} placeholder="e.g. Arnica Montana"/>
+          {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
         </div>
         <div>
           <label className="form-label">Generic / Composition</label>
@@ -177,13 +183,20 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
           <input value={form.unit} onChange={e => set('unit', e.target.value)} className="input-field" placeholder="e.g. gm, ml, strips"/>
         </div>
         <div>
-          <label className="form-label">MRP (₹)</label>
-          <input value={form.mrp} onChange={e => set('mrp', e.target.value)} className="input-field" placeholder="e.g. 150"/>
+          <label className="form-label">Purchase Price (₹) <span className="text-red-500">*</span></label>
+          <input type="number" min="0" step="0.01" value={form.mrp} onChange={e => set('mrp', e.target.value)} className={`input-field ${errors.mrp ? 'border-red-400' : ''}`} placeholder="e.g. 120"/>
+          {errors.mrp
+            ? <p className="text-xs text-red-500 mt-1">{errors.mrp}</p>
+            : <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Cost you paid to acquire this item</p>
+          }
         </div>
         <div>
-          <label className="form-label">Billing Price (₹)</label>
-          <input value={form.billingPrice} onChange={e => set('billingPrice', e.target.value)} className="input-field" placeholder="Leave blank to use MRP"/>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Used in invoices instead of MRP when set</p>
+          <label className="form-label">Billing Price (₹) <span className="text-red-500">*</span></label>
+          <input type="number" min="0" step="0.01" value={form.billingPrice} onChange={e => set('billingPrice', e.target.value)} className={`input-field ${errors.billingPrice ? 'border-red-400' : ''}`} placeholder="e.g. 150"/>
+          {errors.billingPrice
+            ? <p className="text-xs text-red-500 mt-1">{errors.billingPrice}</p>
+            : <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Price charged to patient on invoice</p>
+          }
         </div>
         <div>
           <label className="form-label">Expiry Date</label>
@@ -220,7 +233,7 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
       </div>
       <div className="flex gap-3 justify-end mt-5 pt-4 border-t dark:border-gray-700">
         <button onClick={onClose} className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
-        <button onClick={handleSave} disabled={saving || !form.name.trim()}
+        <button onClick={handleSave} disabled={saving}
           className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
           {saving && <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"/>}
           {saving ? 'Saving…' : 'Save Item'}

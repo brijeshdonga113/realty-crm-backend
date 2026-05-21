@@ -759,6 +759,27 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   )
 }
 
+/* ─────────────── Collapsible Section wrapper ─────────────── */
+function Section({ title, subtitle, action, accentClass, defaultOpen = true, className = '', children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden ${className}`}>
+      <div className={`flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
+        <button type="button" onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 text-left min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+          {subtitle && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 hidden sm:inline">{subtitle}</span>}
+          <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        {action && <div className="flex-shrink-0 ml-3">{action}</div>}
+      </div>
+      {open && children}
+    </div>
+  )
+}
+
 /* ─────────────── Main Page ─────────────── */
 export default function PatientProfilePage() {
   const { id } = useParams()
@@ -1014,28 +1035,26 @@ export default function PatientProfilePage() {
         <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Details — inline editable */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Personal Details</h3>
-              {!editingOverview ? (
-                <button onClick={startOverviewEdit}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                  </svg>
-                  Edit
+          <Section title="Personal Details" action={
+            !editingOverview ? (
+              <button onClick={startOverviewEdit}
+                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditingOverview(false)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+                <button onClick={saveOverview} disabled={overviewSaving}
+                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                  {overviewSaving ? 'Saving…' : 'Save'}
                 </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setEditingOverview(false)}
-                    className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                  <button onClick={saveOverview} disabled={overviewSaving}
-                    className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                    {overviewSaving ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              )}
-            </div>
+              </div>
+            )
+          }><div className="p-6 space-y-4">
 
             {/* Read-only fixed fields */}
             <div className="grid grid-cols-2 gap-4">
@@ -1121,10 +1140,10 @@ export default function PatientProfilePage() {
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
             )}
           </div>
+          </Section>
 
           <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Medical Summary</h3>
+            <Section title="Medical Summary"><div className="p-6">
 
               {/* From patient record */}
               {patient.allergies?.length > 0 && (
@@ -1195,10 +1214,9 @@ export default function PatientProfilePage() {
               {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
                 <p className="text-sm text-gray-400">No medical history recorded.</p>
               )}
-            </div>
+            </div></Section>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Insurance</h3>
+            <Section title="Insurance" defaultOpen={false}><div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <InfoRow label="Provider" value={patient.insuranceProvider} />
                 <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
@@ -1206,44 +1224,41 @@ export default function PatientProfilePage() {
                 <InfoRow label="Expiry" value={patient.insuranceExpiry} />
               </div>
               {!patient.insuranceProvider && <p className="text-sm text-gray-400">No insurance details on file.</p>}
-            </div>
+            </div></Section>
 
             {patient.emergencyContact?.name && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Emergency Contact</h3>
+              <Section title="Emergency Contact" defaultOpen={false}><div className="p-6">
                 <div className="grid grid-cols-2 gap-4">
                   <InfoRow label="Name" value={patient.emergencyContact.name} />
                   <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
                   <InfoRow label="Phone" value={patient.emergencyContact.phone} />
                 </div>
-              </div>
+              </div></Section>
             )}
           </div>
-        </div>{/* end 2-col grid */}
+        </div>
 
         {/* ── History & Life Span ── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white">History (H/o)</h3>
-            {!editingOverview ? (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit
+        <Section title="History (H/o)" action={
+          !editingOverview ? (
+            <button onClick={startOverviewEdit}
+              className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditingOverview(false)}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+              <button onClick={saveOverview} disabled={overviewSaving}
+                className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                {overviewSaving ? 'Saving…' : 'Save'}
               </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingOverview(false)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                <button onClick={saveOverview} disabled={overviewSaving}
-                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                  {overviewSaving ? 'Saving…' : 'Save'}
-                </button>
               </div>
             )}
-          </div>
+          ><div className="p-6">
           {/* Observation + Past History */}
           {(patient.observation || patient.pastHistory || editingOverview) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
@@ -1311,26 +1326,21 @@ export default function PatientProfilePage() {
               )}
             </div>
           </div>
-        </div>
+        </div></Section>
 
         {/* ── Generals + Custom Rows ── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Generals</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Constitutional symptoms · custom rows can be added below</p>
-            </div>
-            {!editingOverview ? (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingOverview(false)}
+        <Section title="Generals" subtitle="Constitutional symptoms · custom rows can be added below" action={
+          !editingOverview ? (
+            <button onClick={startOverviewEdit}
+              className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditingOverview(false)}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
                 <button onClick={saveOverview} disabled={overviewSaving}
                   className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
@@ -1338,7 +1348,7 @@ export default function PatientProfilePage() {
                 </button>
               </div>
             )}
-          </div>
+          ><div className="p-6">
           <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
             <table className="w-full">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1443,22 +1453,20 @@ export default function PatientProfilePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </div></Section>
 
         {/* ── Chief Complaints ── */}
         {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-blue-500">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Chief Complaints (C/o)</h3>
-              {editingOverview && (
-                <button type="button"
-                  onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
-                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                  Add Row
-                </button>
-              )}
-            </div>
+          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500" action={
+            editingOverview && (
+              <button type="button"
+                onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
+                className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                Add Row
+              </button>
+            )
+          }>
             <div className="p-4 overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead>
@@ -1499,22 +1507,20 @@ export default function PatientProfilePage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
         )}
 
         {/* ── Prescription Details ── */}
         {(editingOverview || patient.prescriptionDetails) && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-teal-500">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Prescription Details</h3>
-              {!editingOverview && (
-                <button onClick={startOverviewEdit}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  Edit
-                </button>
-              )}
-            </div>
+          <Section title="Prescription Details" accentClass="border-l-teal-500" action={
+            !editingOverview && (
+              <button onClick={startOverviewEdit}
+                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Edit
+              </button>
+            )
+          }>
             <div className="p-6">
               {editingOverview ? (
                 <AutoTextarea value={overviewForm.prescriptionDetails || ''} onChange={e => setOverviewForm(f => ({ ...f, prescriptionDetails: e.target.value }))}
@@ -1523,7 +1529,7 @@ export default function PatientProfilePage() {
                 <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
               )}
             </div>
-          </div>
+          </Section>
         )}
 
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useId } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth, db } from '@/lib/firebase'
@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
 import { DEFAULT_REFERRAL_SOURCES, getReferralSources } from '@/lib/referralSources'
+import { SPECIALIZATIONS, getDefaultFields, isHomeopathy } from '@/lib/patientIntakePresets'
 import { DEFAULT_BILLING_STATUSES, BILLING_STATUS_COLORS, getBillingStatuses } from '@/lib/billingStatuses'
 import {
   isGoogleCalendarEnabled,
@@ -40,7 +41,29 @@ function generateSlug() {
   return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
+function CollapsibleSection({ title, description, icon, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-6 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors text-left">
+        {icon && <span className="flex-shrink-0">{icon}</span>}
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-gray-900 dark:text-white">{title}</h2>
+          {description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>}
+        </div>
+        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
 function BookingSettings({ doctor, updateProfile }) {
+  const [open, setOpen]     = useState(false)
   const [wh, setWh]         = useState(() => normalizeWorkingHours(doctor?.workingHours ?? {}))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
@@ -107,17 +130,22 @@ function BookingSettings({ doctor, updateProfile }) {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-6 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors text-left">
         <svg className="w-5 h-5 flex-shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
         </svg>
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-gray-900 dark:text-white">Online Booking Page</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Share your booking link so clients can book appointments directly.</p>
         </div>
-      </div>
+        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
 
-      <div className="p-6 space-y-6">
+      {open && (<><div className="p-6 space-y-6">
 
         {/* Booking link */}
         <div>
@@ -307,6 +335,7 @@ function BookingSettings({ doctor, updateProfile }) {
           }
         </button>
       </div>
+      </>)}
     </div>
   )
 }
@@ -330,6 +359,67 @@ export default function SettingsPage() {
   const [cfSaving,  setCfSaving]  = useState(false)
   const [cfSaved,   setCfSaved]   = useState(false)
   const cfUid = useId()
+
+  // ── Patient form fields ─────────────────────────────────────────────────────
+  const [pfFields,      setPfFields]      = useState(() => doctor?.patientFormFields ?? [])
+  const [pfUserEdited,  setPfUserEdited]  = useState(false)
+  const [pfSaving,      setPfSaving]      = useState(false)
+  const [pfSaved,       setPfSaved]       = useState(false)
+  const [pfNewLabel,    setPfNewLabel]    = useState('')
+  const [pfNewType,     setPfNewType]     = useState('text')
+  const [pfNewOpts,     setPfNewOpts]     = useState('')
+  const [pfNewSec,      setPfNewSec]      = useState('')
+  const pfUid = useId()
+  const pfInitialized = useRef(!!doctor?.patientFormFields)
+
+  // If doctor loads after mount (Firestore beats localStorage), sync fields once
+  useEffect(() => {
+    if (!pfInitialized.current && doctor?.patientFormFields !== undefined) {
+      pfInitialized.current = true
+      setPfFields(doctor.patientFormFields)
+    }
+  }, [doctor?.patientFormFields]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pfSections = [...new Set(pfFields.map(f => f.section).filter(Boolean))]
+
+  const loadPfDefaults = (spec) => {
+    const defaults = getDefaultFields(spec)
+    setPfFields(defaults)
+    setPfUserEdited(true)
+    setPfSaved(false)
+  }
+
+  const addPfField = () => {
+    if (!pfNewLabel.trim()) return
+    const opts = pfNewOpts.split(',').map(s => s.trim()).filter(Boolean)
+    setPfFields(prev => [...prev, {
+      id:      `f${Date.now().toString(36)}`,
+      label:   pfNewLabel.trim(),
+      type:    pfNewType,
+      options: opts,
+      section: pfNewSec.trim() || 'Clinical Information',
+    }])
+    setPfNewLabel(''); setPfNewOpts(''); setPfSaved(false)
+    setPfUserEdited(true)
+  }
+
+  const removePfField = (id) => { setPfFields(f => f.filter(x => x.id !== id)); setPfSaved(false); setPfUserEdited(true) }
+
+  const updatePfField = (id, key, val) => {
+    setPfFields(prev => prev.map(f => f.id === id ? { ...f, [key]: val } : f))
+    setPfUserEdited(true)
+  }
+
+  const savePfFields = async () => {
+    setPfSaving(true); setPfSaved(false)
+    try {
+      await updateProfile({ patientFormFields: pfFields })
+      pfInitialized.current = true
+      setPfSaved(true)
+      setPfUserEdited(false)
+      setTimeout(() => setPfSaved(false), 2500)
+    } finally { setPfSaving(false) }
+  }
 
   const addCfField = () => {
     if (!cfLabel.trim()) return
@@ -386,8 +476,9 @@ export default function SettingsPage() {
   }
 
   const [prefForm, setPrefForm]   = useState({
-    dateFormat: doctor?.dateFormat ?? 'DD/MM/YYYY',
-    currency:   doctor?.currency   ?? 'INR',
+    dateFormat:      doctor?.dateFormat      ?? 'DD/MM/YYYY',
+    currency:        doctor?.currency        ?? 'INR',
+    specialization:  doctor?.specialization  ?? '',
   })
   const [prefSaving, setPrefSaving] = useState(false)
   const [prefSaved,  setPrefSaved]  = useState(false)
@@ -509,11 +600,7 @@ export default function SettingsPage() {
       <div className="max-w-2xl space-y-8">
 
         {/* ── Appearance ───────────────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Appearance</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Personalise the look of the app. Saved to your account.</p>
-          </div>
+        <CollapsibleSection title="Appearance" description="Personalise the look of the app. Saved to your account.">
 
           <div className="p-6 space-y-6">
 
@@ -568,18 +655,30 @@ export default function SettingsPage() {
             </div>
 
           </div>
-        </div>
+        </CollapsibleSection>
 
         {!isReceptionist && <>
 
         {/* ── Regional Preferences ─────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Regional Preferences</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Date format and currency used across the entire app.</p>
-          </div>
+        <CollapsibleSection title="Practice & Regional Preferences" description="Your specialty, date format and currency used across the entire app.">
 
           <div className="p-6 space-y-5">
+            <div>
+              <label className="form-label">Medical Specialization</label>
+              <select
+                value={prefForm.specialization}
+                onChange={e => setPrefForm(p => ({ ...p, specialization: e.target.value }))}
+                className="input-field"
+              >
+                <option value="">Select your specialty…</option>
+                {SPECIALIZATIONS.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                This tailors the patient registration form with fields specific to your practice.
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="form-label">Date Format</label>
@@ -645,16 +744,10 @@ export default function SettingsPage() {
               }
             </button>
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* ── Referral / Visit Sources ─────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Referral / Visit Sources</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Customise the sources shown when registering a new patient. Used for filtering and reporting.
-            </p>
-          </div>
+        <CollapsibleSection title="Referral / Visit Sources" description="Customise the sources shown when registering a new patient. Used for filtering and reporting." defaultOpen={false}>
 
           <div className="p-6 space-y-4">
             {/* Source list */}
@@ -736,16 +829,10 @@ export default function SettingsPage() {
               }
             </button>
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* ── Billing Statuses ─────────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Billing Statuses</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Customise the statuses used on invoices across the app.
-            </p>
-          </div>
+        <CollapsibleSection title="Billing Statuses" description="Customise the statuses used on invoices across the app." defaultOpen={false}>
 
           <div className="p-6 space-y-4">
             <div className="space-y-2">
@@ -832,24 +919,11 @@ export default function SettingsPage() {
               }
             </button>
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Google Calendar integration */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
-            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 48 48" fill="none">
-              <path d="M34 8H14a6 6 0 00-6 6v20a6 6 0 006 6h20a6 6 0 006-6V14a6 6 0 00-6-6z" fill="#fff" stroke="#dadce0" strokeWidth="2"/>
-              <path d="M34 8H14a6 6 0 00-6 6v4h32v-4a6 6 0 00-6-6z" fill="#1A73E8"/>
-              <rect x="8" y="18" width="32" height="2" fill="#dadce0"/>
-              <circle cx="17" cy="8" r="2" fill="#1A73E8"/>
-              <circle cx="31" cy="8" r="2" fill="#1A73E8"/>
-              <text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1A73E8">G</text>
-            </svg>
-            <div>
-              <h2 className="font-semibold text-gray-900 dark:text-white">Google Calendar</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Auto-sync appointments to your Google Calendar.</p>
-            </div>
-          </div>
+        <CollapsibleSection title="Google Calendar" description="Auto-sync appointments to your Google Calendar." defaultOpen={false}
+          icon={<svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 48 48" fill="none"><path d="M34 8H14a6 6 0 00-6 6v20a6 6 0 006 6h20a6 6 0 006-6V14a6 6 0 00-6-6z" fill="#fff" stroke="#dadce0" strokeWidth="2"/><path d="M34 8H14a6 6 0 00-6 6v4h32v-4a6 6 0 00-6-6z" fill="#1A73E8"/><rect x="8" y="18" width="32" height="2" fill="#dadce0"/><circle cx="17" cy="8" r="2" fill="#1A73E8"/><circle cx="31" cy="8" r="2" fill="#1A73E8"/><text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1A73E8">G</text></svg>}>
 
           <div className="p-6">
             {!isGoogleCalendarEnabled ? (
@@ -945,14 +1019,10 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* ── Inventory Custom Fields ──────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Inventory — Custom Fields</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Add extra fields that appear on every inventory item (e.g. Location, Barcode, Colour).</p>
-          </div>
+        <CollapsibleSection title="Inventory — Custom Fields" description="Add extra fields that appear on every inventory item (e.g. Location, Barcode, Colour)." defaultOpen={false}>
 
           <div className="p-6 space-y-4">
             {cfFields.length > 0 && (
@@ -1012,7 +1082,151 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
+
+        {/* ── Patient Registration Fields ──────────────────────────────────── */}
+        {(!isHomeopathy(prefForm.specialization) || pfFields.length > 0) && (
+        <CollapsibleSection title="Patient Registration Fields" description="Fields shown when registering a new patient. Loaded from your specialty — customise as needed.">
+
+          <div className="p-6 space-y-4">
+            {/* Notice when specialty is homeopathy but saved fields still exist */}
+            {isHomeopathy(prefForm.specialization) && pfFields.length > 0 && (
+              <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2.5">
+                <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
+                </svg>
+                Your saved fields are shown below. They won't appear on the patient form while your specialty is set to Homeopathy. Switch to another specialty to use them.
+              </div>
+            )}
+
+            {/* Load defaults button */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="button"
+                onClick={() => loadPfDefaults(prefForm.specialization)}
+                className="text-sm font-medium px-4 py-2 rounded-lg border border-primary-200 dark:border-primary-700 text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
+                ↺ Load defaults for {SPECIALIZATIONS.find(s => s.value === prefForm.specialization)?.label ?? 'this specialty'}
+              </button>
+              <p className="text-xs text-gray-400 dark:text-gray-500">This will replace the current list with default fields for your specialty.</p>
+            </div>
+
+            {/* Existing fields — grouped by section */}
+            {pfSections.length > 0 && pfSections.map(sec => (
+              <div key={sec} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{sec}</span>
+                </div>
+                <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {pfFields.filter(f => f.section === sec).map(field => (
+                    <div key={field.id} className="px-4 py-2.5 flex items-center gap-3">
+                      <input
+                        value={field.label}
+                        onChange={e => updatePfField(field.id, 'label', e.target.value)}
+                        className="flex-1 text-sm text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-500 focus:border-primary-400 dark:focus:border-primary-500 outline-none py-0.5 transition-colors"
+                      />
+                      <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize flex-shrink-0">
+                        {field.type}
+                      </span>
+                      {field.options?.length > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[140px]">
+                          {field.options.join(', ')}
+                        </span>
+                      )}
+                      <button type="button" onClick={() => removePfField(field.id)}
+                        className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0 rounded">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {pfFields.filter(f => !f.section).map(field => (
+              <div key={field.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <input
+                  value={field.label}
+                  onChange={e => updatePfField(field.id, 'label', e.target.value)}
+                  className="flex-1 text-sm bg-transparent outline-none text-gray-800 dark:text-gray-200"
+                />
+                <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize">{field.type}</span>
+                <button type="button" onClick={() => removePfField(field.id)}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {pfFields.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+                No fields yet. Load defaults or add one below.
+              </p>
+            )}
+
+            {/* Add custom field */}
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Add custom field</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`${pfUid}-label`} className="form-label">Field Label</label>
+                  <input id={`${pfUid}-label`} value={pfNewLabel}
+                    onChange={e => setPfNewLabel(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPfField() } }}
+                    placeholder="e.g. Skin Type, Pain Score…" className="input-field"/>
+                </div>
+                <div>
+                  <label htmlFor={`${pfUid}-type`} className="form-label">Field Type</label>
+                  <select id={`${pfUid}-type`} value={pfNewType} onChange={e => setPfNewType(e.target.value)} className="input-field">
+                    <option value="text">Text (short)</option>
+                    <option value="textarea">Textarea (long)</option>
+                    <option value="number">Number</option>
+                    <option value="chips">Chips (multi-select)</option>
+                    <option value="scale">Scale (0–10)</option>
+                  </select>
+                </div>
+                {pfNewType === 'chips' && (
+                  <div className="sm:col-span-2">
+                    <label className="form-label">Options <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+                    <input value={pfNewOpts} onChange={e => setPfNewOpts(e.target.value)}
+                      placeholder="e.g. Oily, Dry, Combination, Normal" className="input-field"/>
+                  </div>
+                )}
+                <div>
+                  <label className="form-label">Section / Group <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input value={pfNewSec} onChange={e => setPfNewSec(e.target.value)}
+                    placeholder="e.g. Skin Assessment, Vitals…"
+                    list={`${pfUid}-sections`} className="input-field"/>
+                  <datalist id={`${pfUid}-sections`}>
+                    {pfSections.map(s => <option key={s} value={s}/>)}
+                  </datalist>
+                </div>
+              </div>
+              <button type="button" onClick={addPfField}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                + Add Field
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            {pfSaved && (
+              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                Fields saved to your profile.
+              </p>
+            )}
+            <button type="button" onClick={savePfFields} disabled={pfSaving}
+              className="ml-auto bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+              {pfSaving
+                ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                : 'Save Fields'}
+            </button>
+          </div>
+        </CollapsibleSection>
+        )}
 
         {/* ── Booking Page ─────────────────────────────────────────────────── */}
         <BookingSettings doctor={doctor} updateProfile={updateProfile} />
@@ -1021,14 +1235,7 @@ export default function SettingsPage() {
 
         {!isReceptionist && <>
         {/* ── Receptionist Access ──────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Receptionist Access</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Share this invite code with your receptionist so they can create an account linked to your clinic.
-            </p>
-          </div>
-
+        <CollapsibleSection title="Receptionist Access" description="Share this invite code with your receptionist so they can create an account linked to your clinic." defaultOpen={false}>
           <div className="p-6 space-y-4">
             {doctor?.inviteCode ? (
               <>
@@ -1092,7 +1299,7 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-        </div>
+        </CollapsibleSection>
 
         </>} {/* end !isReceptionist */}
 
