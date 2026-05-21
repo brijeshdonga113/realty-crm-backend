@@ -6,6 +6,7 @@ import { useAppointments } from '@/hooks/useAppointments'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useCalendarEvents } from '@/hooks/useCalendarEvents'
+import { usePatients } from '@/hooks/usePatients'
 import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -33,6 +34,14 @@ const EVENT_ICON = (
   </svg>
 )
 
+const CAKE_ICON = (
+  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15a2 2 0 01-2 2H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19h18"/>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11V8M12 11V6M15 11V8"/>
+  </svg>
+)
+
 const BLANK_EVENT_FORM = { date: '', title: '', allDay: true, startTime: '09:00', endTime: '10:00', description: '' }
 
 export default function CalendarPage() {
@@ -43,6 +52,7 @@ export default function CalendarPage() {
   const { followups }    = useFollowUps()
   const { blockedSlots, add: addBlock, remove: removeBlock } = useBlockedSlots()
   const { events: calEvents, add: addEvent, remove: removeEvent } = useCalendarEvents()
+  const { patients } = usePatients()
 
   const [visitFollowUps, setVisitFollowUps] = useState([])
   const [calYear,  setCalYear]  = useState(new Date().getFullYear())
@@ -147,16 +157,44 @@ export default function CalendarPage() {
       })
     }
 
+    if (filter === 'all' || filter === 'birthdays') {
+      patients.forEach(p => {
+        if (!p.dateOfBirth) return
+        const parts = p.dateOfBirth.split('-')
+        if (parts.length < 3) return
+        const [birthYear, mm, dd] = parts
+        const dateStr = `${calYear}-${mm}-${dd}`
+        const age = calYear - parseInt(birthYear, 10)
+        addEv(dateStr, {
+          id: p.id,
+          patientName: `${p.firstName} ${p.lastName}`.trim(),
+          _kind: 'birthday',
+          _age: age,
+        })
+      })
+    }
+
     // Always show blocked slots regardless of filter
     blockedSlots.forEach(b => {
       addEv(b.date, { ...b, _kind: 'blocked' })
     })
 
     return map
-  }, [appointments, followups, visitFollowUps, blockedSlots, calEvents, filter])
+  }, [appointments, followups, visitFollowUps, blockedSlots, calEvents, patients, calYear, filter])
 
-  const blockedDates = useMemo(() => new Set(blockedSlots.map(b => b.date)), [blockedSlots])
-  const eventDates   = useMemo(() => new Set(calEvents.map(e => e.date)), [calEvents])
+  const blockedDates  = useMemo(() => new Set(blockedSlots.map(b => b.date)), [blockedSlots])
+  const eventDates    = useMemo(() => new Set(calEvents.map(e => e.date)), [calEvents])
+  const birthdayDates = useMemo(() => {
+    const s = new Set()
+    patients.forEach(p => {
+      if (!p.dateOfBirth) return
+      const parts = p.dateOfBirth.split('-')
+      if (parts.length < 3) return
+      const [, mm, dd] = parts
+      s.add(`${calYear}-${mm}-${dd}`)
+    })
+    return s
+  }, [patients, calYear])
 
   const today       = localDateStr()
   const firstDay    = new Date(calYear, calMonth, 1).getDay()
@@ -171,6 +209,7 @@ export default function CalendarPage() {
   const selectedOthers = selectedEvents.filter(e => e._kind !== 'blocked')
 
   const kindColor = (kind, status) => {
+    if (kind === 'birthday')     return 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300'
     if (kind === 'event')        return 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
     if (kind === 'followup' || kind === 'visit_followup') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
     if (status === 'cancelled')  return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
@@ -184,7 +223,7 @@ export default function CalendarPage() {
       action={
         <div className="flex items-center gap-2">
           <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-            {[['all','All'],['appointments','Appointments'],['follow_ups','Follow-ups'],['new_cases','New Cases'],['events','Events']].map(([v,l]) => (
+            {[['all','All'],['appointments','Appointments'],['follow_ups','Follow-ups'],['new_cases','New Cases'],['events','Events'],['birthdays','Birthdays']].map(([v,l]) => (
               <button key={v} onClick={() => setFilter(v)}
                 className={`px-3 py-1 rounded text-xs font-medium transition-colors
                   ${filter === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
@@ -242,11 +281,13 @@ export default function CalendarPage() {
               const dayEvents  = eventsByDate[dateStr] ?? []
               const isToday    = dateStr === today
               const isSel      = dateStr === selected
-              const isBlocked  = blockedDates.has(dateStr)
-              const hasEvent   = eventDates.has(dateStr)
-              const apptCount  = dayEvents.filter(e => e._kind === 'appointment').length
-              const fuCount    = dayEvents.filter(e => e._kind === 'followup' || e._kind === 'visit_followup').length
-              const evCount    = dayEvents.filter(e => e._kind === 'event').length
+              const isBlocked   = blockedDates.has(dateStr)
+              const hasEvent    = eventDates.has(dateStr)
+              const hasBirthday = birthdayDates.has(dateStr)
+              const apptCount   = dayEvents.filter(e => e._kind === 'appointment').length
+              const fuCount     = dayEvents.filter(e => e._kind === 'followup' || e._kind === 'visit_followup').length
+              const evCount     = dayEvents.filter(e => e._kind === 'event').length
+              const bdCount     = dayEvents.filter(e => e._kind === 'birthday').length
               return (
                 <div key={day} onClick={() => setSelected(dateStr)}
                   className={`h-24 border-b border-r border-gray-50 dark:border-gray-700 p-1.5 cursor-pointer transition-colors
@@ -260,6 +301,9 @@ export default function CalendarPage() {
                       {day}
                     </span>
                     <div className="flex items-center gap-0.5">
+                      {hasBirthday && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-pink-500 flex-shrink-0" title="Birthday"/>
+                      )}
                       {hasEvent && (
                         <span className="w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" title="Has events"/>
                       )}
@@ -289,6 +333,11 @@ export default function CalendarPage() {
                     {evCount > 0 && (
                       <div className="text-xs bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1 py-0.5 rounded font-medium truncate">
                         {evCount} event{evCount !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                    {bdCount > 0 && (
+                      <div className="text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 px-1 py-0.5 rounded font-medium truncate">
+                        🎂 {bdCount}
                       </div>
                     )}
                   </div>
@@ -348,14 +397,19 @@ export default function CalendarPage() {
               selectedOthers
                 .sort((a,b) => (a.time||a.startTime||'').localeCompare(b.time||b.startTime||''))
                 .map((e, idx) => {
+                  const isBirthday = e._kind === 'birthday'
                   const isFollowUp = e._kind === 'followup' || e._kind === 'visit_followup'
                   const isEvent    = e._kind === 'event'
                   const canAttend  = e._kind === 'appointment' && ['scheduled','confirmed'].includes(e.status) && e.patientId
                   return (
                     <div key={`${e._kind}-${e.id}-${idx}`}
-                      className={`px-5 py-3.5 transition-colors ${isEvent ? 'bg-violet-50/40 dark:bg-violet-900/5 hover:bg-violet-50 dark:hover:bg-violet-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
+                      className={`px-5 py-3.5 transition-colors ${
+                        isBirthday ? 'bg-pink-50/40 dark:bg-pink-900/5 hover:bg-pink-50 dark:hover:bg-pink-900/10' :
+                        isEvent    ? 'bg-violet-50/40 dark:bg-violet-900/5 hover:bg-violet-50 dark:hover:bg-violet-900/10' :
+                        'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
                       <div className="flex items-start gap-3">
                         <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                          isBirthday ? 'bg-pink-400' :
                           isEvent    ? 'bg-violet-500' :
                           isFollowUp ? 'bg-orange-400' :
                           e.status === 'completed' ? 'bg-gray-400' : 'bg-primary-500'
@@ -366,10 +420,22 @@ export default function CalendarPage() {
                               {isEvent ? e.title : e.patientName}
                             </p>
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${kindColor(e._kind, e.status)}`}>
-                              {isEvent ? 'Event' : isFollowUp ? 'Follow-up' : e.type?.replace('_',' ') || 'Appointment'}
+                              {isBirthday ? '🎂 Birthday' : isEvent ? 'Event' : isFollowUp ? 'Follow-up' : e.type?.replace('_',' ') || 'Appointment'}
                             </span>
                           </div>
-                          {isEvent ? (
+                          {isBirthday ? (
+                            <>
+                              <p className="text-xs text-pink-500 dark:text-pink-400 font-medium">
+                                Turning {e._age} today
+                              </p>
+                              {e.id && (
+                                <button onClick={() => router.push(`/patients/${e.id}`)}
+                                  className="mt-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:underline block">
+                                  View profile
+                                </button>
+                              )}
+                            </>
+                          ) : isEvent ? (
                             <>
                               {!e.allDay && e.startTime && (
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
