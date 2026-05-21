@@ -34,16 +34,20 @@ const ACCENT = {
   orange: 'border-l-orange-500',
 }
 
-function SectionCard({ icon, title, accentColor = 'teal', children }) {
+function SectionCard({ icon, title, accentColor = 'teal', children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className={`flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT[accentColor]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30`}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT[accentColor]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 hover:bg-gray-100/60 dark:hover:bg-gray-700/50 transition-colors text-left`}>
         <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">{icon}</span>
-        <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
-      </div>
-      <div className="p-6 space-y-4">
-        {children}
-      </div>
+        <h3 className="flex-1 font-semibold text-gray-900 dark:text-white">{title}</h3>
+        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      {open && <div className="p-6 space-y-4">{children}</div>}
     </div>
   )
 }

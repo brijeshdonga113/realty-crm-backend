@@ -7,6 +7,7 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useCalendarEvents } from '@/hooks/useCalendarEvents'
 import { usePatients } from '@/hooks/usePatients'
+import { buildWAUrl } from '@/lib/whatsapp'
 import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -158,8 +159,10 @@ export default function CalendarPage() {
     }
 
     if (filter === 'all' || filter === 'birthdays') {
+      const seenBirthdays = new Set()
       patients.forEach(p => {
-        if (!p.dateOfBirth) return
+        if (!p.dateOfBirth || seenBirthdays.has(p.id)) return
+        seenBirthdays.add(p.id)
         const parts = p.dateOfBirth.split('-')
         if (parts.length < 3) return
         const [birthYear, mm, dd] = parts
@@ -168,6 +171,7 @@ export default function CalendarPage() {
         addEv(dateStr, {
           id: p.id,
           patientName: `${p.firstName} ${p.lastName}`.trim(),
+          phone: p.phone || '',
           _kind: 'birthday',
           _age: age,
         })
@@ -428,12 +432,28 @@ export default function CalendarPage() {
                               <p className="text-xs text-pink-500 dark:text-pink-400 font-medium">
                                 Turning {e._age} today
                               </p>
-                              {e.id && (
-                                <button onClick={() => router.push(`/patients/${e.id}`)}
-                                  className="mt-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:underline block">
-                                  View profile
-                                </button>
-                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                {e.id && (
+                                  <button onClick={() => router.push(`/patients/${e.id}`)}
+                                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:underline">
+                                    View profile
+                                  </button>
+                                )}
+                                {e.phone && (
+                                  <>
+                                    <a href={buildWAUrl(e.phone, `Happy Birthday ${e.patientName}! 🎂 Wishing you a wonderful birthday and the best of health! 🌟`)}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 rounded-md hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors">
+                                      🎂 Wish
+                                    </a>
+                                    <a href={buildWAUrl(e.phone, `Hi ${e.patientName}! 🎉 On your special birthday, enjoy an exclusive discount on your next visit with us. Call us to book your appointment! Happy Birthday! 🎁`)}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 rounded-md hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors">
+                                      🎁 Offer
+                                    </a>
+                                  </>
+                                )}
+                              </div>
                             </>
                           ) : isEvent ? (
                             <>
