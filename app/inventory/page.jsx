@@ -526,7 +526,6 @@ export default function InventoryPage() {
                           {c.key === 'unit'     && <span className="text-sm text-gray-600 dark:text-gray-400">{item.unit     || '—'}</span>}
                           {c.key === 'generic'  && <span className="text-xs text-gray-500 dark:text-gray-400 max-w-36 truncate block">{item.generic  || '—'}</span>}
                           {c.key === 'mrp'          && <span className="text-sm text-gray-700 dark:text-gray-300">{item.mrp ? `₹${item.mrp}` : '—'}</span>}
-
                           {c.key === 'billingPrice' && (
                             item.billingPrice
                               ? <span className="text-sm font-medium text-teal-700 dark:text-teal-300">₹{item.billingPrice}</span>

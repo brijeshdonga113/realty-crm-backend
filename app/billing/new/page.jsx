@@ -355,6 +355,20 @@ function NewInvoiceForm() {
                             }
                           </select>
                           <StockBadge invItem={linkedInv} qty={item.quantity}/>
+                          {linkedInv && (linkedInv.mrp || linkedInv.billingPrice) && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                              {linkedInv.mrp && (
+                                <span className="text-xs text-gray-400 dark:text-gray-500">
+                                  Purchase: <span className="font-semibold text-gray-600 dark:text-gray-300">₹{linkedInv.mrp}</span>
+                                </span>
+                              )}
+                              {linkedInv.billingPrice && (
+                                <span className="text-xs text-teal-600 dark:text-teal-400">
+                                  Billing: <span className="font-semibold">₹{linkedInv.billingPrice}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <input
