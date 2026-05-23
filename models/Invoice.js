@@ -43,9 +43,10 @@ export function createLineItem(data = {}) {
 }
 
 export function calculateInvoiceTotals(lineItems, taxRate = 0, discount = 0) {
-  const subtotal = lineItems.reduce((s, item) => s + item.quantity * item.unitPrice, 0)
-  const taxAmount = Math.round(subtotal * taxRate)
-  const total = subtotal + taxAmount - discount
+  const subtotal         = lineItems.reduce((s, item) => s + item.total, 0)
+  const taxableSubtotal  = lineItems.filter(i => i.taxable !== false).reduce((s, i) => s + i.total, 0)
+  const taxAmount        = Math.round(taxableSubtotal * taxRate)
+  const total            = subtotal + taxAmount - discount
   return { subtotal, taxAmount, total }
 }
 

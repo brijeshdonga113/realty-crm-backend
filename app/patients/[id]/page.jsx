@@ -919,7 +919,10 @@ export default function PatientProfilePage() {
   const saveOverview = async () => {
     setOverviewSaving(true)
     try {
-      await update(overviewForm)   // uses usePatient's update which calls setPatient(updated)
+      const cleanedCC = (overviewForm.chiefComplaints ?? []).filter(
+        c => c.complaint?.trim() || c.location?.trim() || c.sensation?.trim() || c.modality?.trim() || c.concomitant?.trim()
+      )
+      await update({ ...overviewForm, chiefComplaints: cleanedCC })
       setEditingOverview(false)
     } catch (err) {
       toast.error('Failed to save. Please try again.')
@@ -1457,16 +1460,7 @@ export default function PatientProfilePage() {
 
         {/* ── Chief Complaints ── */}
         {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
-          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500" action={
-            editingOverview && (
-              <button type="button"
-                onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
-                className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                Add Row
-              </button>
-            )
-          }>
+          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="p-4 overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead>
@@ -1486,6 +1480,9 @@ export default function PatientProfilePage() {
                             <input value={row[field] ?? ''} onChange={e => setOverviewForm(f => {
                               const list = [...(f.chiefComplaints ?? [])]
                               list[i] = { ...list[i], [field]: e.target.value }
+                              if (i === list.length - 1 && e.target.value.trim()) {
+                                list.push({ complaint: '', location: '', sensation: '', modality: '', concomitant: '' })
+                              }
                               return { ...f, chiefComplaints: list }
                             })} placeholder="—" className="input-field text-sm py-2 w-full"/>
                           ) : (
