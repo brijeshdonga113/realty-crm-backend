@@ -300,11 +300,14 @@ export default function InventoryReportsPage() {
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                 {filtered.map(s => {
-                  // Margin = (sell - buy) / sell × 100  (price-level gross margin)
-                  const margin      = s.billingPrice > 0 ? ((s.billingPrice - s.purchasePrice) / s.billingPrice) * 100 : null
-                  // Profit = net revenue received − cost of goods sold
-                  const profit      = s.netRevenue - s.purchasePrice * s.unitsSold
-                  const salesMargin = s.netRevenue > 0 ? (profit / s.netRevenue) * 100 : null
+                  // Profit  = Net Revenue − (Buy Price × Units Sold)
+                  const profit = s.netRevenue - s.purchasePrice * s.unitsSold
+                  // Margin  = Profit ÷ Net Revenue × 100  (actual realized margin on sales)
+                  // Falls back to price-level margin for unsold items (shown as "~xx%")
+                  const hasSales    = s.unitsSold > 0 && s.netRevenue > 0
+                  const margin      = hasSales
+                    ? (profit / s.netRevenue) * 100
+                    : s.billingPrice > 0 ? ((s.billingPrice - s.purchasePrice) / s.billingPrice) * 100 : null
                   return (
                     <tr key={s.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
                       <td className="px-4 py-3">
@@ -316,6 +319,7 @@ export default function InventoryReportsPage() {
                       <td className="px-4 py-3 text-right">
                         {margin != null
                           ? <span className={`text-xs font-semibold ${margin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                              {!hasSales && <span className="font-normal text-gray-400 mr-0.5">~</span>}
                               {margin.toFixed(1)}%
                             </span>
                           : <span className="text-xs text-gray-400">—</span>}
@@ -332,7 +336,6 @@ export default function InventoryReportsPage() {
                         {s.unitsSold > 0
                           ? <span className={`font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                               {profit >= 0 ? '+' : ''}{fmt(profit)}
-                              {salesMargin != null && <span className="ml-1 font-normal text-gray-400">({salesMargin.toFixed(1)}%)</span>}
                             </span>
                           : <span className="text-gray-400">—</span>}
                       </td>
@@ -358,12 +361,13 @@ export default function InventoryReportsPage() {
                     </td>
                     <td className="px-4 py-3 text-right text-xs font-bold text-green-600 dark:text-green-400">
                       {(() => {
-                        const nr = filtered.reduce((s, x) => s + x.netRevenue, 0)
-                        const cg = filtered.reduce((s, x) => s + x.purchasePrice * x.unitsSold, 0)
-                        const p  = nr - cg
-                        if (!p) return '—'
-                        const sm = nr > 0 ? (p / nr) * 100 : null
-                        return `${p >= 0 ? '+' : ''}${fmt(p)}${sm != null ? ` (${sm.toFixed(1)}%)` : ''}`
+                        const nr     = filtered.reduce((s, x) => s + x.netRevenue, 0)
+                        const cg     = filtered.reduce((s, x) => s + x.purchasePrice * x.unitsSold, 0)
+                        const profit = nr - cg
+                        if (!nr && !cg) return '—'
+                        // margin = profit ÷ net revenue × 100
+                        const margin = nr > 0 ? (profit / nr) * 100 : null
+                        return `${profit >= 0 ? '+' : ''}${fmt(profit)}${margin != null ? ` (${margin.toFixed(1)}%)` : ''}`
                       })()}
                     </td>
                   </tr>
@@ -371,6 +375,9 @@ export default function InventoryReportsPage() {
               )}
             </table>
             {filtered.length === 0 && <p className="text-center text-sm text-gray-400 py-12">No items match your search.</p>}
+            <p className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700">
+              Margin = Profit ÷ Net Revenue · Profit = Net Revenue − (Buy Price × Qty Sold) · <span className="font-medium">~</span> = theoretical (no sales yet)
+            </p>
           </div>
         </div>
       )}
