@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
+import { useVisits } from '@/hooks/useVisits'
 import { useAuth } from '@/context/AuthContext'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -39,6 +40,8 @@ function VisitEntryForm() {
   const draftId    = draftIdRef.current
 
   const { patient, loading: patientLoading } = usePatient(patientId)
+  const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
+  const pastVisits = (allVisits ?? []).filter(v => v.status !== 'draft')
 
   const [saving, setSaving]           = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -287,7 +290,9 @@ function VisitEntryForm() {
         </button>
       }
     >
-      <div className="max-w-3xl mx-auto space-y-5 pb-10">
+      <div className="max-w-6xl mx-auto pb-10">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
+      <div className="space-y-5">
 
         {/* Draft banner */}
         {isDraft && (
@@ -644,7 +649,116 @@ function VisitEntryForm() {
             {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
+      </div>{/* end form column */}
+
+      {/* ── Right: Visit History ── */}
+      <div className="xl:sticky xl:top-4 space-y-3">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Visit History</h3>
+            {!visitsLoading && (
+              <span className="text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                {pastVisits.length} {pastVisits.length === 1 ? 'visit' : 'visits'}
+              </span>
+            )}
+          </div>
+
+          {!patientId ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500 p-4 text-center">Select a patient to see history</p>
+          ) : visitsLoading ? (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700">
+              {[1,2,3].map(i => (
+                <div key={i} className="p-4 space-y-2 animate-pulse">
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-24"/>
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-40"/>
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-32"/>
+                </div>
+              ))}
+            </div>
+          ) : pastVisits.length === 0 ? (
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">No previous visits</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700 max-h-[70vh] overflow-y-auto">
+              {pastVisits.map(v => {
+                const vDate = v.visitDate ? new Date(v.visitDate) : null
+                const dateStr = vDate
+                  ? vDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '—'
+                const vitals = v.examination?.vitalSigns ?? {}
+                const hasVitals = Object.values(vitals).some(Boolean)
+                return (
+                  <div key={v.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                    {/* Date + complaint */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">{dateStr}</p>
+                      {v.followUpDate && (
+                        <span className="text-[10px] text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+                          FU: {new Date(v.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                    {v.chiefComplaint && (
+                      <p className="text-xs text-gray-800 dark:text-gray-200 font-medium mb-1.5 leading-snug">
+                        {v.chiefComplaint}
+                      </p>
+                    )}
+
+                    {/* Diagnosis chips */}
+                    {(v.diagnosis ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {v.diagnosis.slice(0, 4).map(d => (
+                          <span key={d} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded font-medium">
+                            {d}
+                          </span>
+                        ))}
+                        {v.diagnosis.length > 4 && (
+                          <span className="text-[10px] text-gray-400">+{v.diagnosis.length - 4}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Treatment */}
+                    {v.treatment && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2 mb-1">
+                        {v.treatment}
+                      </p>
+                    )}
+
+                    {/* Vitals + prescriptions footer */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {(v.prescriptions ?? []).length > 0 && (
+                        <span className="text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded font-medium">
+                          {v.prescriptions.length} Rx
+                        </span>
+                      )}
+                      {hasVitals && vitals.bloodPressure && (
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                          BP {vitals.bloodPressure}
+                        </span>
+                      )}
+                      {hasVitals && vitals.weight && (
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                          {vitals.weight}kg
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
+
+      </div>{/* end grid */}
+      </div>{/* end max-w-6xl */}
     </AppLayout>
   )
 }
