@@ -682,17 +682,49 @@ function VisitEntryForm() {
                     {invoiceLines.map((line, i) => (
                       <tr key={line.id}>
                         <td className="py-2 pr-2">
-                          <div className="flex items-center gap-1.5">
-                            {line.itemType === 'medicine' && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded font-medium flex-shrink-0">Rx</span>
-                            )}
-                            <input
-                              value={line.description}
-                              onChange={e => setInvoiceLines(ls => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))}
-                              className="input-field text-sm py-1.5 w-full"
-                              placeholder="Description"
-                            />
-                          </div>
+                          {line.itemType === 'medicine' && !line.rxId ? (
+                            /* Medicine added directly — inventory select */
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 rounded font-medium flex-shrink-0">Med</span>
+                              <select
+                                value={line.inventoryItemId || ''}
+                                onChange={e => {
+                                  const inv = inventoryItems.find(it => it.id === e.target.value)
+                                  setInvoiceLines(ls => ls.map((l, j) => j === i ? {
+                                    ...l,
+                                    inventoryItemId: e.target.value || null,
+                                    description: inv ? `${inv.name}${inv.potency ? ` (${inv.potency})` : ''}` : '',
+                                    unitPrice: inv?.billingPrice != null ? String(inv.billingPrice) : '',
+                                  } : l))
+                                }}
+                                className="input-field text-sm py-1.5 w-full"
+                              >
+                                <option value="">Select from inventory…</option>
+                                {inventoryItems
+                                  .slice()
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map(inv => (
+                                    <option key={inv.id} value={inv.id}>
+                                      {inv.name}{inv.potency ? ` (${inv.potency})` : ''}{inv.dosageForm ? ` · ${inv.dosageForm}` : ''} — {inv.quantity} {inv.unit || 'units'}
+                                    </option>
+                                  ))
+                                }
+                              </select>
+                            </div>
+                          ) : (
+                            /* Prescription medicine or service — text input */
+                            <div className="flex items-center gap-1.5">
+                              {line.itemType === 'medicine' && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded font-medium flex-shrink-0">Rx</span>
+                              )}
+                              <input
+                                value={line.description}
+                                onChange={e => setInvoiceLines(ls => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))}
+                                className="input-field text-sm py-1.5 w-full"
+                                placeholder="Description"
+                              />
+                            </div>
+                          )}
                         </td>
                         <td className="py-2 px-2">
                           <input type="number" min="1"
@@ -722,28 +754,37 @@ function VisitEntryForm() {
                 </table>
               </div>
 
-              {/* Add service row */}
-              <div className="flex gap-2 items-center pt-1 border-t border-gray-50 dark:border-gray-700/50">
-                <input
-                  value={newSvc.description}
-                  onChange={e => setNewSvc(s => ({ ...s, description: e.target.value }))}
-                  placeholder="Add service…"
-                  className="input-field text-sm py-1.5 flex-1"
-                />
-                <input type="number" min="0"
-                  value={newSvc.unitPrice}
-                  onChange={e => setNewSvc(s => ({ ...s, unitPrice: e.target.value }))}
-                  placeholder="Price"
-                  className="input-field text-sm py-1.5 w-24"
-                />
+              {/* Add row */}
+              <div className="space-y-2 pt-1 border-t border-gray-50 dark:border-gray-700/50">
+                <div className="flex gap-2 items-center">
+                  <input
+                    value={newSvc.description}
+                    onChange={e => setNewSvc(s => ({ ...s, description: e.target.value }))}
+                    placeholder="Add service…"
+                    className="input-field text-sm py-1.5 flex-1"
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newSvc.description.trim()) { setInvoiceLines(ls => [...ls, { id: `svc-${Date.now()}`, description: newSvc.description.trim(), unitPrice: newSvc.unitPrice, quantity: 1, itemType: 'service', inventoryItemId: null }]); setNewSvc({ description: '', unitPrice: '' }) }}}}
+                  />
+                  <input type="number" min="0"
+                    value={newSvc.unitPrice}
+                    onChange={e => setNewSvc(s => ({ ...s, unitPrice: e.target.value }))}
+                    placeholder="Price"
+                    className="input-field text-sm py-1.5 w-24"
+                  />
+                  <button type="button"
+                    onClick={() => {
+                      if (!newSvc.description.trim()) return
+                      setInvoiceLines(ls => [...ls, { id: `svc-${Date.now()}`, description: newSvc.description.trim(), unitPrice: newSvc.unitPrice, quantity: 1, itemType: 'service', inventoryItemId: null }])
+                      setNewSvc({ description: '', unitPrice: '' })
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors flex-shrink-0">
+                    + Service
+                  </button>
+                </div>
                 <button type="button"
-                  onClick={() => {
-                    if (!newSvc.description.trim()) return
-                    setInvoiceLines(ls => [...ls, { id: `svc-${Date.now()}`, description: newSvc.description.trim(), unitPrice: newSvc.unitPrice, quantity: 1, itemType: 'service', inventoryItemId: null }])
-                    setNewSvc({ description: '', unitPrice: '' })
-                  }}
-                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors flex-shrink-0">
-                  + Add
+                  onClick={() => setInvoiceLines(ls => [...ls, { id: `med-${Date.now()}`, description: '', unitPrice: '', quantity: 1, itemType: 'medicine', inventoryItemId: null }])}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  Add from inventory
                 </button>
               </div>
 
