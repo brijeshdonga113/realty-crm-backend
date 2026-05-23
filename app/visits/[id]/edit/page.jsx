@@ -7,7 +7,10 @@ import { useVisits } from '@/hooks/useVisits'
 import { useInventory } from '@/hooks/useInventory'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
+import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { visitService } from '@/services/visitService'
+import { billingService } from '@/services/billingService'
+import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 
@@ -15,21 +18,39 @@ function EditVisitForm() {
   const router = useRouter()
   const { id } = useParams()
   const { formatDateFull } = usePreferences()
-  const { doctor } = useAuth()
+  const { doctor, isReceptionist } = useAuth()
+  const { blockedSlots } = useBlockedSlots()
 
-  const [visit,   setVisit]   = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
+  const [visit,     setVisit]     = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [saving,    setSaving]    = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [form, setForm] = useState(null)
+  const [form,      setForm]      = useState(null)
 
   const [diagInput,  setDiagInput]  = useState('')
   const [labInput,   setLabInput]   = useState('')
   const [customDays, setCustomDays] = useState('')
-  const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+  const [rx,         setRx]         = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+  const [rxSugOpen,  setRxSugOpen]  = useState(false)
   const [expandedVisitId, setExpandedVisitId] = useState(null)
 
-  // Load the visit being edited
+  const [existingInvoiceId, setExistingInvoiceId] = useState(null)
+  const [useInvoice,   setUseInvoice]   = useState(false)
+  const [invoiceLines, setInvoiceLines] = useState([
+    { id: 'consult', description: 'Consultation Fee', unitPrice: '', quantity: 1, itemType: 'service', inventoryItemId: null }
+  ])
+  const [newSvc, setNewSvc] = useState({ description: '', unitPrice: '' })
+  const [payment, setPayment] = useState(() => ({
+    amount: '',
+    method: 'cash',
+    collectedBy: isReceptionist ? 'receptionist' : 'doctor',
+    description: 'Consultation Fee',
+    status: 'draft',
+  }))
+
+  const invoiceTotal = invoiceLines.reduce((sum, l) => sum + (Number(l.unitPrice) || 0) * (l.quantity || 1), 0)
+
+  // Load visit
   useEffect(() => {
     if (!id) return
     visitService.getById(id).then(v => {
@@ -55,12 +76,40 @@ function EditVisitForm() {
     })
   }, [id])
 
-  const patientId = visit?.patientId || ''
-  const { patient } = usePatient(patientId)
-  const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
-  const { items: inventoryItems } = useInventory()
+  // Load existing invoice for this visit
+  useEffect(() => {
+    if (!id) return
+    billingService.getAll().then(invoices => {
+      const existing = invoices.find(inv => inv.visitId === id)
+      if (!existing) return
+      setExistingInvoiceId(existing.id)
+      const lines = existing.lineItems?.map((l, idx) => ({
+        id: l.id || `line-${idx}`,
+        description: l.description || '',
+        unitPrice: String(l.unitPrice ?? ''),
+        quantity: l.quantity || 1,
+        itemType: l.itemType || 'service',
+        inventoryItemId: l.inventoryItemId || null,
+        rxId: l.rxId || null,
+      }))
+      if (lines?.length) {
+        setInvoiceLines(lines)
+        setUseInvoice(lines.length > 1 || lines.some(l => l.itemType === 'medicine'))
+      }
+      setPayment(p => ({
+        ...p,
+        method: existing.paymentMethod || 'cash',
+        collectedBy: existing.collectedBy || p.collectedBy,
+        status: existing.status || 'draft',
+      }))
+    }).catch(() => {})
+  }, [id])
 
-  // Past visits excluding the one being edited
+  const patientId = visit?.patientId || ''
+  const { patient }                            = usePatient(patientId)
+  const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
+  const { items: inventoryItems }              = useInventory()
+
   const pastVisits = (allVisits ?? []).filter(v => v.status !== 'draft' && v.id !== id)
 
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -72,12 +121,45 @@ function EditVisitForm() {
     set('followUpDate', d)
   }
 
+  const addRxToInvoice = (rxItem) => {
+    const invItem = inventoryItems.find(i => i.name.toLowerCase() === rxItem.medication.toLowerCase())
+    setInvoiceLines(lines => [...lines, {
+      id: `rx-${rxItem.id}`,
+      description: rxItem.medication + (rxItem.dosage ? ` (${rxItem.dosage})` : ''),
+      unitPrice: invItem?.billingPrice != null ? String(invItem.billingPrice) : '',
+      quantity: 1,
+      itemType: 'medicine',
+      inventoryItemId: invItem?.id ?? null,
+      rxId: rxItem.id,
+    }])
+  }
+
+  const removeRxFromInvoice = (rxId) =>
+    setInvoiceLines(lines => lines.filter(l => l.rxId !== rxId))
+
   const handleSave = async () => {
     if (!form?.chiefComplaint?.trim()) return
-    const finalPrescriptions = rx.medication.trim()
-      ? [...form.prescriptions, { ...rx, id: `${Date.now()}` }]
-      : form.prescriptions
-    if (rx.medication.trim()) setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+    if (useInvoice && invoiceTotal <= 0) {
+      setSaveError('Add at least one line item with a price before saving.')
+      return
+    }
+
+    const pendingRx = rx.medication.trim() ? { ...rx, id: `${Date.now()}` } : null
+    const finalPrescriptions = pendingRx ? [...form.prescriptions, pendingRx] : form.prescriptions
+    if (pendingRx) setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+
+    let finalInvoiceLines = invoiceLines
+    if (useInvoice && pendingRx) {
+      const invItem = inventoryItems.find(i => i.name.toLowerCase() === pendingRx.medication.toLowerCase())
+      finalInvoiceLines = [...invoiceLines, {
+        id: `rx-${pendingRx.id}`,
+        description: pendingRx.medication + (pendingRx.dosage ? ` (${pendingRx.dosage})` : ''),
+        unitPrice: invItem?.billingPrice != null ? String(invItem.billingPrice) : '',
+        quantity: 1,
+        itemType: 'medicine',
+        inventoryItemId: invItem?.id ?? null,
+      }]
+    }
 
     setSaving(true)
     setSaveError('')
@@ -93,6 +175,43 @@ function EditVisitForm() {
         followUpDate:   form.followUpDate || null,
         notes:          form.notes,
       }, patientId || null)
+
+      // Invoice / payment
+      if (useInvoice) {
+        const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
+        if (billableLines.length > 0) {
+          const invoiceData = {
+            patientId,
+            patientName: visit?.patientName || '',
+            issueDate: form.visitDate,
+            lineItems: billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId })),
+            status: payment.status,
+            paymentMethod: payment.method,
+            collectedBy: payment.collectedBy,
+            paymentDate: payment.status === 'paid' ? form.visitDate : null,
+            taxRate: 0, discount: 0, visitId: id,
+          }
+          existingInvoiceId
+            ? await billingService.update(existingInvoiceId, invoiceData)
+            : await billingService.create(invoiceData)
+        }
+      } else if (Number(payment.amount) > 0) {
+        const invoiceData = {
+          patientId,
+          patientName: visit?.patientName || '',
+          issueDate: form.visitDate,
+          lineItems: [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
+          status: payment.status,
+          paymentMethod: payment.method,
+          collectedBy: payment.collectedBy,
+          paymentDate: payment.status === 'paid' ? form.visitDate : null,
+          taxRate: 0, discount: 0, visitId: id,
+        }
+        existingInvoiceId
+          ? await billingService.update(existingInvoiceId, invoiceData)
+          : await billingService.create(invoiceData)
+      }
+
       router.push(patientId ? `/patients/${patientId}` : '/patients')
     } catch (err) {
       setSaveError(err?.message || 'Failed to save. Please try again.')
@@ -274,29 +393,39 @@ function EditVisitForm() {
                   <p className="text-gray-500 dark:text-gray-400 text-xs">{p.frequency} · {p.duration}</p>
                   {p.instructions && <p className="text-gray-400 dark:text-gray-500 text-xs italic">{p.instructions}</p>}
                 </div>
-                <button type="button" onClick={() => set('prescriptions', form.prescriptions.filter((_, j) => j !== i))}
-                  className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
+                <button type="button" onClick={() => {
+                  const pres = form.prescriptions[i]
+                  set('prescriptions', form.prescriptions.filter((_, j) => j !== i))
+                  if (useInvoice && pres?.id) removeRxFromInvoice(pres.id)
+                }} className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
               </div>
             ))}
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="relative">
                 <input value={rx.medication}
-                  onChange={e => setRx(p => ({...p, medication: e.target.value}))}
+                  onChange={e => { setRx(p => ({...p, medication: e.target.value})); setRxSugOpen(true) }}
+                  onFocus={() => setRxSugOpen(true)}
+                  onBlur={() => setTimeout(() => setRxSugOpen(false), 100)}
                   placeholder="Medication name"
                   className="input-field text-sm py-2 w-full"
                   autoComplete="off"
                 />
-                {rx.medication.trim().length > 0 && (() => {
+                {rxSugOpen && rx.medication.trim().length > 0 && (() => {
                   const q = rx.medication.toLowerCase()
                   const matches = inventoryItems.filter(it => it.name.toLowerCase().includes(q)).slice(0, 8)
                   return matches.length > 0 ? (
                     <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-44 overflow-y-auto">
                       {matches.map(it => (
                         <button key={it.id} type="button"
-                          onMouseDown={() => setRx(p => ({...p, medication: it.name}))}
+                          onMouseDown={() => {
+                            setRx(p => ({ ...p, medication: it.name, dosage: p.dosage || it.potency || '' }))
+                            setRxSugOpen(false)
+                          }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center justify-between gap-2 transition-colors">
                           <span className="font-medium text-gray-800 dark:text-gray-200">{it.name}</span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{it.category || it.unit || ''}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                            {[it.potency, it.dosageForm || it.category].filter(Boolean).join(' · ')}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -311,8 +440,11 @@ function EditVisitForm() {
               placeholder="Special instructions (e.g. Take after meals)" className="input-field text-sm py-2 mb-2"/>
             <button type="button" onClick={() => {
               if (rx.medication.trim()) {
-                set('prescriptions', [...form.prescriptions, { ...rx, id: `${Date.now()}` }])
+                const newRx = { ...rx, id: `${Date.now()}` }
+                set('prescriptions', [...form.prescriptions, newRx])
+                if (useInvoice) addRxToInvoice(newRx)
                 setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+                setRxSugOpen(false)
               }
             }} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">+ Add prescription</button>
           </div>
@@ -363,13 +495,21 @@ function EditVisitForm() {
               <button type="button"
                 onClick={() => { const d = parseInt(customDays); if (d > 0) { addFollowUpDays(d); setCustomDays('') } }}
                 disabled={!customDays || parseInt(customDays) < 1}
-                className="text-xs px-2.5 py-1.5 bg-orange-100 dark:bg-orange-900/40 hover:bg-orange-200 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium disabled:opacity-40 transition-colors">
+                className="text-xs px-2.5 py-1.5 bg-orange-100 dark:bg-orange-900/40 hover:bg-orange-200 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 rounded-lg font-medium disabled:opacity-40 transition-colors">
                 Set
               </button>
             </div>
           </div>
           <input type="date" value={form.followUpDate}
             onChange={e => set('followUpDate', e.target.value)} className="input-field"/>
+          {form.followUpDate && blockedSlots.some(b => b.date === form.followUpDate) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              You are blocked on this day — consider picking another date.
+            </p>
+          )}
           {form.followUpDate && (
             <div className="mt-2 flex items-center gap-3">
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
@@ -382,6 +522,214 @@ function EditVisitForm() {
                 className="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear</button>
             </div>
           )}
+        </div>
+
+        {/* Payment / Invoice */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Payment Collection</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                {existingInvoiceId ? 'Editing existing invoice for this visit' : 'Optional — leave blank to skip'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={useInvoice} onChange={e => setUseInvoice(e.target.checked)}
+                className="rounded border-gray-300 text-primary-500 focus:ring-primary-400"/>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Itemized invoice</span>
+            </label>
+          </div>
+
+          {useInvoice ? (
+            <div className="space-y-3">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700">
+                      <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 pb-2 pr-2">Description</th>
+                      <th className="text-center text-xs font-semibold text-gray-500 dark:text-gray-400 pb-2 px-2 w-16">Qty</th>
+                      <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 pb-2 pl-2 w-28">Price (₹)</th>
+                      <th className="w-7"/>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {invoiceLines.map((line, i) => (
+                      <tr key={line.id}>
+                        <td className="py-2 pr-2">
+                          {line.itemType === 'medicine' && !line.rxId ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 rounded font-medium flex-shrink-0">Med</span>
+                              <select
+                                value={line.inventoryItemId || ''}
+                                onChange={e => {
+                                  const inv = inventoryItems.find(it => it.id === e.target.value)
+                                  setInvoiceLines(ls => ls.map((l, j) => j === i ? {
+                                    ...l,
+                                    inventoryItemId: e.target.value || null,
+                                    description: inv ? `${inv.name}${inv.potency ? ` (${inv.potency})` : ''}` : '',
+                                    unitPrice: inv?.billingPrice != null ? String(inv.billingPrice) : '',
+                                  } : l))
+                                }}
+                                className="input-field text-sm py-1.5 w-full"
+                              >
+                                <option value="">Select from inventory…</option>
+                                {inventoryItems
+                                  .slice()
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map(inv => (
+                                    <option key={inv.id} value={inv.id}>
+                                      {inv.name}{inv.potency ? ` (${inv.potency})` : ''}{inv.dosageForm ? ` · ${inv.dosageForm}` : ''} — {inv.quantity} {inv.unit || 'units'}
+                                    </option>
+                                  ))
+                                }
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              {line.itemType === 'medicine' && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded font-medium flex-shrink-0">Rx</span>
+                              )}
+                              <input
+                                value={line.description}
+                                onChange={e => setInvoiceLines(ls => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))}
+                                className="input-field text-sm py-1.5 w-full"
+                                placeholder="Description"
+                              />
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">
+                          <input type="number" min="1"
+                            value={line.quantity}
+                            onChange={e => setInvoiceLines(ls => ls.map((l, j) => j === i ? { ...l, quantity: Number(e.target.value) || 1 } : l))}
+                            className="input-field text-sm py-1.5 text-center w-16"
+                          />
+                        </td>
+                        <td className="py-2 pl-2">
+                          <input type="number" min="0"
+                            value={line.unitPrice}
+                            onChange={e => setInvoiceLines(ls => ls.map((l, j) => j === i ? { ...l, unitPrice: e.target.value } : l))}
+                            placeholder="0"
+                            className="input-field text-sm py-1.5 text-right w-full"
+                          />
+                        </td>
+                        <td className="py-2 pl-1 text-center">
+                          {invoiceLines.length > 1 && (
+                            <button type="button"
+                              onClick={() => setInvoiceLines(ls => ls.filter((_, j) => j !== i))}
+                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none transition-colors">×</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Add row */}
+              <div className="space-y-2 pt-1 border-t border-gray-50 dark:border-gray-700/50">
+                <div className="flex gap-2 items-center">
+                  <input
+                    value={newSvc.description}
+                    onChange={e => setNewSvc(s => ({ ...s, description: e.target.value }))}
+                    placeholder="Add service…"
+                    className="input-field text-sm py-1.5 flex-1"
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newSvc.description.trim()) { setInvoiceLines(ls => [...ls, { id: `svc-${Date.now()}`, description: newSvc.description.trim(), unitPrice: newSvc.unitPrice, quantity: 1, itemType: 'service', inventoryItemId: null }]); setNewSvc({ description: '', unitPrice: '' }) }}}}
+                  />
+                  <input type="number" min="0"
+                    value={newSvc.unitPrice}
+                    onChange={e => setNewSvc(s => ({ ...s, unitPrice: e.target.value }))}
+                    placeholder="Price"
+                    className="input-field text-sm py-1.5 w-24"
+                  />
+                  <button type="button"
+                    onClick={() => {
+                      if (!newSvc.description.trim()) return
+                      setInvoiceLines(ls => [...ls, { id: `svc-${Date.now()}`, description: newSvc.description.trim(), unitPrice: newSvc.unitPrice, quantity: 1, itemType: 'service', inventoryItemId: null }])
+                      setNewSvc({ description: '', unitPrice: '' })
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors flex-shrink-0">
+                    + Service
+                  </button>
+                </div>
+                <button type="button"
+                  onClick={() => setInvoiceLines(ls => [...ls, { id: `med-${Date.now()}`, description: '', unitPrice: '', quantity: 1, itemType: 'medicine', inventoryItemId: null }])}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  Add from inventory
+                </button>
+              </div>
+
+              {invoiceTotal > 0 && (
+                <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
+                  payment.status === 'paid'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
+                }`}>
+                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                    {invoiceLines.length} item{invoiceLines.length !== 1 ? 's' : ''} · {payment.status === 'paid' ? 'Collected' : 'Due'}
+                  </span>
+                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                    ₹{invoiceTotal.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Amount (₹)</label>
+                  <input type="number" min="0" value={payment.amount}
+                    onChange={e => setPayment(p => ({ ...p, amount: e.target.value }))}
+                    placeholder="0" className="input-field"/>
+                </div>
+                <div>
+                  <label className="form-label">Description</label>
+                  <input value={payment.description}
+                    onChange={e => setPayment(p => ({ ...p, description: e.target.value }))}
+                    placeholder="Consultation Fee" className="input-field"/>
+                </div>
+              </div>
+              {Number(payment.amount) > 0 && (
+                <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
+                  payment.status === 'paid'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
+                }`}>
+                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                    {payment.status === 'paid' ? 'Amount collected' : 'Amount due (unpaid)'}
+                  </span>
+                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                    ₹{Number(payment.amount).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Shared payment meta */}
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50">
+            <div>
+              <label className="form-label">Method</label>
+              <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <select value={payment.collectedBy} onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))} className="input-field">
+                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Status</label>
+              <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
+                <option value="paid">Paid</option>
+                <option value="draft">Due / Unpaid</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Actions */}
