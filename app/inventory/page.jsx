@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Modal } from '@/components/ui/Modal'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { useInventory } from '@/hooks/useInventory'
+import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
 import { dataStore } from '@/lib/dataStore'
 
@@ -243,18 +244,254 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
   )
 }
 
+// ─── Reports Modal ────────────────────────────────────────────────────────────
+function fmt(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function InventoryReportsModal({ open, onClose, items, invoices }) {
+  const [tab, setTab]       = useState('overview')
+  const [search, setSearch] = useState('')
+
+  useEffect(() => { if (open) { setTab('overview'); setSearch('') } }, [open])
+
+  // Per-item stats aggregated from invoices
+  const itemStats = useMemo(() => {
+    const map = {}
+    items.forEach(item => {
+      map[item.id] = {
+        id:            item.id,
+        name:          item.name,
+        category:      item.category || '',
+        purchasePrice: Number(item.mrp)          || 0,
+        billingPrice:  Number(item.billingPrice) || 0,
+        currentQty:    item.quantity             || 0,
+        unitsSold:     0,
+        grossRevenue:  0,
+        discountAmt:   0,
+        netRevenue:    0,
+      }
+    })
+    invoices.forEach(inv => {
+      ;(inv.lineItems || []).forEach(li => {
+        if (!li.inventoryItemId || !map[li.inventoryItemId]) return
+        const s     = map[li.inventoryItemId]
+        const qty   = li.quantity  || 0
+        const gross = (li.unitPrice || 0) * qty
+        const net   = li.total != null ? li.total : gross
+        s.unitsSold    += qty
+        s.grossRevenue += gross
+        s.discountAmt  += gross - net
+        s.netRevenue   += net
+      })
+    })
+    return Object.values(map)
+  }, [items, invoices])
+
+  // Inventory value (current stock)
+  const inventoryVal = useMemo(() => {
+    let cost = 0, billing = 0
+    items.forEach(i => {
+      const qty = i.quantity || 0
+      cost    += (Number(i.mrp)          || 0) * qty
+      billing += (Number(i.billingPrice) || 0) * qty
+    })
+    return { cost, billing }
+  }, [items])
+
+  // Revenue totals across all sold items
+  const totals = useMemo(() => {
+    let unitsSold = 0, grossRevenue = 0, discountAmt = 0, netRevenue = 0, cogs = 0
+    itemStats.forEach(s => {
+      unitsSold    += s.unitsSold
+      grossRevenue += s.grossRevenue
+      discountAmt  += s.discountAmt
+      netRevenue   += s.netRevenue
+      cogs         += s.purchasePrice * s.unitsSold
+    })
+    return { unitsSold, grossRevenue, discountAmt, netRevenue, profit: netRevenue - cogs }
+  }, [itemStats])
+
+  // Filtered + sorted for product analysis tab
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    const list = q
+      ? itemStats.filter(s => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q))
+      : itemStats
+    return [...list].sort((a, b) => b.netRevenue - a.netRevenue)
+  }, [itemStats, search])
+
+  return (
+    <Modal open={open} onClose={onClose} title="Inventory Reports" size="xl">
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-100 dark:border-gray-700 -mx-6 px-6 mb-5">
+        {[['overview', 'Overview'], ['products', 'Product Analysis']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+              ${tab === key
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Overview tab ── */}
+      {tab === 'overview' && (
+        <div className="space-y-5 overflow-y-auto" style={{ maxHeight: '55vh' }}>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Inventory Cost',  value: fmt(inventoryVal.cost),    sub: 'stock at purchase price',  color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' },
+              { label: 'Billing Value',   value: fmt(inventoryVal.billing), sub: 'stock at billing price',   color: 'text-teal-600 dark:text-teal-400',     bg: 'bg-teal-50 dark:bg-teal-900/20 border-teal-100 dark:border-teal-800' },
+              { label: 'Total Revenue',   value: fmt(totals.netRevenue),    sub: `${totals.unitsSold} units sold`, color: 'text-green-600 dark:text-green-400',  bg: 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' },
+              { label: 'Gross Profit',    value: fmt(totals.profit),        sub: 'revenue − cost of goods',  color: totals.profit >= 0 ? 'text-primary-600 dark:text-primary-400' : 'text-red-600 dark:text-red-400', bg: 'bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-800' },
+              { label: 'Discount Given',  value: fmt(totals.discountAmt),   sub: 'total across all invoices', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800' },
+              { label: 'Gross Revenue',   value: fmt(totals.grossRevenue),  sub: 'before item discounts',    color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800' },
+            ].map(c => (
+              <div key={c.label} className={`rounded-xl border p-4 ${c.bg}`}>
+                <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-0.5">{c.label}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Purchase vs Billing Price table */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Purchase vs Billing Price</p>
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
+                    {['Item', 'Purchase ₹', 'Billing ₹', 'Markup', 'Stock'].map((h, i) => (
+                      <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {items.map(item => {
+                    const purchase = Number(item.mrp)          || 0
+                    const billing  = Number(item.billingPrice) || 0
+                    const markup   = purchase > 0 ? ((billing - purchase) / purchase) * 100 : null
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</p>
+                          {item.category && <p className="text-xs text-gray-400">{item.category}</p>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-gray-500 dark:text-gray-400 text-sm">{purchase ? fmt(purchase) : '—'}</td>
+                        <td className="px-4 py-2.5 text-right text-teal-700 dark:text-teal-300 font-medium text-sm">{billing ? fmt(billing) : '—'}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          {markup != null
+                            ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${markup >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>
+                                {markup >= 0 ? '+' : ''}{markup.toFixed(1)}%
+                              </span>
+                            : <span className="text-gray-400 text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 text-sm">{item.quantity ?? 0} {item.unit || ''}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {items.length === 0 && <p className="text-center text-sm text-gray-400 py-8">No inventory items yet.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Product Analysis tab ── */}
+      {tab === 'products' && (
+        <div className="space-y-4" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by item name or category…"
+            className="input-field w-full"
+          />
+          <div className="rounded-xl border border-gray-100 dark:border-gray-700 overflow-x-auto">
+            <table className="w-full min-w-[780px] text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
+                  {[
+                    ['Item',       'text-left'],
+                    ['Buy ₹',      'text-right'],
+                    ['Sell ₹',     'text-right'],
+                    ['Markup',     'text-right'],
+                    ['Qty Sold',   'text-right'],
+                    ['Gross Rev',  'text-right'],
+                    ['Discount',   'text-right'],
+                    ['Net Rev',    'text-right'],
+                    ['Profit',     'text-right'],
+                  ].map(([h, align]) => (
+                    <th key={h} className={`px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 ${align}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {filtered.map(s => {
+                  const markup = s.purchasePrice > 0 ? ((s.billingPrice - s.purchasePrice) / s.purchasePrice) * 100 : null
+                  const profit = s.netRevenue - s.purchasePrice * s.unitsSold
+                  const margin = s.netRevenue > 0 ? (profit / s.netRevenue) * 100 : null
+                  return (
+                    <tr key={s.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-gray-900 dark:text-white">{s.name}</p>
+                        {s.category && <p className="text-xs text-gray-400">{s.category}</p>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs text-gray-500 dark:text-gray-400">{s.purchasePrice ? fmt(s.purchasePrice) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-teal-700 dark:text-teal-300 font-medium">{s.billingPrice ? fmt(s.billingPrice) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        {markup != null
+                          ? <span className={`text-xs font-semibold ${markup >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                              {markup >= 0 ? '+' : ''}{markup.toFixed(1)}%
+                            </span>
+                          : <span className="text-xs text-gray-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {s.unitsSold > 0
+                          ? <span className="font-semibold text-primary-600 dark:text-primary-400">{s.unitsSold}</span>
+                          : <span className="text-xs text-gray-400">0</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs text-gray-500 dark:text-gray-400">{s.grossRevenue > 0 ? fmt(s.grossRevenue) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-orange-600 dark:text-orange-400">{s.discountAmt > 0 ? `−${fmt(s.discountAmt)}` : '—'}</td>
+                      <td className="px-3 py-2.5 text-right text-xs font-semibold text-gray-900 dark:text-white">{s.netRevenue > 0 ? fmt(s.netRevenue) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {s.unitsSold > 0
+                          ? <span className={`font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                              {profit >= 0 ? '+' : ''}{fmt(profit)}
+                              {margin != null && <span className="ml-1 font-normal text-gray-400">({margin.toFixed(0)}%)</span>}
+                            </span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {filtered.length === 0 && <p className="text-center text-sm text-gray-400 py-8">No items match your search.</p>}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
   const { items, loading, create, update, adjustQty, remove, bulkCreate } = useInventory()
+  const { invoices } = useBilling()
   const { doctor } = useAuth()
   const customFieldDefs = doctor?.inventoryCustomFields ?? []
 
   const fileRef = useRef(null)
-  const [query,      setQuery]      = useState('')
-  const [catFilter,  setCatFilter]  = useState('')
-  const [formFilter, setFormFilter] = useState('')
-  const [colsOpen,   setColsOpen]   = useState(false)
-  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE)
+  const [query,        setQuery]        = useState('')
+  const [catFilter,    setCatFilter]    = useState('')
+  const [formFilter,   setFormFilter]   = useState('')
+  const [colsOpen,     setColsOpen]     = useState(false)
+  const [visibleCols,  setVisibleCols]  = useState(DEFAULT_VISIBLE)
+  const [reportsOpen,  setReportsOpen]  = useState(false)
 
   useEffect(() => {
     dataStore.getMeta('inventoryColumns').then(saved => {
@@ -342,6 +579,15 @@ export default function InventoryPage() {
       title="Inventory"
       action={
         <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <button onClick={() => setReportsOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+              Reports
+            </button>
+          )}
           <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFile}/>
           <button onClick={() => fileRef.current?.click()} disabled={importing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
@@ -594,6 +840,14 @@ export default function InventoryPage() {
         onSave={handleEdit}
         title="Edit Inventory Item"
         customFieldDefs={customFieldDefs}
+      />
+
+      {/* Reports modal */}
+      <InventoryReportsModal
+        open={reportsOpen}
+        onClose={() => setReportsOpen(false)}
+        items={items}
+        invoices={invoices}
       />
 
       {/* Delete confirm */}
