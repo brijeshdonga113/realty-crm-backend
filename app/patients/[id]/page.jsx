@@ -22,7 +22,85 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { isHomeopathy } from '@/lib/patientIntakePresets'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+
+const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-500','border-l-purple-500','border-l-orange-500']
+
+// Renders one specialty field in view or edit mode
+function ClinicalField({ field, value, onChange, editing }) {
+  const { label, type, options = [] } = field
+  if (!editing) {
+    let display = value
+    if (type === 'chips' && Array.isArray(value)) display = value.join(', ')
+    if (type === 'scale') display = value != null ? `${value} / 10` : null
+    return (
+      <div className={type === 'textarea' ? 'sm:col-span-2' : ''}>
+        <p className="form-label text-xs">{label}</p>
+        <p className={`text-sm mt-0.5 ${display ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+          {display || '—'}
+        </p>
+      </div>
+    )
+  }
+  if (type === 'textarea') return (
+    <div className="sm:col-span-2">
+      <label className="form-label">{label}</label>
+      <AutoTextarea value={value || ''} onChange={e => onChange(e.target.value)} className="input-field resize"/>
+    </div>
+  )
+  if (type === 'number') return (
+    <div>
+      <label className="form-label">{label}</label>
+      <input type="number" min="0" value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
+    </div>
+  )
+  if (type === 'scale') return (
+    <div className="sm:col-span-2">
+      <label className="form-label">{label}</label>
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-xs text-gray-400 w-4">0</span>
+        <input type="range" min="0" max="10" step="1" value={value ?? 0}
+          onChange={e => onChange(Number(e.target.value))} className="flex-1 accent-primary-500"/>
+        <span className="text-xs text-gray-400 w-4">10</span>
+        <span className={`ml-2 text-sm font-bold w-6 text-center ${(value??0)>=8?'text-red-500':(value??0)>=5?'text-amber-500':'text-green-500'}`}>{value ?? 0}</span>
+      </div>
+    </div>
+  )
+  if (type === 'chips' && options.length > 0) {
+    const sel = Array.isArray(value) ? value : (value ? [value] : [])
+    const toggle = opt => onChange(sel.includes(opt) ? sel.filter(s => s !== opt) : [...sel, opt])
+    return (
+      <div className="sm:col-span-2">
+        <label className="form-label">{label}</label>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {options.map(opt => (
+            <button key={opt} type="button" onClick={() => toggle(opt)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                sel.includes(opt) ? 'bg-primary-500 text-white border-primary-500'
+                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+              }`}>{opt}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (type === 'select' && options.length > 0) return (
+    <div>
+      <label className="form-label">{label}</label>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} className="input-field">
+        <option value="">Select…</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+  return (
+    <div>
+      <label className="form-label">{label}</label>
+      <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
+    </div>
+  )
+}
 
 
 const WA_ICON = (
@@ -777,6 +855,7 @@ export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { doctor } = useAuth()
+  const specialization = doctor?.specialization ?? ''
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
   const referralSources  = useReferralSources()
@@ -904,6 +983,7 @@ export default function PatientProfilePage() {
       },
       customGenerals: patient.customGenerals ? [...patient.customGenerals.map(g => ({ ...g }))] : [],
       customFields:   patient.customFields   ? [...patient.customFields]                        : [],
+      specialtyData:  patient.specialtyData  ? { ...patient.specialtyData }                    : {},
     })
     setEditingOverview(true)
   }
@@ -1233,6 +1313,7 @@ export default function PatientProfilePage() {
           </div>
         </div>
 
+        {isHomeopathy(specialization) ? (<>
         {/* ── History & Life Span ── */}
         <Section title="History (H/o)" action={
           !editingOverview ? (
@@ -1520,6 +1601,60 @@ export default function PatientProfilePage() {
             </div>
           </Section>
         )}
+
+        </>) : (() => {
+          // Non-homeopathy: render doctor's patientFormFields from patient.specialtyData
+          const fields = doctor?.patientFormFields ?? []
+          if (!fields.length) return (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">No clinical fields configured.</p>
+              <a href="/settings" className="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium block">
+                Go to Settings → Patient Registration Fields to set them up
+              </a>
+            </div>
+          )
+          const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
+          const setSpecialtyField = (id, val) =>
+            setOverviewForm(f => ({ ...f, specialtyData: { ...f.specialtyData, [id]: val } }))
+
+          return sections.map((sec, si) => (
+            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]} action={
+              !editingOverview ? (
+                <button onClick={startOverviewEdit}
+                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                  Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditingOverview(false)} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
+                  <button onClick={saveOverview} disabled={overviewSaving}
+                    className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
+                    {overviewSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )
+            }>
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
+                    <ClinicalField
+                      key={field.id}
+                      field={field}
+                      editing={editingOverview}
+                      value={editingOverview
+                        ? (overviewForm.specialtyData ?? {})[field.id]
+                        : (patient.specialtyData ?? {})[field.id]}
+                      onChange={val => setSpecialtyField(field.id, val)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Section>
+          ))
+        })()}
 
         </div>
       )}
