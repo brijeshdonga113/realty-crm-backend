@@ -63,48 +63,61 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
   const waKey = isOverdue ? 'missed' : isToday ? 'today' : diff === 1 ? 'tomorrow' : 'followup'
 
   return (
-    <div className={`flex items-center gap-4 px-5 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
+    <div className={`flex items-start gap-3 px-5 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
       ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isOverdue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary-100 dark:bg-primary-900/30'}`}>
+
+      {/* Avatar */}
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isOverdue ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary-100 dark:bg-primary-900/30'}`}>
         <span className={`font-semibold text-xs ${isOverdue ? 'text-red-700 dark:text-red-300' : 'text-primary-700 dark:text-primary-300'}`}>{initials}</span>
       </div>
-      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => entry.patientId && router.push(`/patients/${entry.patientId}`)}>
-        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{entry.patientName}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Name + date row */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 cursor-pointer"
+          onClick={() => entry.patientId && router.push(`/patients/${entry.patientId}`)}>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{entry.patientName}</p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(date)}</span>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
+          </div>
+        </div>
+
+        {/* Note */}
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
           {entry.note || entry.chiefComplaint || (isStandalone ? 'Follow-up reminder' : 'Follow-up visit')}
         </p>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(date)}</span>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
-        {/* Set Appointment */}
-        {entry.patientId && (
-          <button onClick={() => router.push(`/appointments/new?patientId=${entry.patientId}`)}
-            title="Set appointment"
-            className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-1 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            Appt
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          {entry.patientId && (
+            <button onClick={() => router.push(`/appointments/new?patientId=${entry.patientId}`)}
+              title="Set appointment"
+              className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2 py-1 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Appt
+            </button>
+          )}
+          <button onClick={() => sendWhatsApp(entry, doctor, waKey)}
+            title="Send WhatsApp reminder"
+            className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2 py-1 rounded-lg transition-colors">
+            {WA_ICON} Remind
           </button>
-        )}
-        {/* WhatsApp */}
-        <button onClick={() => sendWhatsApp(entry, doctor, waKey)}
-          title="Send WhatsApp reminder"
-          className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2 py-1 rounded-lg transition-colors">
-          {WA_ICON} Remind
-        </button>
-        {entry.status === 'pending' && onMarkDone && (
-          <button onClick={() => onMarkDone(entry.id)}
-            title="Mark as done"
-            className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-            </svg>
-            Done
-          </button>
-        )}
+          {entry.status === 'pending' && onMarkDone && (
+            <button onClick={() => onMarkDone(entry.id)}
+              title="Mark as done"
+              className="flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+              </svg>
+              Done
+            </button>
+          )}
+        </div>
       </div>
+
     </div>
   )
 }
