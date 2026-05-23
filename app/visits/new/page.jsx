@@ -206,8 +206,7 @@ function VisitEntryForm() {
 
   const openWhatsApp = () => {
     if (!patient || !savedVisit?.followUpDate) return
-    let templates = {}
-    try { templates = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+    const templates = doctor?.waTemplates ?? {}
     const tmpl = templates.followup?.template ||
       'Hello {name},\n\nThis is a reminder that your follow-up visit at {clinic} is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!'
     const clinicName = doctor?.clinicName || 'our clinic'

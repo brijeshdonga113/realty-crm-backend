@@ -13,13 +13,6 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 
-function getWADateFormat(fallback) {
-  if (typeof window === 'undefined') return fallback
-  try {
-    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-    return s.dateFormat || fallback
-  } catch { return fallback }
-}
 
 const STATUS_COLOR = { scheduled: 'teal', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -256,15 +249,10 @@ export default function AppointmentsPage() {
     setEditAppt(null)
   }
 
-  // WhatsApp reminder message — uses WhatsApp Templates date format setting
   const getReminderMessage = (appt) => {
     const clinicName = doctor?.clinicName || 'our clinic'
-    const waFmt = getWADateFormat(dateFormat)
-    let tmpl = null
-    try {
-      const stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-      tmpl = stored.appointment?.template || null
-    } catch {}
+    const waFmt = doctor?.waTemplates?.dateFormat || dateFormat
+    const tmpl = doctor?.waTemplates?.appointment?.template || null
     const date = fmtDateLib(appt.date, waFmt)
     const time = formatTime(appt.time)
     if (tmpl) {

@@ -24,13 +24,6 @@ import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
-function getWADateFormat(fallback) {
-  if (typeof window === 'undefined') return fallback
-  try {
-    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-    return s.dateFormat || fallback
-  } catch { return fallback }
-}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -705,8 +698,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   else              { badge = `in ${diff}d`;                 badgeBg = 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' }
 
   const sendWhatsApp = () => {
-    let templates = {}
-    try { templates = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+    const templates = doctor?.waTemplates ?? {}
     const defaults = {
       followup: 'Hello {name},\n\nThis is a reminder that your follow-up at {clinic} is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!',
       missed:   'Hello {name},\n\nWe noticed your follow-up scheduled on *{date}* was {days} day(s) ago. Please visit us at {clinic} soon.\n\nThank you!',
@@ -715,7 +707,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
     }
     const tmpl = templates[waKey]?.template || defaults[waKey]
     const clinicName = doctor?.clinicName || 'our clinic'
-    const formattedDate = fmtDateLib(entry.dueDate, getWADateFormat(dateFormat))
+    const formattedDate = fmtDateLib(entry.dueDate, templates.dateFormat || dateFormat)
     const msg = tmpl
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
