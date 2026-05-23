@@ -2,6 +2,7 @@ import { dataStore } from '@/lib/dataStore'
 import { createInvoice, calculateInvoiceTotals } from '@/models/Invoice'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
+import { inventoryService } from './inventoryService'
 
 const COLLECTION = 'invoices'
 const COUNTER_KEY = 'invoiceCounter'
@@ -97,6 +98,16 @@ export const billingService = {
   },
 
   async remove(id) {
+    // Restore inventory stock for any medicine line items on this invoice
+    try {
+      const invoice = await dataStore.getById(COLLECTION, id)
+      const medicineItems = (invoice?.lineItems ?? []).filter(li => li.inventoryItemId && li.quantity > 0)
+      if (medicineItems.length > 0) {
+        await Promise.allSettled(
+          medicineItems.map(li => inventoryService.adjustQty(li.inventoryItemId, +li.quantity))
+        )
+      }
+    } catch {}
     return dataStore.remove(COLLECTION, id)
   },
 
