@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
+import { SPECIALIZATIONS } from '@/lib/patientIntakePresets'
 
 function friendlyAuthError(err) {
   const code = err?.code ?? ''
@@ -16,20 +17,6 @@ function friendlyAuthError(err) {
   return 'Something went wrong. Please try again.'
 }
 
-const SPECIALIZATIONS = [
-  { value: 'general', label: 'General Practitioner' },
-  { value: 'cardiology', label: 'Cardiology' },
-  { value: 'dermatology', label: 'Dermatology' },
-  { value: 'neurology', label: 'Neurology' },
-  { value: 'orthopedics', label: 'Orthopedics' },
-  { value: 'pediatrics', label: 'Pediatrics' },
-  { value: 'psychiatry', label: 'Psychiatry' },
-  { value: 'gynecology', label: 'Gynecology & Obstetrics' },
-  { value: 'ophthalmology', label: 'Ophthalmology' },
-  { value: 'ent', label: 'ENT' },
-  { value: 'dentistry', label: 'Dentistry' },
-  { value: 'other', label: 'Other' },
-]
 
 const initialForm = {
   firstName: '',

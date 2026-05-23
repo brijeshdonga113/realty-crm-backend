@@ -413,7 +413,7 @@ export default function SettingsPage() {
   const savePfFields = async () => {
     setPfSaving(true); setPfSaved(false)
     try {
-      await updateProfile({ patientFormFields: pfFields, specialization: prefForm.specialization })
+      await updateProfile({ patientFormFields: pfFields })
       pfInitialized.current = true
       setPfSaved(true)
       setPfUserEdited(false)
@@ -478,7 +478,6 @@ export default function SettingsPage() {
   const [prefForm, setPrefForm]   = useState({
     dateFormat:      doctor?.dateFormat      ?? 'DD/MM/YYYY',
     currency:        doctor?.currency        ?? 'INR',
-    specialization:  doctor?.specialization  ?? '',
   })
   const [prefSaving, setPrefSaving] = useState(false)
   const [prefSaved,  setPrefSaved]  = useState(false)
@@ -1069,34 +1068,33 @@ export default function SettingsPage() {
         </CollapsibleSection>
 
         {/* ── Patient Registration Fields ──────────────────────────────────── */}
-        <CollapsibleSection title="Patient Registration Fields" description="Choose your specialty and customise the fields shown when registering a new patient.">
+        <CollapsibleSection title="Patient Registration Fields" description="Customise the fields shown when registering a new patient. Your specialty is set at account creation.">
 
           <div className="p-6 space-y-4">
-            {/* Specialization dropdown */}
-            <div>
-              <label className="form-label">Medical Specialization</label>
-              <select
-                value={prefForm.specialization}
-                onChange={e => setPrefForm(p => ({ ...p, specialization: e.target.value }))}
-                className="input-field"
-              >
-                <option value="">Select your specialty…</option>
-                {SPECIALIZATIONS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+            {/* Specialization — read-only */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700">
+              <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Specialization</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {SPECIALIZATIONS.find(s => s.value === doctor?.specialization)?.label ?? doctor?.specialization ?? '—'}
+                </p>
+              </div>
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 px-2 py-0.5 rounded">Set at signup</span>
             </div>
 
-            {!isHomeopathy(prefForm.specialization) && (
+            {!isHomeopathy(doctor?.specialization) && (
             <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-4">
-            {/* Load defaults button */}
+            {/* Reset to defaults button */}
             <div className="flex items-center gap-3 flex-wrap">
               <button type="button"
-                onClick={() => loadPfDefaults(prefForm.specialization)}
+                onClick={() => loadPfDefaults(doctor?.specialization)}
                 className="text-sm font-medium px-4 py-2 rounded-lg border border-primary-200 dark:border-primary-700 text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
-                ↺ Load defaults for {SPECIALIZATIONS.find(s => s.value === prefForm.specialization)?.label ?? 'this specialty'}
+                ↺ Reset to defaults
               </button>
-              <p className="text-xs text-gray-400 dark:text-gray-500">This will replace the current list with default fields for your specialty.</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Replaces the current list with default fields for your specialty.</p>
             </div>
 
             {/* Existing fields — grouped by section */}
