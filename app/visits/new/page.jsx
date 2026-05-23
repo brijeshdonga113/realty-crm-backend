@@ -82,6 +82,7 @@ function VisitEntryForm() {
   const [labInput,     setLabInput]     = useState('')
   const [customDays,   setCustomDays]   = useState('')
   const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+  const [rxSugOpen,    setRxSugOpen]    = useState(false)
 
   // Pre-fill from patient data
   useEffect(() => {
@@ -456,22 +457,33 @@ function VisitEntryForm() {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="relative">
                 <input value={rx.medication}
-                  onChange={e => setRx(p => ({...p, medication: e.target.value}))}
+                  onChange={e => { setRx(p => ({...p, medication: e.target.value})); setRxSugOpen(true) }}
+                  onFocus={() => setRxSugOpen(true)}
+                  onBlur={() => setTimeout(() => setRxSugOpen(false), 100)}
                   placeholder="Medication name"
                   className="input-field text-sm py-2 w-full"
                   autoComplete="off"
                 />
-                {rx.medication.trim().length > 0 && (() => {
+                {rxSugOpen && rx.medication.trim().length > 0 && (() => {
                   const q = rx.medication.toLowerCase()
                   const matches = inventoryItems.filter(it => it.name.toLowerCase().includes(q)).slice(0, 8)
                   return matches.length > 0 ? (
                     <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-44 overflow-y-auto">
                       {matches.map(it => (
                         <button key={it.id} type="button"
-                          onMouseDown={() => setRx(p => ({...p, medication: it.name}))}
+                          onMouseDown={() => {
+                            setRx(p => ({
+                              ...p,
+                              medication: it.name,
+                              dosage: p.dosage || it.potency || '',
+                            }))
+                            setRxSugOpen(false)
+                          }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center justify-between gap-2 transition-colors">
                           <span className="font-medium text-gray-800 dark:text-gray-200">{it.name}</span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{it.category || it.unit || ''}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                            {[it.potency, it.dosageForm || it.category].filter(Boolean).join(' · ')}
+                          </span>
                         </button>
                       ))}
                     </div>
