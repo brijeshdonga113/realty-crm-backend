@@ -42,10 +42,10 @@ function EditVisitForm() {
   const [newSvc, setNewSvc] = useState({ description: '', unitPrice: '' })
   const [payment, setPayment] = useState(() => ({
     amount: '',
-    method: 'cash',
+    method: '',
     collectedBy: isReceptionist ? 'receptionist' : 'doctor',
     description: 'Consultation Fee',
-    status: 'draft',
+    status: 'paid',
   }))
 
   const invoiceTotal = invoiceLines.reduce((sum, l) => sum + (Number(l.unitPrice) || 0) * (l.quantity || 1), 0)
@@ -98,7 +98,7 @@ function EditVisitForm() {
       }
       setPayment(p => ({
         ...p,
-        method: existing.paymentMethod || 'cash',
+        method: existing.paymentMethod || '',
         collectedBy: existing.collectedBy || p.collectedBy,
         status: existing.status || 'draft',
       }))
@@ -709,26 +709,40 @@ function EditVisitForm() {
           )}
 
           {/* Shared payment meta */}
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50">
+          <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 space-y-4">
             <div>
-              <label className="form-label">Method</label>
+              <label className="form-label">Payment Method</label>
               <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
+                <option value="">Not specified</option>
                 {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
             </div>
-            <div>
-              <label className="form-label">Collected By</label>
-              <select value={payment.collectedBy} onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))} className="input-field">
-                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Status</label>
-              <select value={payment.status} onChange={e => setPayment(p => ({ ...p, status: e.target.value }))} className="input-field">
-                <option value="paid">Paid</option>
-                <option value="draft">Due / Unpaid</option>
-              </select>
-            </div>
+
+            {payment.method && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'paid' }))}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                      Paid
+                    </button>
+                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'draft' }))}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      Due
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Collected By</label>
+                  <select value={payment.collectedBy} onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))} className="input-field">
+                    {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
