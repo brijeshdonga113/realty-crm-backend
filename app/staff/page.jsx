@@ -159,9 +159,9 @@ function StaffForm({ initial, onSave, onCancel }) {
 
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
-  const [showAdd,  setShowAdd]  = useState(false)
-  const [editItem, setEditItem] = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
+  const [showAdd,   setShowAdd]   = useState(false)
+  const [editItem,  setEditItem]  = useState(null)
+  const [deleteId,  setDeleteId]  = useState(null)
   const [search,   setSearch]   = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
 
