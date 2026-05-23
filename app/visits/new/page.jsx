@@ -75,6 +75,7 @@ function VisitEntryForm() {
   }))
 
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [expandedVisitId, setExpandedVisitId] = useState(null)
 
   const [diagInput,    setDiagInput]    = useState('')
   const [labInput,     setLabInput]     = useState('')
@@ -692,63 +693,151 @@ function VisitEntryForm() {
                   ? vDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                   : '—'
                 const vitals = v.examination?.vitalSigns ?? {}
-                const hasVitals = Object.values(vitals).some(Boolean)
+                const vitalPairs = [
+                  ['BP', vitals.bloodPressure],
+                  ['HR', vitals.heartRate ? `${vitals.heartRate} bpm` : ''],
+                  ['Temp', vitals.temperature ? `${vitals.temperature}°C` : ''],
+                  ['Wt', vitals.weight ? `${vitals.weight} kg` : ''],
+                  ['Ht', vitals.height ? `${vitals.height} cm` : ''],
+                  ['SpO₂', vitals.oxygenSat ? `${vitals.oxygenSat}%` : ''],
+                ].filter(([, val]) => val)
+                const isExpanded = expandedVisitId === v.id
                 return (
-                  <div key={v.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
-                    {/* Date + complaint */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">{dateStr}</p>
-                      {v.followUpDate && (
-                        <span className="text-[10px] text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-                          FU: {new Date(v.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </span>
+                  <div key={v.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    {/* Header row — always visible, click to expand */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedVisitId(isExpanded ? null : v.id)}
+                      className="w-full text-left p-4 pb-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">{dateStr}</p>
+                        <div className="flex items-center gap-1.5">
+                          {v.followUpDate && (
+                            <span className="text-[10px] text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded font-medium">
+                              FU {new Date(v.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                          <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                          </svg>
+                        </div>
+                      </div>
+                      {v.chiefComplaint && (
+                        <p className="text-xs text-gray-800 dark:text-gray-200 font-medium leading-snug mb-1.5">
+                          {v.chiefComplaint}
+                        </p>
                       )}
-                    </div>
-                    {v.chiefComplaint && (
-                      <p className="text-xs text-gray-800 dark:text-gray-200 font-medium mb-1.5 leading-snug">
-                        {v.chiefComplaint}
-                      </p>
-                    )}
+                      {/* Diagnosis chips — always visible */}
+                      {(v.diagnosis ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {v.diagnosis.map(d => (
+                            <span key={d} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded font-medium">
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Quick badge summary when collapsed */}
+                      {!isExpanded && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(v.prescriptions ?? []).length > 0 && (
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded font-medium">
+                              {v.prescriptions.length} Rx
+                            </span>
+                          )}
+                          {(v.labOrders ?? []).length > 0 && (
+                            <span className="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded font-medium">
+                              {v.labOrders.length} Lab
+                            </span>
+                          )}
+                          {vitalPairs.slice(0, 2).map(([lbl, val]) => (
+                            <span key={lbl} className="text-[10px] text-gray-400 dark:text-gray-500">{lbl} {val}</span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
 
-                    {/* Diagnosis chips */}
-                    {(v.diagnosis ?? []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {v.diagnosis.slice(0, 4).map(d => (
-                          <span key={d} className="text-[10px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded font-medium">
-                            {d}
-                          </span>
-                        ))}
-                        {v.diagnosis.length > 4 && (
-                          <span className="text-[10px] text-gray-400">+{v.diagnosis.length - 4}</span>
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-3 border-t border-gray-50 dark:border-gray-700/50 pt-3">
+
+                        {v.history && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">History</p>
+                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.history}</p>
+                          </div>
                         )}
+
+                        {v.examination?.findings && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Findings</p>
+                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.examination.findings}</p>
+                          </div>
+                        )}
+
+                        {v.treatment && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Treatment</p>
+                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.treatment}</p>
+                          </div>
+                        )}
+
+                        {(v.prescriptions ?? []).length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Prescriptions</p>
+                            <div className="space-y-1.5">
+                              {v.prescriptions.map(rx => (
+                                <div key={rx.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg px-2.5 py-1.5">
+                                  <p className="text-xs font-semibold text-purple-800 dark:text-purple-300">{rx.medication} {rx.dosage && `— ${rx.dosage}`}</p>
+                                  {(rx.frequency || rx.duration) && (
+                                    <p className="text-[10px] text-purple-600 dark:text-purple-400">{[rx.frequency, rx.duration].filter(Boolean).join(' · ')}</p>
+                                  )}
+                                  {rx.instructions && (
+                                    <p className="text-[10px] text-purple-500 dark:text-purple-500 italic">{rx.instructions}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {(v.labOrders ?? []).length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Lab Orders</p>
+                            <div className="flex flex-wrap gap-1">
+                              {v.labOrders.map(l => (
+                                <span key={l} className="text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded font-medium">
+                                  {l}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {vitalPairs.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Vitals</p>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                              {vitalPairs.map(([lbl, val]) => (
+                                <div key={lbl} className="flex items-center gap-1">
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 w-10 flex-shrink-0">{lbl}</span>
+                                  <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">{val}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {v.notes && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Notes</p>
+                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.notes}</p>
+                          </div>
+                        )}
+
                       </div>
                     )}
-
-                    {/* Treatment */}
-                    {v.treatment && (
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2 mb-1">
-                        {v.treatment}
-                      </p>
-                    )}
-
-                    {/* Vitals + prescriptions footer */}
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {(v.prescriptions ?? []).length > 0 && (
-                        <span className="text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded font-medium">
-                          {v.prescriptions.length} Rx
-                        </span>
-                      )}
-                      {hasVitals && vitals.bloodPressure && (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                          BP {vitals.bloodPressure}
-                        </span>
-                      )}
-                      {hasVitals && vitals.weight && (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                          {vitals.weight}kg
-                        </span>
-                      )}
-                    </div>
                   </div>
                 )
               })}
