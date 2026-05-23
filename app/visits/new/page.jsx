@@ -74,6 +74,8 @@ function VisitEntryForm() {
     collectedBy: isReceptionist ? 'receptionist' : 'doctor',
     description: 'Consultation Fee',
     status: 'paid',
+    taxRate: 0,
+    discount: 0,
   }))
 
   const [expandedVisitId, setExpandedVisitId] = useState(null)
@@ -90,7 +92,9 @@ function VisitEntryForm() {
   ])
   const [newSvc, setNewSvc] = useState({ description: '', unitPrice: '' })
 
-  const invoiceTotal = invoiceLines.reduce((sum, l) => sum + (Number(l.unitPrice) || 0) * (l.quantity || 1), 0)
+  const invoiceSubtotal  = invoiceLines.reduce((sum, l) => sum + (Number(l.unitPrice) || 0) * (l.quantity || 1), 0)
+  const invoiceTaxAmount = Math.round(invoiceSubtotal * (Number(payment.taxRate) || 0) / 100)
+  const invoiceTotal     = invoiceSubtotal + invoiceTaxAmount - (Number(payment.discount) || 0)
 
   const addRxToInvoice = (rxItem) => {
     const invItem = inventoryItems.find(i => i.name.toLowerCase() === rxItem.medication.toLowerCase())
@@ -254,8 +258,8 @@ function VisitEntryForm() {
             paymentMethod: payment.method,
             collectedBy:   payment.collectedBy,
             paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-            taxRate:       0,
-            discount:      0,
+            taxRate:       Number(payment.taxRate) / 100,
+            discount:      Number(payment.discount),
             visitId:       visit.id,
           })
         }
@@ -788,19 +792,57 @@ function VisitEntryForm() {
                 </button>
               </div>
 
+              {/* Tax & Discount */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="form-label text-xs">Tax Rate (%)</label>
+                  <input type="number" min="0" max="100" value={payment.taxRate}
+                    onChange={e => setPayment(p => ({ ...p, taxRate: e.target.value }))}
+                    className="input-field py-1.5 text-sm"/>
+                </div>
+                <div>
+                  <label className="form-label text-xs">Discount (₹)</label>
+                  <input type="number" min="0" value={payment.discount}
+                    onChange={e => setPayment(p => ({ ...p, discount: e.target.value }))}
+                    className="input-field py-1.5 text-sm"/>
+                </div>
+              </div>
+
               {/* Total */}
-              {invoiceTotal > 0 && (
-                <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
+              {invoiceSubtotal > 0 && (
+                <div className={`rounded-xl px-4 py-3 border ${
                   payment.status === 'paid'
                     ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800'
                     : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800'
                 }`}>
-                  <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
-                    {invoiceLines.length} item{invoiceLines.length !== 1 ? 's' : ''} · {payment.status === 'paid' ? 'Collected' : 'Due'}
-                  </span>
-                  <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
-                    ₹{invoiceTotal.toLocaleString('en-IN')}
-                  </span>
+                  {(Number(payment.taxRate) > 0 || Number(payment.discount) > 0) && (
+                    <div className="space-y-1 mb-2 pb-2 border-b border-current/10">
+                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>Subtotal</span>
+                        <span>₹{invoiceSubtotal.toLocaleString('en-IN')}</span>
+                      </div>
+                      {Number(payment.taxRate) > 0 && (
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                          <span>Tax ({payment.taxRate}%)</span>
+                          <span>+₹{invoiceTaxAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
+                      {Number(payment.discount) > 0 && (
+                        <div className="flex items-center justify-between text-xs text-green-600 dark:text-green-400">
+                          <span>Discount</span>
+                          <span>-₹{Number(payment.discount).toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-medium ${payment.status === 'paid' ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                      {invoiceLines.length} item{invoiceLines.length !== 1 ? 's' : ''} · {payment.status === 'paid' ? 'Collected' : 'Due'}
+                    </span>
+                    <span className={`text-xl font-bold ${payment.status === 'paid' ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                      ₹{invoiceTotal.toLocaleString('en-IN')}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -842,10 +884,17 @@ function VisitEntryForm() {
           <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 space-y-4">
             <div>
               <label className="form-label">Payment Method</label>
-              <select value={payment.method} onChange={e => setPayment(p => ({ ...p, method: e.target.value }))} className="input-field">
-                <option value="">Not specified</option>
-                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button type="button" key={m.value}
+                    onClick={() => setPayment(p => ({ ...p, method: p.method === m.value ? '' : m.value }))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      payment.method === m.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
+                    }`}>{m.label}</button>
+                ))}
+              </div>
             </div>
 
             {payment.method && (
@@ -867,9 +916,17 @@ function VisitEntryForm() {
                 </div>
                 <div>
                   <label className="form-label">Collected By</label>
-                  <select value={payment.collectedBy} onChange={e => setPayment(p => ({ ...p, collectedBy: e.target.value }))} className="input-field">
-                    {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    {COLLECTED_BY_OPTIONS.map(o => (
+                      <button type="button" key={o.value}
+                        onClick={() => setPayment(p => ({ ...p, collectedBy: o.value }))}
+                        className={`flex-1 py-2 transition-colors text-center ${
+                          payment.collectedBy === o.value
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}>{o.label}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
