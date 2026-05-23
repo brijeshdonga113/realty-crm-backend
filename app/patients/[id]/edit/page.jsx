@@ -224,6 +224,16 @@ export default function EditPatientPage() {
     if (patient && !form) setFormState(patientToForm(patient))
   }, [patient, form])
 
+  const complaintRefs   = useRef([])
+  const pendingFocusRow = useRef(null)
+
+  useEffect(() => {
+    if (pendingFocusRow.current !== null) {
+      complaintRefs.current[pendingFocusRow.current]?.focus()
+      pendingFocusRow.current = null
+    }
+  }, [form?.chiefComplaints?.length])
+
   if (loading || !form) return (
     <AppLayout title="Edit Patient">
       <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
@@ -245,9 +255,6 @@ export default function EditPatientPage() {
   const addComplaint    = () => setFormState(p => ({ ...p, chiefComplaints: [...p.chiefComplaints, { ...EMPTY_COMPLAINT }] }))
   const removeComplaint = (i) => setFormState(p => ({ ...p, chiefComplaints: p.chiefComplaints.filter((_, j) => j !== i) }))
 
-  const complaintRefs   = useRef([])
-  const pendingFocusRow = useRef(null)
-
   const handleComplaintKeyDown = (e, rowIdx) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -259,13 +266,6 @@ export default function EditPatientPage() {
       }
     }
   }
-
-  useEffect(() => {
-    if (pendingFocusRow.current !== null) {
-      complaintRefs.current[pendingFocusRow.current]?.focus()
-      pendingFocusRow.current = null
-    }
-  }, [form.chiefComplaints.length])
 
   const addCustomGeneral    = () => setFormState(p => ({ ...p, customGenerals: [...p.customGenerals, { id: Date.now().toString(36), label: '', value: '' }] }))
   const removeCustomGeneral = (gid) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.filter(g => g.id !== gid) }))
