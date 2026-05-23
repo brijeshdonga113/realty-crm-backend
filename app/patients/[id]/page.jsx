@@ -802,7 +802,7 @@ export default function PatientProfilePage() {
         <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Details */}
-          <Section title="Personal Details"><div className="p-6 space-y-4">
+          <Section title="Personal Details" defaultOpen={false}><div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
@@ -829,7 +829,7 @@ export default function PatientProfilePage() {
           </Section>
 
           <div className="space-y-4">
-            <Section title="Medical Summary"><div className="p-6">
+            <Section title="Medical Summary" defaultOpen={false}><div className="p-6">
 
               {/* From patient record */}
               {patient.allergies?.length > 0 && (
@@ -926,7 +926,7 @@ export default function PatientProfilePage() {
 
         {isHomeopathy(specialization) ? (<>
         {/* ── History & Life Span ── */}
-        <Section title="History (H/o)"><div className="p-6">
+        <Section title="History (H/o)" defaultOpen={false}><div className="p-6">
           {(patient.observation || patient.pastHistory) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
               <div>
@@ -975,7 +975,7 @@ export default function PatientProfilePage() {
         </div></Section>
 
         {/* ── Generals ── */}
-        <Section title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
+        <Section title="Generals" subtitle="Constitutional symptoms" defaultOpen={false}><div className="p-6">
           <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
             <table className="w-full">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1010,7 +1010,7 @@ export default function PatientProfilePage() {
 
         {/* ── Chief Complaints ── */}
         {(patient.chiefComplaints ?? []).some(c => c.complaint) && (
-          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
+          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500" defaultOpen={false}>
             <div className="p-4 overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead>
@@ -1038,7 +1038,7 @@ export default function PatientProfilePage() {
 
         {/* ── Prescription Details ── */}
         {patient.prescriptionDetails && (
-          <Section title="Prescription Details" accentClass="border-l-teal-500">
+          <Section title="Prescription Details" accentClass="border-l-teal-500" defaultOpen={false}>
             <div className="p-6">
               <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
             </div>
@@ -1050,7 +1050,7 @@ export default function PatientProfilePage() {
           if (!fields.length) return null
           const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
           return sections.map((sec, si) => (
-            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
+            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]} defaultOpen={false}>
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
