@@ -413,7 +413,7 @@ export default function SettingsPage() {
   const savePfFields = async () => {
     setPfSaving(true); setPfSaved(false)
     try {
-      await updateProfile({ patientFormFields: pfFields })
+      await updateProfile({ patientFormFields: pfFields, specialization: prefForm.specialization })
       pfInitialized.current = true
       setPfSaved(true)
       setPfUserEdited(false)
@@ -487,7 +487,7 @@ export default function SettingsPage() {
     setPrefSaving(true)
     setPrefSaved(false)
     try {
-      await updateProfile(prefForm)
+      await updateProfile({ dateFormat: prefForm.dateFormat, currency: prefForm.currency })
       setPrefSaved(true)
       setTimeout(() => setPrefSaved(false), 3000)
     } finally {
@@ -660,25 +660,9 @@ export default function SettingsPage() {
         {!isReceptionist && <>
 
         {/* ── Regional Preferences ─────────────────────────────────────────── */}
-        <CollapsibleSection title="Practice & Regional Preferences" description="Your specialty, date format and currency used across the entire app.">
+        <CollapsibleSection title="Practice & Regional Preferences" description="Date format and currency used across the entire app.">
 
           <div className="p-6 space-y-5">
-            <div>
-              <label className="form-label">Medical Specialization</label>
-              <select
-                value={prefForm.specialization}
-                onChange={e => setPrefForm(p => ({ ...p, specialization: e.target.value }))}
-                className="input-field"
-              >
-                <option value="">Select your specialty…</option>
-                {SPECIALIZATIONS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                This tailors the patient registration form with fields specific to your practice.
-              </p>
-            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="form-label">Date Format</label>
@@ -1085,20 +1069,26 @@ export default function SettingsPage() {
         </CollapsibleSection>
 
         {/* ── Patient Registration Fields ──────────────────────────────────── */}
-        {(!isHomeopathy(prefForm.specialization) || pfFields.length > 0) && (
-        <CollapsibleSection title="Patient Registration Fields" description="Fields shown when registering a new patient. Loaded from your specialty — customise as needed.">
+        <CollapsibleSection title="Patient Registration Fields" description="Choose your specialty and customise the fields shown when registering a new patient.">
 
           <div className="p-6 space-y-4">
-            {/* Notice when specialty is homeopathy but saved fields still exist */}
-            {isHomeopathy(prefForm.specialization) && pfFields.length > 0 && (
-              <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2.5">
-                <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
-                </svg>
-                Your saved fields are shown below. They won't appear on the patient form while your specialty is set to Homeopathy. Switch to another specialty to use them.
-              </div>
-            )}
+            {/* Specialization dropdown */}
+            <div>
+              <label className="form-label">Medical Specialization</label>
+              <select
+                value={prefForm.specialization}
+                onChange={e => setPrefForm(p => ({ ...p, specialization: e.target.value }))}
+                className="input-field"
+              >
+                <option value="">Select your specialty…</option>
+                {SPECIALIZATIONS.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
 
+            {!isHomeopathy(prefForm.specialization) && (
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-4">
             {/* Load defaults button */}
             <div className="flex items-center gap-3 flex-wrap">
               <button type="button"
@@ -1209,24 +1199,25 @@ export default function SettingsPage() {
                 + Add Field
               </button>
             </div>
+            </div>
+            )}
           </div>
 
           <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
             {pfSaved && (
               <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                Fields saved to your profile.
+                Saved.
               </p>
             )}
             <button type="button" onClick={savePfFields} disabled={pfSaving}
               className="ml-auto bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
               {pfSaving
                 ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
-                : 'Save Fields'}
+                : 'Save'}
             </button>
           </div>
         </CollapsibleSection>
-        )}
 
         {/* ── Booking Page ─────────────────────────────────────────────────── */}
         <BookingSettings doctor={doctor} updateProfile={updateProfile} />
