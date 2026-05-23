@@ -42,26 +42,33 @@ function InvoicePrint({ invoice, doctor }) {
         <p className="font-semibold text-gray-900 text-base">{invoice.patientName}</p>
       </div>
 
-      <table className="w-full mb-6">
-        <thead>
-          <tr className="border-b-2 border-gray-200">
-            <th className="text-left py-2 text-xs font-semibold text-gray-500 uppercase">Description</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Qty</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.lineItems?.map(item => (
-            <tr key={item.id} className="border-b border-gray-100">
-              <td className="py-3">{item.description}</td>
-              <td className="py-3 text-right">{item.quantity}</td>
-              <td className="py-3 text-right">{formatCurrency(item.unitPrice)}</td>
-              <td className="py-3 text-right font-medium">{formatCurrency(item.quantity * item.unitPrice)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {(() => {
+        const hasDisc = invoice.lineItems?.some(i => i.discountPct > 0)
+        return (
+          <table className="w-full mb-6">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left py-2 text-xs font-semibold text-gray-500 uppercase">Description</th>
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
+                {hasDisc && <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Disc</th>}
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.lineItems?.map(item => (
+                <tr key={item.id} className="border-b border-gray-100">
+                  <td className="py-3">{item.description}</td>
+                  <td className="py-3 text-right">{item.quantity}</td>
+                  <td className="py-3 text-right">{formatCurrency(item.unitPrice)}</td>
+                  {hasDisc && <td className="py-3 text-right text-green-600">{item.discountPct > 0 ? `${item.discountPct}%` : '—'}</td>}
+                  <td className="py-3 text-right font-medium">{formatCurrency(item.total ?? item.quantity * item.unitPrice)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      })()}
 
       <div className="flex justify-end">
         <div className="w-56 space-y-2">
@@ -91,7 +98,7 @@ function InvoicePrint({ invoice, doctor }) {
 }
 
 function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
-  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
+  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.total ?? i.quantity * i.unitPrice)}`).join('\n') ?? ''
   return encodeURIComponent(
     `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
   )
