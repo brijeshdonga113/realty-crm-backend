@@ -9,13 +9,6 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
 
-function getWADateFormat() {
-  if (typeof window === 'undefined') return 'DD/MM/YYYY'
-  try {
-    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-    return s.dateFormat || 'DD/MM/YYYY'
-  } catch { return 'DD/MM/YYYY' }
-}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -31,8 +24,7 @@ function daysBetween(dateStr) {
 }
 
 function sendWhatsApp(entry, doctor, templateKey) {
-  let templates = {}
-  try { templates = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+  const templates = doctor?.waTemplates ?? {}
 
   const defaults = {
     followup:   'Hello {name},\n\nThis is a reminder that your follow-up at {clinic} is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!',
@@ -43,10 +35,11 @@ function sendWhatsApp(entry, doctor, templateKey) {
   const tmpl = templates[templateKey]?.template || defaults[templateKey] || defaults.followup
   const clinicName = doctor?.clinicName || 'our clinic'
   const diff = daysBetween(entry.dueDate || entry.followUpDate)
+  const waFmt = templates.dateFormat || 'DD/MM/YYYY'
   const msg = tmpl
     .replace(/\{name\}/g, entry.patientName || 'Patient')
     .replace(/\{clinic\}/g, clinicName)
-    .replace(/\{date\}/g,  fmtDateLib(entry.dueDate || entry.followUpDate || '', getWADateFormat()))
+    .replace(/\{date\}/g,  fmtDateLib(entry.dueDate || entry.followUpDate || '', waFmt))
     .replace(/\{days\}/g,  String(Math.abs(diff)))
 
   window.open(buildWAUrl(entry.phone || '', msg), '_blank')
