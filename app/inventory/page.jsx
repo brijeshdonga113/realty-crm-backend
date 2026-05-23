@@ -52,6 +52,26 @@ function normalizeRow(row) {
   }
 }
 
+// ─── Import guide prompt ──────────────────────────────────────────────────────
+const INVENTORY_IMPORT_PROMPT = `You are a data conversion assistant. Convert the medicine/inventory data I paste below into a CSV file that exactly matches the following format.
+
+REQUIRED COLUMN HEADERS (use these exact names, in this exact order):
+Name,Generic/Composition,Potency,Dosage Form,Category,Quantity,Unit,Purchase Price,Billing Price,Expiry Date,Batch No,Supplier
+
+FORMATTING RULES:
+1. One row per inventory item (medicine or product).
+2. Name is required — skip rows with no medicine name.
+3. Quantity must be a plain number (e.g. 100). Use 0 if unknown.
+4. Purchase Price and Billing Price must be numbers without any currency symbol (e.g. 120.50).
+5. Expiry Date format: YYYY-MM-DD (e.g. 2026-12-31). Leave blank if unknown.
+6. Dosage Form options: Globules, Drops, Tablets, Capsules, Syrup, Ointment, Cream, Powder, Tincture, Dilution, Injection, Gel, Lotion, Suppository, Other.
+7. If a field is unknown or missing, leave it empty — do not write N/A or Unknown.
+8. Wrap any cell value that contains a comma in double quotes.
+9. Output only the raw CSV text — no explanations, no markdown code blocks, no extra formatting.
+
+Now here is the inventory data to convert:
+[PASTE YOUR DATA HERE]`
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DOSAGE_FORMS = ['Globules','Drops','Tablets','Capsules','Syrup','Ointment','Cream','Powder','Tincture','Dilution','Injection','Gel','Lotion','Suppository','Other']
 
@@ -264,8 +284,10 @@ export default function InventoryPage() {
     }).catch(() => {})
   }, [])
 
-  const [importing,  setImporting]  = useState(false)
-  const [importErr,  setImportErr]  = useState('')
+  const [importing,      setImporting]      = useState(false)
+  const [importErr,      setImportErr]      = useState('')
+  const [showImportGuide, setShowImportGuide] = useState(false)
+  const [promptCopied,    setPromptCopied]    = useState(false)
   const [addOpen,    setAddOpen]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
@@ -293,6 +315,23 @@ export default function InventoryPage() {
     } finally {
       setImporting(false)
     }
+  }
+
+  const handleCopyImportPrompt = () => {
+    navigator.clipboard.writeText(INVENTORY_IMPORT_PROMPT).then(() => {
+      setPromptCopied(true)
+      setTimeout(() => setPromptCopied(false), 2500)
+    }).catch(() => {})
+  }
+
+  const handleDownloadTemplate = () => {
+    const headers = 'Name,Generic/Composition,Potency,Dosage Form,Category,Quantity,Unit,Purchase Price,Billing Price,Expiry Date,Batch No,Supplier'
+    const example = 'Arnica Montana,Arnica,30C,Globules,Homoeopathic,100,gm,80,120,2027-06-30,BTX-001,SBL Pvt Ltd'
+    const csv = [headers, example].join('\r\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = 'inventory-import-template.csv'
+    a.click()
   }
 
   // ── CSV export ──────────────────────────────────────────────────────────────
@@ -354,7 +393,7 @@ export default function InventoryPage() {
             </button>
           )}
           <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFile}/>
-          <button onClick={() => fileRef.current?.click()} disabled={importing}
+          <button onClick={() => !importing && setShowImportGuide(true)} disabled={importing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors disabled:opacity-60">
             {importing
               ? <><span className="w-3.5 h-3.5 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"/>Importing…</>
@@ -481,7 +520,7 @@ export default function InventoryPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                 Add Item
               </button>
-              <button onClick={() => fileRef.current?.click()}
+              <button onClick={() => setShowImportGuide(true)}
                 className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Import CSV
               </button>
@@ -607,6 +646,102 @@ export default function InventoryPage() {
         customFieldDefs={customFieldDefs}
       />
 
+
+      {/* Import guide modal */}
+      <Modal open={showImportGuide} onClose={() => setShowImportGuide(false)} title="Import Inventory from CSV" size="lg">
+        <div className="space-y-5">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Before you import</p>
+            <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1 list-disc list-inside">
+              <li>Your CSV must use the <strong>exact column names</strong> shown below — spelling and capitalisation matter.</li>
+              <li>Each row represents <strong>one inventory item</strong>. The <strong>Name</strong> column is required.</li>
+              <li>Quantity must be a plain number. Purchase Price and Billing Price must be numbers without currency symbols.</li>
+              <li>Existing items are not de-duplicated — importing the same CSV twice will create duplicates.</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Column reference</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { col: 'Name', required: true },
+                { col: 'Generic/Composition' },
+                { col: 'Potency' },
+                { col: 'Dosage Form' },
+                { col: 'Category' },
+                { col: 'Quantity' },
+                { col: 'Unit' },
+                { col: 'Purchase Price' },
+                { col: 'Billing Price' },
+                { col: 'Expiry Date' },
+                { col: 'Batch No' },
+                { col: 'Supplier' },
+              ].map(({ col, required }) => (
+                <span key={col} className={`text-xs font-mono rounded px-1.5 py-0.5 ${required ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 font-semibold' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                  {col}{required ? ' *' : ''}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">* Required. All other columns are optional.</p>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm space-y-2">
+            <p className="font-semibold text-amber-800 dark:text-amber-300">Format notes</p>
+            <div className="space-y-1 text-amber-700 dark:text-amber-400 text-xs">
+              <p><span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Dosage Form</span> — use one of: Globules, Drops, Tablets, Capsules, Syrup, Ointment, Cream, Powder, Tincture, Dilution, Injection, Gel, Lotion, Suppository, Other</p>
+              <p><span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Expiry Date</span> — use YYYY-MM-DD format (e.g. 2027-06-30)</p>
+              <p><span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Purchase Price</span> / <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Billing Price</span> — numbers only, no ₹ or $ symbol</p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Convert your data with ChatGPT</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Copy this prompt → paste into ChatGPT → add your data at the bottom → paste the output CSV here.</p>
+              </div>
+              <button onClick={handleCopyImportPrompt}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex-shrink-0 ${
+                  promptCopied
+                    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400'
+                }`}>
+                {promptCopied ? (
+                  <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>Copied!</>
+                ) : (
+                  <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>Copy Prompt</>
+                )}
+              </button>
+            </div>
+            <pre className="text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 max-h-28 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono select-all">
+{INVENTORY_IMPORT_PROMPT}
+            </pre>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-700">
+            <button onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download blank template
+            </button>
+            <div className="flex gap-3">
+              <button onClick={() => setShowImportGuide(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { setShowImportGuide(false); fileRef.current?.click() }}
+                className="px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Choose CSV File
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete confirm */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Remove Item" size="sm">

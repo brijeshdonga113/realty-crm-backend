@@ -16,6 +16,10 @@ import {
   disconnectGoogleCalendar,
 } from '@/lib/googleCalendar'
 import { appointmentService } from '@/services/appointmentService'
+import { patientService } from '@/services/patientService'
+import { visitService } from '@/services/visitService'
+import { billingService } from '@/services/billingService'
+import { dataStore } from '@/lib/dataStore'
 import { normalizeWorkingHours } from '@/lib/booking'
 
 const WEEK_DAYS = [
@@ -521,6 +525,12 @@ export default function SettingsPage() {
   const [codeGenerating, setCodeGenerating] = useState(false)
   const [codeCopied, setCodeCopied]         = useState(false)
 
+  // ── Data export ─────────────────────────────────────────────────────────────
+  const [exportPassword, setExportPassword] = useState('')
+  const [exporting,      setExporting]      = useState(false)
+  const [exportError,    setExportError]    = useState('')
+  const [exportDone,     setExportDone]     = useState(false)
+
   const handleGenerateCode = async () => {
     setCodeGenerating(true)
     try { await generateReceptionistCode() } finally { setCodeGenerating(false) }
@@ -531,6 +541,71 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(doctor.inviteCode).catch(() => {})
     setCodeCopied(true)
     setTimeout(() => setCodeCopied(false), 2000)
+  }
+
+  const handleExportData = async (e) => {
+    e.preventDefault()
+    setExportError('')
+    setExportDone(false)
+    if (!exportPassword) { setExportError('Please enter your password.'); return }
+    setExporting(true)
+    try {
+      const { EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth')
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, exportPassword)
+      await reauthenticateWithCredential(auth.currentUser, credential)
+
+      const makeCsv = (headers, rows) => {
+        const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+        return [headers, ...rows].map(r => r.map(esc).join(',')).join('\r\n')
+      }
+      const dl = (filename, csv) => {
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+        a.download = filename
+        a.click()
+      }
+      const today = new Date().toISOString().slice(0, 10)
+
+      const [patients, visits, invoices, appointments, inventory] = await Promise.all([
+        patientService.getAll(),
+        visitService.getAll(),
+        billingService.getAll(),
+        appointmentService.getAll(),
+        dataStore.getAll('inventory'),
+      ])
+
+      dl(`patients-${today}.csv`, makeCsv(
+        ['UHID','First Name','Last Name','Date of Birth','Gender','Phone','Email','Address','Status','Created At'],
+        patients.map(p => [p.patientNumber, p.firstName, p.lastName, p.dateOfBirth, p.gender, p.phone, p.email, p.address, p.status, p.createdAt])
+      ))
+      dl(`visits-${today}.csv`, makeCsv(
+        ['Patient Name','Phone','Visit Date','Chief Complaint','Diagnosis','Treatment Plan','Payment Amount','Created At'],
+        visits.map(v => [v.patientName, v.patientPhone, v.visitDate, v.chiefComplaint, Array.isArray(v.diagnosis) ? v.diagnosis.join('|') : v.diagnosis, v.treatmentPlan, v.payment?.amount, v.createdAt])
+      ))
+      dl(`invoices-${today}.csv`, makeCsv(
+        ['Invoice No','Patient Name','Issue Date','Total','Status','Payment Method','Created At'],
+        invoices.map(i => [i.invoiceNumber, i.patientName, i.issueDate, i.total, i.status, i.paymentMethod, i.createdAt])
+      ))
+      dl(`appointments-${today}.csv`, makeCsv(
+        ['Patient Name','Phone','Date','Time','Status','Notes','Created At'],
+        appointments.map(a => [a.patientName, a.patientPhone, a.appointmentDate, a.appointmentTime, a.status, a.notes, a.createdAt])
+      ))
+      dl(`inventory-${today}.csv`, makeCsv(
+        ['Name','Generic','Potency','Dosage Form','Category','Quantity','Unit','Purchase Price','Billing Price','Expiry','Batch','Supplier'],
+        inventory.map(m => [m.name, m.generic, m.potency, m.dosageForm, m.category, m.quantity, m.unit, m.mrp, m.billingPrice, m.expiry, m.batch, m.supplier])
+      ))
+
+      setExportDone(true)
+      setExportPassword('')
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setExportError('Incorrect password. Please try again.')
+      } else {
+        setExportError('Export failed: ' + err.message)
+      }
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -1077,6 +1152,46 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
+          </div>
+        </CollapsibleSection>
+
+        {/* ── Data Export ──────────────────────────────────────────────────── */}
+        <CollapsibleSection title="Data Export" description="Export all your clinic data as CSV files. Password required for security." defaultOpen={false}
+          icon={<svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>}>
+          <div className="p-6 space-y-5">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+              Exports 5 CSV files: <strong>Patients</strong>, <strong>Visits</strong>, <strong>Appointments</strong>, <strong>Invoices</strong>, and <strong>Inventory</strong>. Your browser may download them one by one.
+            </div>
+            <form onSubmit={handleExportData} className="space-y-4">
+              <div>
+                <label className="form-label">Confirm your password to export</label>
+                <input
+                  type="password"
+                  value={exportPassword}
+                  onChange={e => { setExportPassword(e.target.value); setExportError(''); setExportDone(false) }}
+                  placeholder="Enter your account password"
+                  autoComplete="current-password"
+                  className="input-field max-w-sm"
+                />
+              </div>
+              {exportError && (
+                <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-2">{exportError}</p>
+              )}
+              {exportDone && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  All 5 files exported successfully.
+                </p>
+              )}
+              <button type="submit" disabled={exporting || !exportPassword}
+                className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors">
+                {exporting ? (
+                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Exporting…</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Export All Data</>
+                )}
+              </button>
+            </form>
           </div>
         </CollapsibleSection>
 

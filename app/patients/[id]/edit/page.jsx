@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
@@ -224,6 +224,16 @@ export default function EditPatientPage() {
     if (patient && !form) setFormState(patientToForm(patient))
   }, [patient, form])
 
+  const complaintRefs   = useRef([])
+  const pendingFocusRow = useRef(null)
+
+  useEffect(() => {
+    if (pendingFocusRow.current !== null) {
+      complaintRefs.current[pendingFocusRow.current]?.focus()
+      pendingFocusRow.current = null
+    }
+  }, [form?.chiefComplaints?.length])
+
   if (loading || !form) return (
     <AppLayout title="Edit Patient">
       <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
@@ -244,6 +254,19 @@ export default function EditPatientPage() {
   })
   const addComplaint    = () => setFormState(p => ({ ...p, chiefComplaints: [...p.chiefComplaints, { ...EMPTY_COMPLAINT }] }))
   const removeComplaint = (i) => setFormState(p => ({ ...p, chiefComplaints: p.chiefComplaints.filter((_, j) => j !== i) }))
+
+  const handleComplaintKeyDown = (e, rowIdx) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (rowIdx === form.chiefComplaints.length - 1) {
+        addComplaint()
+        pendingFocusRow.current = rowIdx + 1
+      } else {
+        complaintRefs.current[rowIdx + 1]?.focus()
+      }
+    }
+  }
+
   const addCustomGeneral    = () => setFormState(p => ({ ...p, customGenerals: [...p.customGenerals, { id: Date.now().toString(36), label: '', value: '' }] }))
   const removeCustomGeneral = (gid) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.filter(g => g.id !== gid) }))
   const setCustomGeneral    = (gid, field, v) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.map(g => g.id === gid ? { ...g, [field]: v } : g) }))
@@ -492,41 +515,51 @@ export default function EditPatientPage() {
             {/* ── Chief Complaints ─────────────────────────────────────── */}
             <SectionCard accentColor="blue" title="Chief Complaints (C/o)" defaultOpen={false}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>}>
-              <div className="overflow-x-auto -mx-2 px-2">
-                <table className="w-full min-w-[680px]">
-                  <thead>
-                    <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                      {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
-                        <th key={h} className="px-2 pb-3 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
-                      ))}
-                      <th className="w-8"/>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {form.chiefComplaints.map((row, i) => (
-                      <tr key={i}>
-                        {['complaint','location','sensation','modality','concomitant'].map(field => (
-                          <td key={field} className="px-1.5 py-2">
-                            <input value={row[field]} onChange={e => setComplaint(i, field, e.target.value)}
-                              placeholder="—" className="input-field text-sm py-2 w-full"/>
-                          </td>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] table-fixed">
+                    <thead>
+                      <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                        {['Complaint (C/O)', 'Location (LO)', 'Sensation (S)', 'Modality (M)', 'Concomitant (C)'].map((h, hi) => (
+                          <th key={h} style={{ width: hi === 0 ? '24%' : '19%' }}
+                            className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">
+                            {h}
+                          </th>
                         ))}
-                        <td className="px-1.5 py-2 text-center">
-                          {form.chiefComplaints.length > 1 && (
-                            <button type="button" onClick={() => removeComplaint(i)}
-                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none transition-colors">×</button>
-                          )}
-                        </td>
+                        <th style={{ width: '32px' }}/>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {form.chiefComplaints.map((row, i) => (
+                        <tr key={i} className="group border-t border-gray-100 dark:border-gray-700 first:border-t-0">
+                          {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map((field, fi) => (
+                            <td key={field} className="px-2 py-1.5 border-r border-gray-100 dark:border-gray-700 align-top">
+                              <AutoTextarea
+                                ref={fi === 0 ? el => { complaintRefs.current[i] = el } : undefined}
+                                value={row[field]}
+                                onChange={e => setComplaint(i, field, e.target.value)}
+                                onKeyDown={e => handleComplaintKeyDown(e, i)}
+                                placeholder="—"
+                                className="w-full text-sm px-1 py-0.5 bg-transparent border-0 outline-none resize-none text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none"
+                                style={{ minHeight: '28px' }}
+                              />
+                            </td>
+                          ))}
+                          <td className="px-1.5 py-1.5 text-center align-top" style={{ width: '32px' }}>
+                            {form.chiefComplaints.length > 1 && (
+                              <button type="button" onClick={() => removeComplaint(i)}
+                                className="opacity-0 group-hover:opacity-100 mt-0.5 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none transition-all">×</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <button type="button" onClick={addComplaint}
-                className="mt-1 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                Add Another Complaint
-              </button>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                Press <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Enter</kbd> in any cell to add a new row, or <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Shift+Enter</kbd> for a line break.
+              </p>
             </SectionCard>
 
             {/* ── Physical Generals ─────────────────────────────────────── */}
