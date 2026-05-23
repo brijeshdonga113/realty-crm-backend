@@ -257,6 +257,11 @@ export default function ReportsPage() {
   // Product analysis state
   const [search, setSearch] = useState('')
 
+  // Revenue analysis period filter
+  const [revPeriod,     setRevPeriod]     = useState('all')
+  const [revCustomFrom, setRevCustomFrom] = useState(firstOfYear)
+  const [revCustomTo,   setRevCustomTo]   = useState(today)
+
   // ── General computed ───────────────────────────────────────────────────────
   const { from, to } = useMemo(() =>
     period === 'custom' ? { from: customFrom, to: customTo } : periodRange(period),
@@ -324,6 +329,18 @@ export default function ReportsPage() {
       .sort((a, b) => b.amount - a.amount)
   }, [rawInvoices, from, to])
 
+  // ── Revenue analysis period filter ────────────────────────────────────────
+  const revRange = useMemo(() =>
+    revPeriod === 'custom' ? { from: revCustomFrom, to: revCustomTo } : periodRange(revPeriod),
+    [revPeriod, revCustomFrom, revCustomTo])
+
+  const revInvoices = useMemo(() =>
+    invoices.filter(inv => {
+      const d = String(inv.issueDate || inv.createdAt || '').slice(0, 10)
+      return d >= revRange.from && d <= revRange.to
+    }),
+    [invoices, revRange])
+
   // ── Inventory computed ─────────────────────────────────────────────────────
   const itemStats = useMemo(() => {
     const map = {}
@@ -361,7 +378,7 @@ export default function ReportsPage() {
   const revenueData = useMemo(() => {
     let invRevenue = 0, svcRevenue = 0, invDiscount = 0, svcDiscount = 0, invUnits = 0, svcCount = 0
     const monthlyMap = {}, svcMap = {}
-    invoices.forEach(inv => {
+    revInvoices.forEach(inv => {
       const monthKey = getMonthKey(inv.issueDate || inv.createdAt)
       if (monthKey && !monthlyMap[monthKey]) monthlyMap[monthKey] = { inv: 0, svc: 0, invDisc: 0, svcDisc: 0 }
       ;(inv.lineItems || []).forEach(li => {
@@ -382,10 +399,31 @@ export default function ReportsPage() {
       })
     })
     const total       = invRevenue + svcRevenue
-    const last6       = Object.keys(monthlyMap).sort().slice(-6)
+    const months      = Object.keys(monthlyMap).sort()
     const topServices = Object.entries(svcMap).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
-    return { invRevenue, svcRevenue, total, invDiscount, svcDiscount, invUnits, svcCount, last6, monthlyMap, topServices }
-  }, [invoices])
+    return { invRevenue, svcRevenue, total, invDiscount, svcDiscount, invUnits, svcCount, months, monthlyMap, topServices }
+  }, [revInvoices])
+
+  const revItemStats = useMemo(() => {
+    const map = {}
+    items.forEach(item => {
+      map[item.id] = { id: item.id, name: item.name, category: item.category || '', purchasePrice: Number(item.mrp) || 0, billingPrice: Number(item.billingPrice) || 0, unitsSold: 0, grossRevenue: 0, discountAmt: 0, netRevenue: 0 }
+    })
+    revInvoices.forEach(inv => {
+      ;(inv.lineItems || []).forEach(li => {
+        if (!li.inventoryItemId || !map[li.inventoryItemId]) return
+        const s = map[li.inventoryItemId]
+        const qty   = li.quantity  || 0
+        const gross = (li.unitPrice || 0) * qty
+        const net   = li.total != null ? li.total : gross
+        s.unitsSold    += qty
+        s.grossRevenue += gross
+        s.discountAmt  += gross - net
+        s.netRevenue   += net
+      })
+    })
+    return Object.values(map)
+  }, [items, revInvoices])
 
   const filtered = useMemo(() => {
     const q    = search.toLowerCase()
@@ -394,7 +432,7 @@ export default function ReportsPage() {
   }, [itemStats, search])
 
   const maxMonthly = useMemo(() =>
-    revenueData.last6.reduce((m, k) => { const d = revenueData.monthlyMap[k]; return Math.max(m, (d?.inv || 0) + (d?.svc || 0)) }, 0),
+    revenueData.months.reduce((m, k) => { const d = revenueData.monthlyMap[k]; return Math.max(m, (d?.inv || 0) + (d?.svc || 0)) }, 0),
     [revenueData])
 
   if (loading) return (
@@ -804,12 +842,27 @@ export default function ReportsPage() {
       {activeTab === 'revenue' && (
         <div className="space-y-6">
 
+          {/* Period filter */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Period</span>
+              <SectionFilter
+                value={revPeriod}
+                onChange={setRevPeriod}
+                customFrom={revCustomFrom}
+                customTo={revCustomTo}
+                onCustomFrom={setRevCustomFrom}
+                onCustomTo={setRevCustomTo}
+              />
+            </div>
+          </div>
+
           {/* Summary split cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Total Revenue</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{fmt(revenueData.total)}</p>
-              <p className="text-xs text-gray-400 mt-1">across {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mt-1">across {revInvoices.length} invoice{revInvoices.length !== 1 ? 's' : ''}</p>
               {revenueData.total > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center gap-2">
@@ -849,11 +902,11 @@ export default function ReportsPage() {
           </div>
 
           {/* Monthly trend */}
-          {revenueData.last6.length > 0 && (
+          {revenueData.months.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Monthly Trend (last {revenueData.last6.length} months)</p>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Monthly Trend ({revenueData.months.length} month{revenueData.months.length !== 1 ? 's' : ''})</p>
               <div className="space-y-3">
-                {revenueData.last6.map(monthKey => {
+                {revenueData.months.map(monthKey => {
                   const d   = revenueData.monthlyMap[monthKey] || {}
                   const inv = d.inv || 0
                   const svc = d.svc || 0
@@ -921,7 +974,7 @@ export default function ReportsPage() {
           )}
 
           {/* Top inventory items */}
-          {itemStats.some(s => s.unitsSold > 0) && (
+          {revItemStats.some(s => s.unitsSold > 0) && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Top Medicine Items by Revenue</p>
@@ -935,8 +988,8 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {[...itemStats].filter(s => s.unitsSold > 0).sort((a, b) => b.netRevenue - a.netRevenue).slice(0, 8).map(s => {
-                    const maxInv = [...itemStats].filter(x => x.unitsSold > 0).sort((a, b) => b.netRevenue - a.netRevenue)[0]?.netRevenue || 1
+                  {[...revItemStats].filter(s => s.unitsSold > 0).sort((a, b) => b.netRevenue - a.netRevenue).slice(0, 8).map(s => {
+                    const maxInv = [...revItemStats].filter(x => x.unitsSold > 0).sort((a, b) => b.netRevenue - a.netRevenue)[0]?.netRevenue || 1
                     return (
                       <tr key={s.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
                         <td className="px-4 py-3">
