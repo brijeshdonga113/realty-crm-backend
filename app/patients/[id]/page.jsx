@@ -114,258 +114,6 @@ function daysBetween(dateStr) {
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
 }
 
-/* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
-function TagInput({ label, items, onChange, suggestions = [] }) {
-  const [input, setInput] = useState('')
-  const add = (val) => {
-    const trimmed = val.trim()
-    if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
-    setInput('')
-  }
-  return (
-    <div>
-      <label className="form-label">{label}</label>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {items.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs rounded-full font-medium">
-            {item}
-            <button type="button" onClick={() => onChange(items.filter(i => i !== item))} className="hover:text-primary-900">×</button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
-          placeholder="Type and press Enter"
-          className="input-field flex-1"
-          list={`tag-${label}`}
-        />
-        {suggestions.length > 0 && (
-          <datalist id={`tag-${label}`}>{suggestions.map(s => <option key={s} value={s}/>)}</datalist>
-        )}
-        <button type="button" onClick={() => add(input)}
-          className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
-          Add
-        </button>
-      </div>
-    </div>
-  )
-}
-
-const CONDITION_SUGGESTIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
-const ALLERGY_SUGGESTIONS   = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
-
-const EDIT_TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
-
-/* ─────────────── EditPatientModal ─────────────── */
-function EditPatientModal({ open, onClose, patient, onSave }) {
-  const referralSources = useReferralSources()
-  const toast = useToast()
-  const [form, setForm]   = useState(null)
-  const [tab, setTab]     = useState(0)
-  const [saving, setSaving] = useState(false)
-
-  if (open && !form) { setForm({ ...patient, emergencyContact: { ...patient.emergencyContact } }); setTab(0) }
-  if (!open && form) setForm(null)
-  if (!open || !form) return null
-
-  const set    = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const setEc  = (k, v) => setForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, [k]: v } }))
-  const age    = form.dateOfBirth ? getPatientAge(form) : null
-
-  const handleSave = async () => {
-    setSaving(true)
-    try { await onSave(form) } catch { toast.error('Failed to save patient. Please try again.') } finally { setSaving(false) }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit Patient" size="xl">
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-100 dark:border-gray-700 mb-4 -mt-1">
-        {EDIT_TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === i
-                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-
-        {/* ── Basic Info ── */}
-        {tab === 0 && <>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">First Name *</label>
-              <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Last Name *</label>
-              <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field"/>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Date of Birth</label>
-              <input type="date" value={form.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} className="input-field"/>
-              {age !== null && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Age: {age} yrs</p>}
-            </div>
-            <div>
-              <label className="form-label">Age (if no DOB)</label>
-              <input type="number" min="0" max="150"
-                value={form.dateOfBirth ? (age ?? '') : (form.ageManual ?? '')}
-                disabled={!!form.dateOfBirth}
-                onChange={e => set('ageManual', e.target.value)}
-                placeholder={form.dateOfBirth ? 'Calculated' : 'Enter age'}
-                className="input-field disabled:opacity-50"/>
-            </div>
-            <div>
-              <label className="form-label">Gender</label>
-              <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
-                {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Blood Type</label>
-              <select value={form.bloodType || ''} onChange={e => set('bloodType', e.target.value)} className="input-field">
-                <option value="">Select…</option>
-                {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">National ID</label>
-              <input value={form.nationalId || ''} onChange={e => set('nationalId', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Patient ID #</label>
-              <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Registration Date</label>
-              <input type="date" value={form.registrationDate || ''} onChange={e => set('registrationDate', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
-                {['active','inactive','deceased'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Phone *</label>
-              <input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Alternate Phone</label>
-              <input value={form.alternatePhone || ''} onChange={e => set('alternatePhone', e.target.value)} className="input-field"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Email</label>
-            <input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className="input-field"/>
-          </div>
-          <div>
-            <label className="form-label">Address</label>
-            <AutoTextarea value={form.address || ''} onChange={e => set('address', e.target.value)} className="input-field resize"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Referral Source</label>
-              <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
-                <option value="">Select source…</option>
-                {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Referral Details</label>
-              <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Notes</label>
-            <AutoTextarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={!!form.consentFormSigned} onChange={e => set('consentFormSigned', e.target.checked)} className="rounded border-gray-300"/>
-            <span className="text-sm text-gray-700 dark:text-gray-300">Consent form signed</span>
-          </label>
-        </>}
-
-        {/* ── Medical ── */}
-        {tab === 1 && <>
-          <TagInput label="Chronic Conditions" items={form.chronicConditions ?? []} onChange={v => set('chronicConditions', v)} suggestions={CONDITION_SUGGESTIONS}/>
-          <TagInput label="Allergies" items={form.allergies ?? []} onChange={v => set('allergies', v)} suggestions={ALLERGY_SUGGESTIONS}/>
-          <TagInput label="Current Medications" items={form.currentMedications ?? []} onChange={v => set('currentMedications', v)}/>
-          <div>
-            <label className="form-label">Family History</label>
-            <AutoTextarea value={form.familyHistory || ''} onChange={e => set('familyHistory', e.target.value)} className="input-field resize" placeholder="Relevant family medical history…"/>
-          </div>
-        </>}
-
-        {/* ── Insurance ── */}
-        {tab === 2 && <>
-          <div>
-            <label className="form-label">Insurance Provider</label>
-            <input value={form.insuranceProvider || ''} onChange={e => set('insuranceProvider', e.target.value)} className="input-field"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Policy Number</label>
-              <input value={form.insurancePolicyNumber || ''} onChange={e => set('insurancePolicyNumber', e.target.value)} className="input-field font-mono"/>
-            </div>
-            <div>
-              <label className="form-label">Group Number</label>
-              <input value={form.insuranceGroupNumber || ''} onChange={e => set('insuranceGroupNumber', e.target.value)} className="input-field font-mono"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Expiry Date</label>
-            <input type="date" value={form.insuranceExpiry || ''} onChange={e => set('insuranceExpiry', e.target.value)} className="input-field"/>
-          </div>
-        </>}
-
-        {/* ── Emergency Contact ── */}
-        {tab === 3 && <>
-          <div>
-            <label className="form-label">Contact Name</label>
-            <input value={form.emergencyContact?.name || ''} onChange={e => setEc('name', e.target.value)} className="input-field"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Contact Phone</label>
-              <input value={form.emergencyContact?.phone || ''} onChange={e => setEc('phone', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Relationship</label>
-              <input value={form.emergencyContact?.relationship || ''} onChange={e => setEc('relationship', e.target.value)} placeholder="e.g. Spouse, Parent…" className="input-field"/>
-            </div>
-          </div>
-        </>}
-
-      </div>
-
-      <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700 mt-4">
-        <button onClick={onClose}
-          className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-          Cancel
-        </button>
-        <button onClick={handleSave} disabled={saving || !form.firstName?.trim() || !form.lastName?.trim()}
-          className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
-      </div>
-    </Modal>
-  )
-}
 
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
@@ -868,12 +616,8 @@ export default function PatientProfilePage() {
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
   const [tab, setTab]            = useState(0)
-  const [showEditModal, setShowEditModal]     = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
-  const [editingOverview, setEditingOverview] = useState(false)
-  const [overviewForm, setOverviewForm]       = useState({})
-  const [overviewSaving, setOverviewSaving]   = useState(false)
   const [historyExpanded, setHistoryExpanded] = useState(false)
 
   // Index follow-ups by visitId so VisitCard can reflect the done status in real time
@@ -950,58 +694,6 @@ export default function PatientProfilePage() {
   const age = getPatientAge(patient)
   const today    = new Date().toISOString().slice(0, 10)
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-
-  const startOverviewEdit = () => {
-    setOverviewForm({
-      phone:          patient.phone          || '',
-      alternatePhone: patient.alternatePhone || '',
-      email:          patient.email          || '',
-      address:        patient.address        || '',
-      education:      patient.education      || '',
-      occupation:     patient.occupation     || '',
-      maritalStatus:  patient.maritalStatus  || '',
-      observation:    patient.observation    || '',
-      pastHistory:    patient.pastHistory    || '',
-      historyOf:      patient.historyOf      || '',
-      lifeSpan:       patient.lifeSpan       || '',
-      chiefComplaints: patient.chiefComplaints?.length
-        ? patient.chiefComplaints.map(c => ({ ...c }))
-        : [{ complaint: '', location: '', sensation: '', modality: '', concomitant: '' }],
-      prescriptionDetails: patient.prescriptionDetails || '',
-      generals: {
-        appetite:     patient.generals?.appetite     || '',
-        taste:        patient.generals?.taste        || '',
-        thirst:       patient.generals?.thirst       || '',
-        urine:        patient.generals?.urine        || '',
-        stool:        patient.generals?.stool        || '',
-        thermal:      patient.generals?.thermal      || '',
-        perspiration: patient.generals?.perspiration || '',
-        speed:        patient.generals?.speed        || '',
-        fastidious:   patient.generals?.fastidious   || '',
-        sleep:        patient.generals?.sleep        || '',
-        dreams:       patient.generals?.dreams       || '',
-      },
-      customGenerals: patient.customGenerals ? [...patient.customGenerals.map(g => ({ ...g }))] : [],
-      customFields:   patient.customFields   ? [...patient.customFields]                        : [],
-      specialtyData:  patient.specialtyData  ? { ...patient.specialtyData }                    : {},
-    })
-    setEditingOverview(true)
-  }
-
-  const saveOverview = async () => {
-    setOverviewSaving(true)
-    try {
-      const cleanedCC = (overviewForm.chiefComplaints ?? []).filter(
-        c => c.complaint?.trim() || c.location?.trim() || c.sensation?.trim() || c.modality?.trim() || c.concomitant?.trim()
-      )
-      await update({ ...overviewForm, chiefComplaints: cleanedCC })
-      setEditingOverview(false)
-    } catch (err) {
-      toast.error('Failed to save. Please try again.')
-    } finally {
-      setOverviewSaving(false)
-    }
-  }
 
   const overdueFollowUps  = patientFollowUps.filter(e => e.dueDate < today)
   const todayFollowUps    = patientFollowUps.filter(e => e.dueDate === today)
@@ -1109,108 +801,27 @@ export default function PatientProfilePage() {
       {tab === 0 && (
         <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Personal Details — inline editable */}
-          <Section title="Personal Details" action={
-            !editingOverview ? (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingOverview(false)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                <button onClick={saveOverview} disabled={overviewSaving}
-                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                  {overviewSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            )
-          }><div className="p-6 space-y-4">
-
-            {/* Read-only fixed fields */}
+          {/* Personal Details */}
+          <Section title="Personal Details"><div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
               <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
               {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
             </div>
-
-            {/* Editable fields */}
-            {editingOverview ? (
-              <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="form-label text-xs">Phone</label>
-                    <input value={overviewForm.phone} onChange={e => setOverviewForm(f => ({ ...f, phone: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="Phone number"/>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Alt Phone</label>
-                    <input value={overviewForm.alternatePhone} onChange={e => setOverviewForm(f => ({ ...f, alternatePhone: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="Alternate phone"/>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Email</label>
-                  <input type="email" value={overviewForm.email} onChange={e => setOverviewForm(f => ({ ...f, email: e.target.value }))}
-                    className="input-field py-2 text-sm" placeholder="Email address"/>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Address</label>
-                  <AutoTextarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
-                    className="input-field py-2 text-sm resize" placeholder="Address"/>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="form-label text-xs">Education</label>
-                    <input value={overviewForm.education || ''} onChange={e => setOverviewForm(f => ({ ...f, education: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="e.g. Graduate"/>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Occupation</label>
-                    <input value={overviewForm.occupation || ''} onChange={e => setOverviewForm(f => ({ ...f, occupation: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="e.g. Engineer"/>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Marital Status</label>
-                  <div className="flex gap-2 flex-wrap mt-1">
-                    {['Single','Married','Divorced','Widowed'].map(s => (
-                      <button key={s} type="button"
-                        onClick={() => setOverviewForm(f => ({ ...f, maritalStatus: f.maritalStatus === s.toLowerCase() ? '' : s.toLowerCase() }))}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                          overviewForm.maritalStatus === s.toLowerCase()
-                            ? 'bg-primary-500 text-white border-primary-500'
-                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
-                        }`}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <InfoRow label="Phone" value={patient.phone} />
-                <InfoRow label="Alt Phone" value={patient.alternatePhone} />
-                <InfoRow label="Email" value={patient.email} />
-                <InfoRow label="Address" value={patient.address} />
-              </div>
-            )}
-
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <InfoRow label="Phone" value={patient.phone} />
+              <InfoRow label="Alt Phone" value={patient.alternatePhone} />
+              <InfoRow label="Email" value={patient.email} />
+              <InfoRow label="Address" value={patient.address} />
+            </div>
             {patient.education     && <InfoRow label="Education"     value={patient.education} />}
             {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
             {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
             {patient.referralSource && (
               <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
             )}
-            {patient.referralNotes && (
-              <InfoRow label="Referral Details" value={patient.referralNotes} />
-            )}
+            {patient.referralNotes && <InfoRow label="Referral Details" value={patient.referralNotes} />}
             {!patient.dateOfBirth && patient.ageManual && (
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
             )}
@@ -1315,59 +926,28 @@ export default function PatientProfilePage() {
 
         {isHomeopathy(specialization) ? (<>
         {/* ── History & Life Span ── */}
-        <Section title="History (H/o)" action={
-          !editingOverview ? (
-            <button onClick={startOverviewEdit}
-              className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-              Edit
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditingOverview(false)}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-              <button onClick={saveOverview} disabled={overviewSaving}
-                className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                {overviewSaving ? 'Saving…' : 'Save'}
-              </button>
-              </div>
-            )}
-          ><div className="p-6">
-          {/* Observation + Past History */}
-          {(patient.observation || patient.pastHistory || editingOverview) && (
+        <Section title="History (H/o)"><div className="p-6">
+          {(patient.observation || patient.pastHistory) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
               <div>
                 <label className="form-label text-xs">Observation</label>
-                {editingOverview ? (
-                  <AutoTextarea value={overviewForm.observation || ''} onChange={e => setOverviewForm(f => ({ ...f, observation: e.target.value }))}
-                    className="input-field text-sm resize w-full" placeholder="Doctor's initial observations…"/>
-                ) : (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                    {patient.observation || 'Not recorded'}
-                  </p>
-                )}
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.observation || 'Not recorded'}
+                </p>
               </div>
               <div>
                 <label className="form-label text-xs">Past History</label>
-                {editingOverview ? (
-                  <AutoTextarea value={overviewForm.pastHistory || ''} onChange={e => setOverviewForm(f => ({ ...f, pastHistory: e.target.value }))}
-                    className="input-field text-sm resize w-full" placeholder="Past medical history, surgeries…"/>
-                ) : (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                    {patient.pastHistory || 'Not recorded'}
-                  </p>
-                )}
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.pastHistory || 'Not recorded'}
+                </p>
               </div>
             </div>
           )}
-
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-1">
                 <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                {!editingOverview && patient.historyOf && (
+                {patient.historyOf && (
                   <button type="button" onClick={() => setHistoryExpanded(e => !e)}
                     className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
                     {historyExpanded ? 'Collapse' : 'Expand'}
@@ -1377,11 +957,7 @@ export default function PatientProfilePage() {
                   </button>
                 )}
               </div>
-              {editingOverview ? (
-                <AutoTextarea value={overviewForm.historyOf}
-                  onChange={e => setOverviewForm(f => ({ ...f, historyOf: e.target.value }))}
-                  className="input-field text-sm resize w-full" placeholder="History of present illness, past medical history…"/>
-              ) : patient.historyOf ? (
+              {patient.historyOf ? (
                 <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
                   {patient.historyOf}
                 </p>
@@ -1391,148 +967,49 @@ export default function PatientProfilePage() {
             </div>
             <div>
               <label className="form-label text-xs">Life Span</label>
-              {editingOverview ? (
-                <input value={overviewForm.lifeSpan}
-                  onChange={e => setOverviewForm(f => ({ ...f, lifeSpan: e.target.value }))}
-                  className="input-field text-sm" placeholder="e.g. 45 years"/>
-              ) : (
-                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.lifeSpan || '—'}
-                </p>
-              )}
+              <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                {patient.lifeSpan || '—'}
+              </p>
             </div>
           </div>
         </div></Section>
 
-        {/* ── Generals + Custom Rows ── */}
-        <Section title="Generals" subtitle="Constitutional symptoms · custom rows can be added below" action={
-          !editingOverview ? (
-            <button onClick={startOverviewEdit}
-              className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-              Edit
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditingOverview(false)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                <button onClick={saveOverview} disabled={overviewSaving}
-                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                  {overviewSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            )}
-          ><div className="p-6">
+        {/* ── Generals ── */}
+        <Section title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
           <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
             <table className="w-full">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-
-                {/* ── Fixed generals rows ── */}
                 {[
-                  ['appetite',     'Appetite'],
-                  ['taste',        'Taste'],
-                  ['thirst',       'Thirst'],
-                  ['urine',        'Urine'],
-                  ['stool',        'Stool'],
-                  ['thermal',      'Thermal'],
-                  ['perspiration', 'Perspiration'],
-                  ['speed',        'Speed'],
-                  ['fastidious',   'Fastidious'],
-                  ['sleep',        'Sleep'],
-                  ['dreams',       'Dreams'],
+                  ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
+                  ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
+                  ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
                 ].map(([key, label], i) => (
                   <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</td>
-                    <td className="px-4 py-2">
-                      {editingOverview ? (
-                        <AutoTextarea
-                          value={overviewForm.generals?.[key] ?? ''}
-                          onChange={e => setOverviewForm(f => ({ ...f, generals: { ...f.generals, [key]: e.target.value } }))}
-                          className="input-field text-sm py-1.5 w-full resize"
-                          placeholder={`Describe ${label.toLowerCase()}…`}
-                        />
-                      ) : (
-                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                          {patient.generals?.[key] || '—'}
-                        </span>
-                      )}
+                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                        {patient.generals?.[key] || '—'}
+                      </span>
                     </td>
                   </tr>
                 ))}
-
-                {/* ── Custom generals rows ── */}
-                {editingOverview
-                  ? (overviewForm.customGenerals ?? []).map((field, i) => (
-                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                        <td className="px-4 py-2 w-40">
-                          <input
-                            value={field.label}
-                            onChange={e => setOverviewForm(f => ({
-                              ...f,
-                              customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, label: e.target.value } : g),
-                            }))}
-                            className="input-field text-sm py-1.5 w-full font-semibold"
-                            placeholder="Parameter name"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <AutoTextarea
-                              value={field.value}
-                              onChange={e => setOverviewForm(f => ({
-                                ...f,
-                                customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, value: e.target.value } : g),
-                              }))}
-                              className="input-field text-sm py-1.5 flex-1 resize"
-                              placeholder="Value"
-                            />
-                            <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, customGenerals: f.customGenerals.filter((_, j) => j !== i) }))}
-                              className="text-gray-400 hover:text-red-500 transition-colors text-xl leading-none flex-shrink-0">×</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  : (patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
-                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                        <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                            {field.value || '—'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                }
-
-                {/* ── Add row button (edit mode only) ── */}
-                {editingOverview && (
-                  <tr>
-                    <td colSpan={2} className="px-4 py-2">
-                      <button type="button"
-                        onClick={() => setOverviewForm(f => ({
-                          ...f,
-                          customGenerals: [...(f.customGenerals ?? []), { id: `${Date.now()}`, label: '', value: '' }],
-                        }))}
-                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Add Parameter
-                      </button>
+                {(patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
+                  <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                        {field.value || '—'}
+                      </span>
                     </td>
                   </tr>
-                )}
-
+                ))}
               </tbody>
             </table>
           </div>
         </div></Section>
 
         {/* ── Chief Complaints ── */}
-        {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
+        {(patient.chiefComplaints ?? []).some(c => c.complaint) && (
           <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="p-4 overflow-x-auto">
               <table className="w-full min-w-[640px]">
@@ -1541,37 +1018,16 @@ export default function PatientProfilePage() {
                     {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
                       <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
                     ))}
-                    {editingOverview && <th className="w-8"/>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {(editingOverview ? (overviewForm.chiefComplaints ?? []) : (patient.chiefComplaints ?? []).filter(c => c.complaint)).map((row, i) => (
+                  {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
                     <tr key={i}>
                       {['complaint','location','sensation','modality','concomitant'].map(field => (
                         <td key={field} className="px-1.5 py-2">
-                          {editingOverview ? (
-                            <input value={row[field] ?? ''} onChange={e => setOverviewForm(f => {
-                              const list = [...(f.chiefComplaints ?? [])]
-                              list[i] = { ...list[i], [field]: e.target.value }
-                              if (i === list.length - 1 && e.target.value.trim()) {
-                                list.push({ complaint: '', location: '', sensation: '', modality: '', concomitant: '' })
-                              }
-                              return { ...f, chiefComplaints: list }
-                            })} placeholder="—" className="input-field text-sm py-2 w-full"/>
-                          ) : (
-                            <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
-                          )}
+                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
                         </td>
                       ))}
-                      {editingOverview && (
-                        <td className="px-1.5 py-2 text-center">
-                          {(overviewForm.chiefComplaints ?? []).length > 1 && (
-                            <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: f.chiefComplaints.filter((_, j) => j !== i) }))}
-                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 text-xl leading-none transition-colors">×</button>
-                          )}
-                        </td>
-                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1581,73 +1037,29 @@ export default function PatientProfilePage() {
         )}
 
         {/* ── Prescription Details ── */}
-        {(editingOverview || patient.prescriptionDetails) && (
-          <Section title="Prescription Details" accentClass="border-l-teal-500" action={
-            !editingOverview && (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                Edit
-              </button>
-            )
-          }>
+        {patient.prescriptionDetails && (
+          <Section title="Prescription Details" accentClass="border-l-teal-500">
             <div className="p-6">
-              {editingOverview ? (
-                <AutoTextarea value={overviewForm.prescriptionDetails || ''} onChange={e => setOverviewForm(f => ({ ...f, prescriptionDetails: e.target.value }))}
-                  className="input-field text-sm resize w-full min-h-[80px]" placeholder="Remedy, potency, dosage, repetition, diet…"/>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
-              )}
+              <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
             </div>
           </Section>
         )}
 
         </>) : (() => {
-          // Non-homeopathy: render doctor's patientFormFields from patient.specialtyData
           const fields = doctor?.patientFormFields ?? []
-          if (!fields.length) return (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">No clinical fields configured.</p>
-              <a href="/settings" className="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium block">
-                Go to Settings → Patient Registration Fields to set them up
-              </a>
-            </div>
-          )
+          if (!fields.length) return null
           const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
-          const setSpecialtyField = (id, val) =>
-            setOverviewForm(f => ({ ...f, specialtyData: { ...f.specialtyData, [id]: val } }))
-
           return sections.map((sec, si) => (
-            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]} action={
-              !editingOverview ? (
-                <button onClick={startOverviewEdit}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                  </svg>
-                  Edit
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setEditingOverview(false)} className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                  <button onClick={saveOverview} disabled={overviewSaving}
-                    className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                    {overviewSaving ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              )
-            }>
+            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
                     <ClinicalField
                       key={field.id}
                       field={field}
-                      editing={editingOverview}
-                      value={editingOverview
-                        ? (overviewForm.specialtyData ?? {})[field.id]
-                        : (patient.specialtyData ?? {})[field.id]}
-                      onChange={val => setSpecialtyField(field.id, val)}
+                      editing={false}
+                      value={(patient.specialtyData ?? {})[field.id]}
+                      onChange={() => {}}
                     />
                   ))}
                 </div>
