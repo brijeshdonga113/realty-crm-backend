@@ -34,7 +34,7 @@ const ACCENT = {
   orange: 'border-l-orange-500',
 }
 
-function SectionCard({ icon, title, accentColor = 'teal', children, defaultOpen = true }) {
+function SectionCard({ icon, title, accentColor = 'teal', children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -70,7 +70,7 @@ function ClinicalField({ field, value, onChange }) {
   if (type === 'textarea') return (
     <div className="sm:col-span-2">
       <label className="form-label">{label}</label>
-      <AutoTextarea value={value || ''} onChange={e => onChange(e.target.value)} className="input-field resize" placeholder=""/>
+      <AutoTextarea value={value || ''} onChange={e => onChange(e.target.value)} className="input-field resize-y-y" placeholder=""/>
     </div>
   )
   if (type === 'number') return (
@@ -324,6 +324,7 @@ function NewCaseForm() {
         <SectionCard
           accentColor="teal"
           title="Patient Profile"
+          defaultOpen={true}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -442,7 +443,7 @@ function NewCaseForm() {
           <div>
             <label className="form-label">Address</label>
             <AutoTextarea value={form.address} onChange={e => set('address', e.target.value)}
-              placeholder="Full address including city, state, zip" className="input-field resize"/>
+              placeholder="Full address including city, state, zip" className="input-field resize-y-y"/>
           </div>
 
           {/* Marital Status */}
@@ -479,25 +480,38 @@ function NewCaseForm() {
             </div>
           </div>
 
+        </SectionCard>
+
+        {/* ── Other Medical History ─────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="blue"
+          title="Other Medical History"
+          defaultOpen={false}
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+            </svg>
+          }
+        >
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
             <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
-              placeholder="Doctor's initial observations…" className="input-field resize"/>
+              placeholder="Doctor's initial observations…" className="input-field resize-y-y"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
             <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
+              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize-y-y"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
             <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
+              placeholder="Hereditary conditions, family medical background…" className="input-field resize-y-y"/>
           </div>
         </SectionCard>
 
@@ -566,7 +580,7 @@ function NewCaseForm() {
                   <div key={key} className="flex items-start gap-4 py-3">
                     <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">{label}</label>
                     <AutoTextarea value={form.generals[key]} onChange={e => setGeneral(key, e.target.value)}
-                      placeholder={`Enter ${label.toLowerCase()}…`} className="input-field flex-1 text-sm py-2 resize"/>
+                      placeholder={`Enter ${label.toLowerCase()}…`} className="input-field flex-1 text-sm py-2 resize-y"/>
                   </div>
                 ))}
                 {form.customGenerals.map(g => (
@@ -574,7 +588,7 @@ function NewCaseForm() {
                     <input value={g.label} onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
                       placeholder="Parameter…" className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"/>
                     <AutoTextarea value={g.value} onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
-                      placeholder="Enter value…" className="input-field flex-1 text-sm py-2 resize"/>
+                      placeholder="Enter value…" className="input-field flex-1 text-sm py-2 resize-y"/>
                     <button type="button" onClick={() => removeCustomGeneral(g.id)}
                       className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">×</button>
                   </div>
@@ -599,7 +613,7 @@ function NewCaseForm() {
             >
               <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
                 placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
-                className="input-field resize min-h-[96px]"/>
+                className="input-field resize-y-y min-h-[96px]"/>
             </SectionCard>
 
             {/* ── Life Span ────────────────────────────────────────────────── */}
@@ -614,7 +628,7 @@ function NewCaseForm() {
             >
               <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
                 placeholder="Key life events, miasmatic background, constitutional timeline…"
-                className="input-field resize min-h-[96px]"/>
+                className="input-field resize-y-y min-h-[96px]"/>
             </SectionCard>
 
             {/* ── Prescription Details ─────────────────────────────────────── */}
@@ -629,7 +643,7 @@ function NewCaseForm() {
             >
               <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
                 placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
-                className="input-field resize min-h-[96px]"/>
+                className="input-field resize-y-y min-h-[96px]"/>
             </SectionCard>
           </>
         ) : (() => {

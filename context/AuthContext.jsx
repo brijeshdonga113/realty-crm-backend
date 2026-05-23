@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 import { initTrial } from '@/lib/subscription'
+import { getDefaultFields } from '@/lib/patientIntakePresets'
 
 const AuthContext = createContext(null)
 
@@ -42,6 +43,7 @@ function buildDoctorProfile(uid, data) {
     logoUrl:       data.logoUrl       ?? '',
     waTemplates:   data.waTemplates   ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],
+    patientFormFields:     data.patientFormFields     ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }
@@ -174,7 +176,8 @@ export function AuthProvider({ children }) {
       const cred       = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
       const uid        = cred.user.uid
       const inviteCode = generateInviteCode()
-      const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial() })
+      const patientFormFields = getDefaultFields(doctorData.specialization)
+      const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial(), patientFormFields })
 
       await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
       await setDoc(doc(db, 'inviteCodes', inviteCode), { doctorId: uid, createdAt: new Date().toISOString() })

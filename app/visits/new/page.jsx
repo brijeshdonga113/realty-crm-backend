@@ -15,6 +15,7 @@ import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
+import { useInventory } from '@/hooks/useInventory'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -41,6 +42,7 @@ function VisitEntryForm() {
 
   const { patient, loading: patientLoading } = usePatient(patientId)
   const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
+  const { items: inventoryItems } = useInventory()
   const pastVisits = (allVisits ?? []).filter(v => v.status !== 'draft')
 
   const [saving, setSaving]           = useState(false)
@@ -74,7 +76,6 @@ function VisitEntryForm() {
     status: 'draft',
   }))
 
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [expandedVisitId, setExpandedVisitId] = useState(null)
 
   const [diagInput,    setDiagInput]    = useState('')
@@ -114,7 +115,6 @@ function VisitEntryForm() {
         notes:          draft.notes || '',
         vitalSigns:     draft.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
       })
-      if (draft.history) setHistoryOpen(true)
     }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId])
@@ -148,10 +148,17 @@ function VisitEntryForm() {
 
   const handleSaveDraft = async () => {
     if (!patientId) return
+    const draftPrescriptions = rx.medication.trim()
+      ? [...form.prescriptions, { ...rx, id: `${Date.now()}` }]
+      : form.prescriptions
+    if (rx.medication.trim()) {
+      set('prescriptions', draftPrescriptions)
+      setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+    }
     setSavingDraft(true)
     setSaveError('')
     try {
-      const saved = await visitService.saveDraft(buildVisitData(), draftIdRef.current || null)
+      const saved = await visitService.saveDraft({ ...buildVisitData(), prescriptions: draftPrescriptions }, draftIdRef.current || null)
       if (saved?.id && !draftIdRef.current) {
         // First-ever save — persist the new draft ID so subsequent saves update the same doc
         draftIdRef.current = saved.id
@@ -173,12 +180,22 @@ function VisitEntryForm() {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
     if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
+
+    // Auto-commit any partially filled prescription before saving
+    const finalPrescriptions = rx.medication.trim()
+      ? [...form.prescriptions, { ...rx, id: `${Date.now()}` }]
+      : form.prescriptions
+    if (rx.medication.trim()) {
+      setRx({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+    }
+
     setSaving(true)
     setSaveError('')
     try {
+      const visitData = { ...buildVisitData(), prescriptions: finalPrescriptions }
       const visit = draftIdRef.current
-        ? await visitService.update(draftIdRef.current, { ...buildVisitData(), status: 'completed' }, patientId)
-        : await visitService.create(buildVisitData())
+        ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
+        : await visitService.create(visitData)
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
@@ -352,27 +369,10 @@ function VisitEntryForm() {
           </div>
 
           <div>
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(o => !o)}
-              className="flex items-center justify-between w-full group mb-1.5"
-            >
-              <span className="form-label mb-0">History of Present Illness</span>
-              <span className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 font-medium group-hover:underline">
-                {historyOpen ? 'Collapse' : (form.history ? 'Edit' : 'Expand')}
-                <svg className={`w-3.5 h-3.5 transition-transform ${historyOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                </svg>
-              </span>
-            </button>
-            {!historyOpen && form.history && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate px-1">{form.history}</p>
-            )}
-            {historyOpen && (
-              <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
-                placeholder="Detailed history, existing conditions, onset, duration…"
-                className="input-field resize" autoFocus/>
-            )}
+            <label className="form-label">History of Present Illness</label>
+            <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
+              placeholder="Detailed history, existing conditions, onset, duration…"
+              className="input-field resize"/>
           </div>
 
           {/* Vitals */}
@@ -454,10 +454,33 @@ function VisitEntryForm() {
               </div>
             ))}
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input value={rx.medication}    onChange={e => setRx(p => ({...p, medication:    e.target.value}))} placeholder="Medication name"           className="input-field text-sm py-2"/>
-              <input value={rx.dosage}        onChange={e => setRx(p => ({...p, dosage:        e.target.value}))} placeholder="Dosage (e.g. 500mg)"       className="input-field text-sm py-2"/>
-              <input value={rx.frequency}     onChange={e => setRx(p => ({...p, frequency:     e.target.value}))} placeholder="Frequency (e.g. Twice daily)" className="input-field text-sm py-2"/>
-              <input value={rx.duration}      onChange={e => setRx(p => ({...p, duration:      e.target.value}))} placeholder="Duration (e.g. 7 days)"     className="input-field text-sm py-2"/>
+              <div className="relative">
+                <input value={rx.medication}
+                  onChange={e => setRx(p => ({...p, medication: e.target.value}))}
+                  placeholder="Medication name"
+                  className="input-field text-sm py-2 w-full"
+                  autoComplete="off"
+                />
+                {rx.medication.trim().length > 0 && (() => {
+                  const q = rx.medication.toLowerCase()
+                  const matches = inventoryItems.filter(it => it.name.toLowerCase().includes(q)).slice(0, 8)
+                  return matches.length > 0 ? (
+                    <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-44 overflow-y-auto">
+                      {matches.map(it => (
+                        <button key={it.id} type="button"
+                          onMouseDown={() => setRx(p => ({...p, medication: it.name}))}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center justify-between gap-2 transition-colors">
+                          <span className="font-medium text-gray-800 dark:text-gray-200">{it.name}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">{it.category || it.unit || ''}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null
+                })()}
+              </div>
+              <input value={rx.dosage}    onChange={e => setRx(p => ({...p, dosage:    e.target.value}))} placeholder="Dosage (e.g. 500mg)"        className="input-field text-sm py-2"/>
+              <input value={rx.frequency} onChange={e => setRx(p => ({...p, frequency: e.target.value}))} placeholder="Frequency (e.g. Twice daily)" className="input-field text-sm py-2"/>
+              <input value={rx.duration}  onChange={e => setRx(p => ({...p, duration:  e.target.value}))} placeholder="Duration (e.g. 7 days)"      className="input-field text-sm py-2"/>
             </div>
             <input value={rx.instructions} onChange={e => setRx(p => ({...p, instructions: e.target.value}))}
               placeholder="Special instructions (e.g. Take after meals)" className="input-field text-sm py-2 mb-2"/>
