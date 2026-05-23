@@ -62,7 +62,6 @@ function Spinner() {
 }
 
 // ── Dynamic clinical field renderer ─────────────────────────────────────────
-const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-500','border-l-purple-500','border-l-orange-500']
 
 function ClinicalField({ field, value, onChange }) {
   const { label, type, options = [] } = field
@@ -657,25 +656,21 @@ function NewCaseForm() {
               </a>
             </div>
           )
+          const ACCENT_KEYS = ['blue', 'teal', 'green', 'purple', 'orange']
           const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
           return sections.map((sec, si) => (
-            <div key={sec} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-              <div className={`flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT_COLORS[si % ACCENT_COLORS.length]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30`}>
-                <h3 className="font-semibold text-gray-900 dark:text-white">{sec}</h3>
+            <SectionCard key={sec} title={sec} accentColor={ACCENT_KEYS[si % ACCENT_KEYS.length]} defaultOpen={false}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
+                  <ClinicalField
+                    key={field.id}
+                    field={field}
+                    value={(form.specialtyData || {})[field.id]}
+                    onChange={v => setSpecialtyField(field.id, v)}
+                  />
+                ))}
               </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
-                    <ClinicalField
-                      key={field.id}
-                      field={field}
-                      value={(form.specialtyData || {})[field.id]}
-                      onChange={v => setSpecialtyField(field.id, v)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            </SectionCard>
           ))
         })()}
 

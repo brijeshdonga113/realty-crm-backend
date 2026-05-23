@@ -578,22 +578,17 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
 }
 
 /* ─────────────── Collapsible Section wrapper ─────────────── */
-function Section({ title, subtitle, action, accentClass, defaultOpen = true, className = '', children }) {
-  const [open, setOpen] = useState(defaultOpen)
+function Section({ title, subtitle, action, accentClass, className = '', children }) {
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden ${className}`}>
       <div className={`flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
-        <button type="button" onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 text-left min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
           {subtitle && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 hidden sm:inline">{subtitle}</span>}
-          <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-          </svg>
-        </button>
+        </div>
         {action && <div className="flex-shrink-0 ml-3">{action}</div>}
       </div>
-      {open && children}
+      {children}
     </div>
   )
 }
@@ -802,7 +797,7 @@ export default function PatientProfilePage() {
         <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Details */}
-          <Section title="Personal Details" defaultOpen={false}><div className="p-6 space-y-4">
+          <Section title="Personal Details"><div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
@@ -829,7 +824,7 @@ export default function PatientProfilePage() {
           </Section>
 
           <div className="space-y-4">
-            <Section title="Medical Summary" defaultOpen={false}><div className="p-6">
+            <Section title="Medical Summary"><div className="p-6">
 
               {/* From patient record */}
               {patient.allergies?.length > 0 && (
@@ -902,7 +897,7 @@ export default function PatientProfilePage() {
               )}
             </div></Section>
 
-            <Section title="Insurance" defaultOpen={false}><div className="p-6">
+            <Section title="Insurance"><div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <InfoRow label="Provider" value={patient.insuranceProvider} />
                 <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
@@ -913,7 +908,7 @@ export default function PatientProfilePage() {
             </div></Section>
 
             {patient.emergencyContact?.name && (
-              <Section title="Emergency Contact" defaultOpen={false}><div className="p-6">
+              <Section title="Emergency Contact"><div className="p-6">
                 <div className="grid grid-cols-2 gap-4">
                   <InfoRow label="Name" value={patient.emergencyContact.name} />
                   <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
@@ -926,7 +921,7 @@ export default function PatientProfilePage() {
 
         {isHomeopathy(specialization) ? (<>
         {/* ── History & Life Span ── */}
-        <Section title="History (H/o)" defaultOpen={false}><div className="p-6">
+        <Section title="History (H/o)"><div className="p-6">
           {(patient.observation || patient.pastHistory) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
               <div>
@@ -975,7 +970,7 @@ export default function PatientProfilePage() {
         </div></Section>
 
         {/* ── Generals ── */}
-        <Section title="Generals" subtitle="Constitutional symptoms" defaultOpen={false}><div className="p-6">
+        <Section title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
           <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
             <table className="w-full">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1010,7 +1005,7 @@ export default function PatientProfilePage() {
 
         {/* ── Chief Complaints ── */}
         {(patient.chiefComplaints ?? []).some(c => c.complaint) && (
-          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500" defaultOpen={false}>
+          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="p-4 overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead>
@@ -1038,7 +1033,7 @@ export default function PatientProfilePage() {
 
         {/* ── Prescription Details ── */}
         {patient.prescriptionDetails && (
-          <Section title="Prescription Details" accentClass="border-l-teal-500" defaultOpen={false}>
+          <Section title="Prescription Details" accentClass="border-l-teal-500">
             <div className="p-6">
               <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
             </div>
@@ -1050,7 +1045,7 @@ export default function PatientProfilePage() {
           if (!fields.length) return null
           const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
           return sections.map((sec, si) => (
-            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]} defaultOpen={false}>
+            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
