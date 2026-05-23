@@ -1316,16 +1316,6 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      <EditPatientModal
-        open={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        patient={patient}
-        onSave={async (data) => {
-          await update(data)
-          setShowEditModal(false)
-        }}
-      />
-
       {/* Delete Patient Modal */}
       <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
