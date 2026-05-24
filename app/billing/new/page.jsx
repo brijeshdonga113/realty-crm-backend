@@ -212,10 +212,17 @@ function NewInvoiceForm() {
 
             <div>
               <label className="form-label">Payment Method</label>
-              <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className="input-field">
-                <option value="">Not specified</option>
-                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button type="button" key={m.value}
+                    onClick={() => set('paymentMethod', form.paymentMethod === m.value ? '' : m.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      form.paymentMethod === m.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
+                    }`}>{m.label}</button>
+                ))}
+              </div>
             </div>
 
             {form.paymentMethod && (
@@ -237,9 +244,17 @@ function NewInvoiceForm() {
                 </div>
                 <div>
                   <label className="form-label">Collected By</label>
-                  <select value={form.collectedBy} onChange={e => set('collectedBy', e.target.value)} className="input-field">
-                    {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    {COLLECTED_BY_OPTIONS.map(o => (
+                      <button type="button" key={o.value}
+                        onClick={() => set('collectedBy', o.value)}
+                        className={`flex-1 py-2 transition-colors text-center ${
+                          form.collectedBy === o.value
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}>{o.label}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

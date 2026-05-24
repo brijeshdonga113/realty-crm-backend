@@ -820,6 +820,7 @@ export default function PatientProfilePage() {
             {!patient.dateOfBirth && patient.ageManual && (
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
             )}
+            {patient.consentFormSigned && <InfoRow label="Consent" value="Form signed" />}
           </div>
           </Section>
 
@@ -922,22 +923,32 @@ export default function PatientProfilePage() {
         {isHomeopathy(specialization) ? (<>
         {/* ── History & Life Span ── */}
         <Section title="History (H/o)"><div className="p-6">
-          {(patient.observation || patient.pastHistory) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <label className="form-label text-xs">Observation</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.observation || 'Not recorded'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Past History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.pastHistory || 'Not recorded'}
-                </p>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <div>
+              <label className="form-label text-xs">Observation</label>
+              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                {patient.observation || '—'}
+              </p>
             </div>
-          )}
+            <div>
+              <label className="form-label text-xs">Past History</label>
+              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                {patient.pastHistory || '—'}
+              </p>
+            </div>
+            <div>
+              <label className="form-label text-xs">Family History</label>
+              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                {patient.familyHistory || '—'}
+              </p>
+            </div>
+            <div>
+              <label className="form-label text-xs">Notes</label>
+              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                {patient.notes || '—'}
+              </p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-1">
@@ -1041,26 +1052,60 @@ export default function PatientProfilePage() {
         )}
 
         </>) : (() => {
+          const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
           const fields = doctor?.patientFormFields ?? []
-          if (!fields.length) return null
           const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
-          return sections.map((sec, si) => (
-            <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
-              <div className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
-                    <ClinicalField
-                      key={field.id}
-                      field={field}
-                      editing={false}
-                      value={(patient.specialtyData ?? {})[field.id]}
-                      onChange={() => {}}
-                    />
-                  ))}
-                </div>
-              </div>
-            </Section>
-          ))
+          return (
+            <>
+              {hasMedHistory && (
+                <Section title="Other Medical History" accentClass="border-l-blue-500">
+                  <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="form-label text-xs">Observation</p>
+                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                        {patient.observation || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="form-label text-xs">Past History</p>
+                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                        {patient.pastHistory || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="form-label text-xs">Family History</p>
+                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                        {patient.familyHistory || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="form-label text-xs">Notes</p>
+                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                        {patient.notes || '—'}
+                      </p>
+                    </div>
+                  </div>
+                </Section>
+              )}
+              {fields.length > 0 && sections.map((sec, si) => (
+                <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
+                        <ClinicalField
+                          key={field.id}
+                          field={field}
+                          editing={false}
+                          value={(patient.specialtyData ?? {})[field.id]}
+                          onChange={() => {}}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </Section>
+              ))}
+            </>
+          )
         })()}
 
         </div>
