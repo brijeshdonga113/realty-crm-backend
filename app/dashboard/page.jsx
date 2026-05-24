@@ -40,8 +40,8 @@ function StatCard({ label, value, sub, color, icon, href }) {
   const c = colors[color] ?? colors.teal
   const inner = (
     <>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</span>
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{label}</span>
         <div className={`w-9 h-9 ${c.bg} ring-1 ${c.ring} rounded-lg flex items-center justify-center`}>
           <span className={c.text}>{icon}</span>
         </div>
@@ -204,8 +204,8 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {todayAppts.map(appt => (
-                <div key={appt.id} className="px-6 py-4 flex items-center gap-4">
-                  <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <div key={appt.id} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
                       {appt.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
                     </span>
@@ -213,14 +213,14 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <button
                       onClick={() => appt.patientId && router.push(`/patients/${appt.patientId}`)}
-                      className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left">
+                      className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left block w-full">
                       {appt.patientName}
                     </button>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize truncate">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time}</p>
-                    <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 tabular-nums">{appt.time}</p>
+                    <span className="hidden sm:block"><Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/></span>
                     {['scheduled','confirmed'].includes(appt.status) && appt.patientId && (
                       <button
                         onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
@@ -274,7 +274,7 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {todayFollowups.map(f => (
-                <div key={f.id} className="px-6 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
+                <div key={f.id} className="px-4 sm:px-6 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
                   onClick={() => f.patientId && router.push(`/patients/${f.patientId}`)}>
                   <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-orange-700 dark:text-orange-300 font-semibold text-xs">
@@ -309,7 +309,7 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {tomorrowFollowups.map(f => (
-                <div key={f.id} className="px-6 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
+                <div key={f.id} className="px-4 sm:px-6 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors"
                   onClick={() => f.patientId && router.push(`/patients/${f.patientId}`)}>
                   <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-yellow-700 dark:text-yellow-300 font-semibold text-xs">
@@ -350,8 +350,8 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {twoDayFollowups.map(f => (
-              <div key={f.id} className="px-6 py-4 flex items-center gap-4">
-                <div className="w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+              <div key={f.id} className="px-4 sm:px-6 py-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                   <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
@@ -385,7 +385,7 @@ export default function DashboardPage() {
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {stats.visits.recent.map(v => (
               <div key={v.id} onClick={() => router.push(`/patients/${v.patientId}`)}
-                className="px-6 py-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors">
+                className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
                     {v.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || '?'}
@@ -541,7 +541,7 @@ export default function DashboardPage() {
     <AppLayout
       title={doctor?.clinicName || 'Dashboard'}
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {doctor?.bookingSlug && (
             <button
               onClick={() => {
@@ -565,7 +565,8 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
                 </svg>
               )}
-              {linkCopied ? 'Copied!' : 'Copy Booking Link'}
+              <span className="hidden sm:inline">{linkCopied ? 'Copied!' : 'Copy Booking Link'}</span>
+              <span className="sm:hidden">{linkCopied ? 'Copied!' : 'Booking Link'}</span>
             </button>
           )}
           <button onClick={() => { setDraftLayout(layout); setCustomizing(true) }}
@@ -588,7 +589,7 @@ export default function DashboardPage() {
       <div className="space-y-7">
 
         {/* Welcome banner — always shown */}
-        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 text-white flex items-center justify-between gap-4 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-4 sm:p-6 text-white flex items-center justify-between gap-3 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/5 rounded-full blur-2xl" />
             <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
