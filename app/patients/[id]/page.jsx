@@ -820,6 +820,7 @@ export default function PatientProfilePage() {
             {!patient.dateOfBirth && patient.ageManual && (
               <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
             )}
+            {patient.consentFormSigned && <InfoRow label="Consent" value="Form signed" />}
           </div>
           </Section>
 
