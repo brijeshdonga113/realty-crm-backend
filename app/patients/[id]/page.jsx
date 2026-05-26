@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -23,6 +23,7 @@ import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
 import { isHomeopathy } from '@/lib/patientIntakePresets'
+import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-500','border-l-purple-500','border-l-orange-500']
@@ -615,6 +616,37 @@ export default function PatientProfilePage() {
   const [deleting, setDeleting]               = useState(false)
   const [historyExpanded, setHistoryExpanded] = useState(false)
 
+  const sectionDefs = useMemo(() => {
+    const base = [
+      { id: 'personal',          label: 'Personal Details',   icon: '👤' },
+      { id: 'medical_summary',   label: 'Medical Summary',    icon: '🏥' },
+      { id: 'insurance',         label: 'Insurance',          icon: '🛡️' },
+      { id: 'emergency_contact', label: 'Emergency Contact',  icon: '🚨' },
+    ]
+    if (isHomeopathy(specialization)) {
+      return [
+        ...base,
+        { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
+        { id: 'generals',             label: 'Generals',               icon: '🔬' },
+        { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
+        { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
+      ]
+    }
+    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+      .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
+    return [
+      ...base,
+      { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
+      ...customSecs,
+    ]
+  }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [sectionLayout,      setSectionLayout]      = useState([])
+  const [draftSectionLayout, setDraftSectionLayout] = useState([])
+  const [customizingProfile, setCustomizingProfile] = useState(false)
+  const [savingLayout,       setSavingLayout]       = useState(false)
+  const dragSectionId = useRef(null)
+
   // Index follow-ups by visitId so VisitCard can reflect the done status in real time
   const followupByVisitId = useMemo(() => {
     const map = {}
@@ -668,6 +700,27 @@ export default function PatientProfilePage() {
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   }, [visits, followups, id, patientName])
 
+  useEffect(() => {
+    if (!doctor?.id || !sectionDefs.length) return
+    dataStore.getMeta('patientProfileLayout').then(saved => {
+      const defaultLayout = sectionDefs.map(d => ({ id: d.id, visible: true }))
+      if (!saved?.sections?.length) {
+        setSectionLayout(defaultLayout)
+        setDraftSectionLayout(defaultLayout)
+        return
+      }
+      const savedIds = saved.sections.map(s => s.id)
+      const merged = [
+        ...saved.sections.filter(s => sectionDefs.some(d => d.id === s.id)),
+        ...sectionDefs.filter(d => !savedIds.includes(d.id)).map(d => ({ id: d.id, visible: true })),
+      ]
+      setSectionLayout(merged)
+      setDraftSectionLayout(merged)
+    }).catch(() => {
+      setSectionLayout(sectionDefs.map(d => ({ id: d.id, visible: true })))
+    })
+  }, [doctor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) return (
     <AppLayout title="Patient Profile">
       <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
@@ -696,6 +749,373 @@ export default function PatientProfilePage() {
   const upcomingFollowUps = patientFollowUps.filter(e => e.dueDate > tomorrow)
 
   const followUpDueCount = overdueFollowUps.length + todayFollowUps.length
+
+  // ─── Profile layout drag-and-drop ────────────────────────────────────────
+
+  function handleSectionDragStart(e, id) {
+    dragSectionId.current = id
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleSectionDragOver(e, targetId) {
+    e.preventDefault()
+    if (!dragSectionId.current || dragSectionId.current === targetId) return
+    setDraftSectionLayout(prev => {
+      const fromIdx = prev.findIndex(s => s.id === dragSectionId.current)
+      const toIdx   = prev.findIndex(s => s.id === targetId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      const next = [...prev]
+      const [item] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, item)
+      return next
+    })
+  }
+
+  function handleSectionDrop(e) {
+    e.preventDefault()
+    dragSectionId.current = null
+  }
+
+  function toggleSectionVisible(id) {
+    setDraftSectionLayout(prev => prev.map(s => s.id === id ? { ...s, visible: !s.visible } : s))
+  }
+
+  async function saveProfileLayout() {
+    setSavingLayout(true)
+    try {
+      await dataStore.setMeta('patientProfileLayout', { sections: draftSectionLayout })
+      setSectionLayout(draftSectionLayout)
+      setCustomizingProfile(false)
+    } finally {
+      setSavingLayout(false)
+    }
+  }
+
+  function cancelCustomizeProfile() {
+    setDraftSectionLayout(sectionLayout)
+    setCustomizingProfile(false)
+  }
+
+  // ─── Section renderer (Overview tab) ─────────────────────────────────────
+
+  const renderSection = (sectionId) => {
+    switch (sectionId) {
+
+      case 'personal':
+        return (
+          <Section key="personal" title="Personal Details"><div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
+              <InfoRow label="National ID" value={patient.nationalId} />
+              <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
+              {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
+            </div>
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <InfoRow label="Phone" value={patient.phone} />
+              <InfoRow label="Alt Phone" value={patient.alternatePhone} />
+              <InfoRow label="Email" value={patient.email} />
+              <InfoRow label="Address" value={patient.address} />
+            </div>
+            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
+            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
+            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
+            {patient.referralSource && (
+              <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+            )}
+            {patient.referralNotes && <InfoRow label="Referral Details" value={patient.referralNotes} />}
+            {!patient.dateOfBirth && patient.ageManual && (
+              <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
+            )}
+            {patient.consentFormSigned && <InfoRow label="Consent" value="Form signed" />}
+          </div></Section>
+        )
+
+      case 'medical_summary':
+        return (
+          <Section key="medical_summary" title="Medical Summary"><div className="p-6">
+            {patient.allergies?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.allergies.map(a => <Badge key={a} label={a} color="red"/>)}
+                </div>
+              </div>
+            )}
+            {patient.chronicConditions?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Chronic Conditions</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.chronicConditions.map(c => <Badge key={c} label={c} color="orange"/>)}
+                </div>
+              </div>
+            )}
+            {patient.currentMedications?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Current Medications</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.currentMedications.map(m => <Badge key={m} label={m} color="blue"/>)}
+                </div>
+              </div>
+            )}
+            {visits.length > 0 && (() => {
+              const allDiagnoses = [...new Set(visits.flatMap(v => v.diagnosis || []).filter(Boolean))]
+              const allLabOrders = [...new Set(visits.flatMap(v => v.labOrders  || []).filter(Boolean))]
+              const recentRx     = visits.slice(0, 3).flatMap(v => (v.prescriptions || []).map(p => p.medication).filter(Boolean))
+              const uniqueRx     = [...new Set(recentRx)]
+              if (!allDiagnoses.length && !allLabOrders.length && !uniqueRx.length) return null
+              return (
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">From Visit History</p>
+                  {allDiagnoses.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Diagnoses</p>
+                      <div className="flex flex-wrap gap-1.5">{allDiagnoses.map(d => <Badge key={d} label={d} color="purple"/>)}</div>
+                    </div>
+                  )}
+                  {uniqueRx.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Recent Prescriptions</p>
+                      <div className="flex flex-wrap gap-1.5">{uniqueRx.map(m => <Badge key={m} label={m} color="teal"/>)}</div>
+                    </div>
+                  )}
+                  {allLabOrders.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Lab Orders</p>
+                      <div className="flex flex-wrap gap-1.5">{allLabOrders.map(l => <Badge key={l} label={l} color="gray"/>)}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
+              <p className="text-sm text-gray-400">No medical history recorded.</p>
+            )}
+          </div></Section>
+        )
+
+      case 'insurance':
+        return (
+          <Section key="insurance" title="Insurance"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Provider" value={patient.insuranceProvider} />
+              <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
+              <InfoRow label="Group #" value={patient.insuranceGroupNumber} />
+              <InfoRow label="Expiry" value={patient.insuranceExpiry} />
+            </div>
+            {!patient.insuranceProvider && <p className="text-sm text-gray-400">No insurance details on file.</p>}
+          </div></Section>
+        )
+
+      case 'emergency_contact':
+        if (!patient.emergencyContact?.name) return null
+        return (
+          <Section key="emergency_contact" title="Emergency Contact"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Name" value={patient.emergencyContact.name} />
+              <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
+              <InfoRow label="Phone" value={patient.emergencyContact.phone} />
+            </div>
+          </div></Section>
+        )
+
+      case 'history_ho':
+        if (!isHomeopathy(specialization)) return null
+        return (
+          <Section key="history_ho" title="History (H/o)"><div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+              <div>
+                <label className="form-label text-xs">Observation</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.observation || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Past History</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.pastHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Family History</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.familyHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Notes</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.notes || '—'}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-4">
+              <div className="lg:col-span-3">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="form-label text-xs mb-0">Female / Male H/o</label>
+                  {patient.historyOf && (
+                    <button type="button" onClick={() => setHistoryExpanded(e => !e)}
+                      className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                      {historyExpanded ? 'Collapse' : 'Expand'}
+                      <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {patient.historyOf ? (
+                  <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
+                    {patient.historyOf}
+                  </p>
+                ) : (
+                  <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
+                )}
+              </div>
+              <div>
+                <label className="form-label text-xs">Life Span</label>
+                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.lifeSpan || '—'}
+                </p>
+              </div>
+            </div>
+          </div></Section>
+        )
+
+      case 'generals':
+        if (!isHomeopathy(specialization)) return null
+        return (
+          <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
+            <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {[
+                    ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
+                    ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
+                    ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
+                  ].map(([key, label], i) => (
+                    <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {patient.generals?.[key] || '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {(patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
+                    <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {field.value || '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div></Section>
+        )
+
+      case 'chief_complaints':
+        if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
+        return (
+          <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
+            <div className="p-4 overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
+                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
+                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
+                    <tr key={i}>
+                      {['complaint','location','sensation','modality','concomitant'].map(field => (
+                        <td key={field} className="px-1.5 py-2">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        )
+
+      case 'prescription_details':
+        if (!isHomeopathy(specialization) || !patient.prescriptionDetails) return null
+        return (
+          <Section key="prescription_details" title="Prescription Details" accentClass="border-l-teal-500">
+            <div className="p-6">
+              <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+            </div>
+          </Section>
+        )
+
+      case 'other_medical_history': {
+        if (isHomeopathy(specialization)) return null
+        const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
+        if (!hasMedHistory) return null
+        return (
+          <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="form-label text-xs">Observation</p>
+                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.observation || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="form-label text-xs">Past History</p>
+                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.pastHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="form-label text-xs">Family History</p>
+                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.familyHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="form-label text-xs">Notes</p>
+                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.notes || '—'}
+                </p>
+              </div>
+            </div>
+          </Section>
+        )
+      }
+
+      default: {
+        if (!sectionId.startsWith('section__')) return null
+        const secName = sectionId.slice('section__'.length)
+        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Clinical Information') === secName)
+        if (!fields.length) return null
+        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+        const si = allSecNames.indexOf(secName)
+        return (
+          <Section key={sectionId} title={secName} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {fields.map(field => (
+                  <ClinicalField key={field.id} field={field} editing={false}
+                    value={(patient.specialtyData ?? {})[field.id]} onChange={() => {}} />
+                ))}
+              </div>
+            </div>
+          </Section>
+        )
+      }
+    }
+  }
+
+  const effectiveLayout = sectionLayout.length ? sectionLayout : sectionDefs.map(d => ({ id: d.id, visible: true }))
 
   return (
     <AppLayout
@@ -794,319 +1214,86 @@ export default function PatientProfilePage() {
 
       {/* Tab 0: Overview */}
       {tab === 0 && (
-        <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Personal Details */}
-          <Section title="Personal Details"><div className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
-              <InfoRow label="National ID" value={patient.nationalId} />
-              <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
-              {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
-            </div>
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
-              <InfoRow label="Phone" value={patient.phone} />
-              <InfoRow label="Alt Phone" value={patient.alternatePhone} />
-              <InfoRow label="Email" value={patient.email} />
-              <InfoRow label="Address" value={patient.address} />
-            </div>
-            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
-            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
-            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
-            {patient.referralSource && (
-              <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
-            )}
-            {patient.referralNotes && <InfoRow label="Referral Details" value={patient.referralNotes} />}
-            {!patient.dateOfBirth && patient.ageManual && (
-              <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
-            )}
-            {patient.consentFormSigned && <InfoRow label="Consent" value="Form signed" />}
-          </div>
-          </Section>
+        <div className="space-y-5">
 
-          <div className="space-y-4">
-            <Section title="Medical Summary"><div className="p-6">
-
-              {/* From patient record */}
-              {patient.allergies?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.allergies.map(a => <Badge key={a} label={a} color="red"/>)}
-                  </div>
+          {/* ── Customize panel ── */}
+          {customizingProfile && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-primary-200 dark:border-primary-700 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Customize Profile Layout</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Drag to reorder · Toggle eye to show / hide sections</p>
                 </div>
-              )}
-              {patient.chronicConditions?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Chronic Conditions</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.chronicConditions.map(c => <Badge key={c} label={c} color="orange"/>)}
-                  </div>
-                </div>
-              )}
-              {patient.currentMedications?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Current Medications</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.currentMedications.map(m => <Badge key={m} label={m} color="blue"/>)}
-                  </div>
-                </div>
-              )}
-
-              {/* Aggregated from visits */}
-              {visits.length > 0 && (() => {
-                const allDiagnoses   = [...new Set(visits.flatMap(v => v.diagnosis || []).filter(Boolean))]
-                const allLabOrders   = [...new Set(visits.flatMap(v => v.labOrders  || []).filter(Boolean))]
-                const recentRx = visits
-                  .slice(0, 3)
-                  .flatMap(v => (v.prescriptions || []).map(p => p.medication).filter(Boolean))
-                const uniqueRx = [...new Set(recentRx)]
-                if (!allDiagnoses.length && !allLabOrders.length && !uniqueRx.length) return null
-                return (
-                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">From Visit History</p>
-                    {allDiagnoses.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Diagnoses</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allDiagnoses.map(d => <Badge key={d} label={d} color="purple"/>)}
-                        </div>
-                      </div>
-                    )}
-                    {uniqueRx.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Recent Prescriptions</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {uniqueRx.map(m => <Badge key={m} label={m} color="teal"/>)}
-                        </div>
-                      </div>
-                    )}
-                    {allLabOrders.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Lab Orders</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allLabOrders.map(l => <Badge key={l} label={l} color="gray"/>)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
-                <p className="text-sm text-gray-400">No medical history recorded.</p>
-              )}
-            </div></Section>
-
-            <Section title="Insurance"><div className="p-6">
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Provider" value={patient.insuranceProvider} />
-                <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
-                <InfoRow label="Group #" value={patient.insuranceGroupNumber} />
-                <InfoRow label="Expiry" value={patient.insuranceExpiry} />
-              </div>
-              {!patient.insuranceProvider && <p className="text-sm text-gray-400">No insurance details on file.</p>}
-            </div></Section>
-
-            {patient.emergencyContact?.name && (
-              <Section title="Emergency Contact"><div className="p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <InfoRow label="Name" value={patient.emergencyContact.name} />
-                  <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
-                  <InfoRow label="Phone" value={patient.emergencyContact.phone} />
-                </div>
-              </div></Section>
-            )}
-          </div>
-        </div>
-
-        {isHomeopathy(specialization) ? (<>
-        {/* ── History & Life Span ── */}
-        <Section title="History (H/o)"><div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-            <div>
-              <label className="form-label text-xs">Observation</label>
-              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                {patient.observation || '—'}
-              </p>
-            </div>
-            <div>
-              <label className="form-label text-xs">Past History</label>
-              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                {patient.pastHistory || '—'}
-              </p>
-            </div>
-            <div>
-              <label className="form-label text-xs">Family History</label>
-              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                {patient.familyHistory || '—'}
-              </p>
-            </div>
-            <div>
-              <label className="form-label text-xs">Notes</label>
-              <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                {patient.notes || '—'}
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div className="lg:col-span-3">
-              <div className="flex items-center justify-between mb-1">
-                <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                {patient.historyOf && (
-                  <button type="button" onClick={() => setHistoryExpanded(e => !e)}
-                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                    {historyExpanded ? 'Collapse' : 'Expand'}
-                    <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                    </svg>
+                <div className="flex items-center gap-2">
+                  <button onClick={cancelCustomizeProfile}
+                    className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-lg transition-colors">
+                    Cancel
                   </button>
-                )}
+                  <button onClick={saveProfileLayout} disabled={savingLayout}
+                    className="px-4 py-1.5 text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                    {savingLayout && (
+                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    )}
+                    Save Layout
+                  </button>
+                </div>
               </div>
-              {patient.historyOf ? (
-                <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
-                  {patient.historyOf}
-                </p>
-              ) : (
-                <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
-              )}
+              <div className="space-y-2">
+                {draftSectionLayout.map(item => {
+                  const def = sectionDefs.find(d => d.id === item.id)
+                  if (!def) return null
+                  return (
+                    <div key={item.id}
+                      draggable
+                      onDragStart={e => handleSectionDragStart(e, item.id)}
+                      onDragOver={e => handleSectionDragOver(e, item.id)}
+                      onDrop={handleSectionDrop}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 cursor-move select-none hover:border-gray-200 dark:hover:border-gray-600 transition-colors">
+                      <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+                      </svg>
+                      <span className="text-base">{def.icon}</span>
+                      <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{def.label}</span>
+                      <button type="button" onClick={() => toggleSectionVisible(item.id)}
+                        title={item.visible ? 'Hide section' : 'Show section'}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          item.visible
+                            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40'
+                            : 'text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500'
+                        }`}>
+                        {item.visible
+                          ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                        }
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div>
-              <label className="form-label text-xs">Life Span</label>
-              <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                {patient.lifeSpan || '—'}
-              </p>
+          )}
+
+          {/* ── Customize button ── */}
+          {!customizingProfile && (
+            <div className="flex justify-end">
+              <button onClick={() => { setDraftSectionLayout(sectionLayout.length ? sectionLayout : effectiveLayout); setCustomizingProfile(true) }}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                </svg>
+                Customize Layout
+              </button>
             </div>
-          </div>
-        </div></Section>
+          )}
 
-        {/* ── Generals ── */}
-        <Section title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
-          <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {[
-                  ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
-                  ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
-                  ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
-                ].map(([key, label], i) => (
-                  <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                        {patient.generals?.[key] || '—'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {(patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
-                  <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                        {field.value || '—'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div></Section>
-
-        {/* ── Chief Complaints ── */}
-        {(patient.chiefComplaints ?? []).some(c => c.complaint) && (
-          <Section title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full min-w-[640px]">
-                <thead>
-                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
-                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
-                    <tr key={i}>
-                      {['complaint','location','sensation','modality','concomitant'].map(field => (
-                        <td key={field} className="px-1.5 py-2">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Section>
-        )}
-
-        {/* ── Prescription Details ── */}
-        {patient.prescriptionDetails && (
-          <Section title="Prescription Details" accentClass="border-l-teal-500">
-            <div className="p-6">
-              <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
-            </div>
-          </Section>
-        )}
-
-        </>) : (() => {
-          const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
-          const fields = doctor?.patientFormFields ?? []
-          const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
-          return (
-            <>
-              {hasMedHistory && (
-                <Section title="Other Medical History" accentClass="border-l-blue-500">
-                  <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <p className="form-label text-xs">Observation</p>
-                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                        {patient.observation || '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="form-label text-xs">Past History</p>
-                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                        {patient.pastHistory || '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="form-label text-xs">Family History</p>
-                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                        {patient.familyHistory || '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="form-label text-xs">Notes</p>
-                      <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                        {patient.notes || '—'}
-                      </p>
-                    </div>
-                  </div>
-                </Section>
-              )}
-              {fields.length > 0 && sections.map((sec, si) => (
-                <Section key={sec} title={sec} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
-                        <ClinicalField
-                          key={field.id}
-                          field={field}
-                          editing={false}
-                          value={(patient.specialtyData ?? {})[field.id]}
-                          onChange={() => {}}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </Section>
-              ))}
-            </>
-          )
-        })()}
+          {/* ── Ordered sections ── */}
+          {effectiveLayout.map(item => {
+            if (!item.visible) return null
+            return renderSection(item.id)
+          })}
 
         </div>
       )}
