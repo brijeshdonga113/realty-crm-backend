@@ -35,6 +35,7 @@ function VisitEntryForm() {
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
   const reasonParam   = searchParams.get('reason') ?? ''
+  const editVisitId   = searchParams.get('editVisitId') ?? ''
   // useRef so the active draft ID persists across re-renders without triggering
   // re-renders itself, and survives window.history.replaceState which doesn't
   // update useSearchParams in Next.js App Router.
@@ -74,7 +75,7 @@ function VisitEntryForm() {
     method: '',
     collectedBy: isReceptionist ? 'receptionist' : 'doctor',
     description: 'Consultation Fee',
-    status: 'paid',
+    status: '',
     taxRate: 0,
     discount: 0,
   }))
@@ -169,6 +170,28 @@ function VisitEntryForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId])
 
+  // Load existing visit data when editVisitId param is present (edit mode from patient profile).
+  useEffect(() => {
+    if (!editVisitId || !patientId) return
+    visitService.getById(editVisitId, patientId).then(v => {
+      if (!v) return
+      setForm({
+        visitDate:      v.visitDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        chiefComplaint: v.chiefComplaint || '',
+        history:        v.history || '',
+        findings:       v.examination?.findings || '',
+        diagnosis:      v.diagnosis || [],
+        treatment:      v.treatment || '',
+        prescriptions:  v.prescriptions || [],
+        labOrders:      v.labOrders || [],
+        followUpDate:   v.followUpDate || '',
+        notes:          v.notes || '',
+        vitalSigns:     v.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+      })
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editVisitId, patientId])
+
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
@@ -229,6 +252,8 @@ function VisitEntryForm() {
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
+    if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
+    if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
     if (useInvoice) {
       if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
     } else {
@@ -255,9 +280,11 @@ function VisitEntryForm() {
     setSaveError('')
     try {
       const visitData = { ...buildVisitData(), prescriptions: finalPrescriptions }
-      const visit = draftIdRef.current
-        ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
-        : await visitService.create(visitData)
+      const visit = editVisitId
+        ? await visitService.update(editVisitId, { ...visitData, status: 'completed' }, patientId)
+        : draftIdRef.current
+          ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
+          : await visitService.create(visitData)
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
@@ -379,7 +406,7 @@ function VisitEntryForm() {
   /* ───── Form ───── */
   return (
     <AppLayout
-      title={patient ? `Visit — ${patient.firstName} ${patient.lastName}` : 'Record Visit'}
+      title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
         <button onClick={() => router.back()}
           className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
@@ -989,54 +1016,60 @@ function VisitEntryForm() {
 
           {/* Shared payment meta */}
           <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 space-y-4">
-            <div>
-              <label className="form-label">Payment Method</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {PAYMENT_METHODS.map(m => (
-                  <button type="button" key={m.value}
-                    onClick={() => setPayment(p => ({ ...p, method: p.method === m.value ? '' : m.value }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      payment.method === m.value
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-                    }`}>{m.label}</button>
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Payment Status <span className="text-red-500">*</span></label>
+                <div className={`flex rounded-lg border overflow-hidden text-sm font-medium ${!payment.status ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-gray-600'}`}>
+                  <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'paid' }))}
+                    className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                    Paid
+                  </button>
+                  <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'draft' }))}
+                    className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Due
+                  </button>
+                </div>
+                {!payment.status && <p className="text-xs text-red-500 mt-1">Required — select Paid or Due</p>}
+              </div>
+
+              <div>
+                <label className="form-label">Payment Method <span className="text-red-500">*</span></label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {PAYMENT_METHODS.map(m => (
+                    <button type="button" key={m.value}
+                      onClick={() => setPayment(p => ({ ...p, method: p.method === m.value ? '' : m.value }))}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                        payment.method === m.value
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : !payment.method
+                            ? 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-red-200 dark:border-red-700 hover:border-primary-400'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                      }`}>{m.label}</button>
+                  ))}
+                </div>
+                {!payment.method && <p className="text-xs text-red-500 mt-1">Required — select a method</p>}
               </div>
             </div>
 
-            {payment.method && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'paid' }))}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-                      Paid
-                    </button>
-                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'draft' }))}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      Due
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label">Collected By</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    {COLLECTED_BY_OPTIONS.map(o => (
-                      <button type="button" key={o.value}
-                        onClick={() => setPayment(p => ({ ...p, collectedBy: o.value }))}
-                        className={`flex-1 py-2 transition-colors text-center ${
-                          payment.collectedBy === o.value
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}>{o.label}</button>
-                    ))}
-                  </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>{/* spacer */}</div>
+              <div>
+                <label className="form-label">Collected By</label>
+                <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                  {COLLECTED_BY_OPTIONS.map(o => (
+                    <button type="button" key={o.value}
+                      onClick={() => setPayment(p => ({ ...p, collectedBy: o.value }))}
+                      className={`flex-1 py-2 transition-colors text-center ${
+                        payment.collectedBy === o.value
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}>{o.label}</button>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -1063,7 +1096,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft Saved' : 'Save as Draft'}
           </button>
           <button onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
             {saving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

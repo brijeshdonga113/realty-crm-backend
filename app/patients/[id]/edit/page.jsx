@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
@@ -224,15 +224,6 @@ export default function EditPatientPage() {
     if (patient && !form) setFormState(patientToForm(patient))
   }, [patient, form])
 
-  const complaintRefs   = useRef([])
-  const pendingFocusRow = useRef(null)
-
-  useEffect(() => {
-    if (pendingFocusRow.current !== null) {
-      complaintRefs.current[pendingFocusRow.current]?.focus()
-      pendingFocusRow.current = null
-    }
-  }, [form?.chiefComplaints?.length])
 
   if (loading || !form) return (
     <AppLayout title="Edit Patient">
@@ -254,18 +245,6 @@ export default function EditPatientPage() {
   })
   const addComplaint    = () => setFormState(p => ({ ...p, chiefComplaints: [...p.chiefComplaints, { ...EMPTY_COMPLAINT }] }))
   const removeComplaint = (i) => setFormState(p => ({ ...p, chiefComplaints: p.chiefComplaints.filter((_, j) => j !== i) }))
-
-  const handleComplaintKeyDown = (e, rowIdx) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      if (rowIdx === form.chiefComplaints.length - 1) {
-        addComplaint()
-        pendingFocusRow.current = rowIdx + 1
-      } else {
-        complaintRefs.current[rowIdx + 1]?.focus()
-      }
-    }
-  }
 
   const addCustomGeneral    = () => setFormState(p => ({ ...p, customGenerals: [...p.customGenerals, { id: Date.now().toString(36), label: '', value: '' }] }))
   const removeCustomGeneral = (gid) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.filter(g => g.id !== gid) }))
@@ -534,14 +513,12 @@ export default function EditPatientPage() {
                         <tr key={i} className="group border-t border-gray-100 dark:border-gray-700 first:border-t-0">
                           {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map((field, fi) => (
                             <td key={field} className="px-2 py-1.5 border-r border-gray-100 dark:border-gray-700 align-top">
-                              <AutoTextarea
-                                ref={fi === 0 ? el => { complaintRefs.current[i] = el } : undefined}
+                              <textarea
+                                rows={2}
                                 value={row[field]}
                                 onChange={e => setComplaint(i, field, e.target.value)}
-                                onKeyDown={e => handleComplaintKeyDown(e, i)}
                                 placeholder="—"
                                 className="w-full text-sm px-1 py-0.5 bg-transparent border-0 outline-none resize-none text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none"
-                                style={{ minHeight: '28px' }}
                               />
                             </td>
                           ))}
@@ -557,9 +534,13 @@ export default function EditPatientPage() {
                   </table>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
-                Press <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Enter</kbd> in any cell to add a new row, or <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Shift+Enter</kbd> for a line break.
-              </p>
+              <button type="button" onClick={addComplaint}
+                className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Row
+              </button>
             </SectionCard>
 
             {/* ── Physical Generals ─────────────────────────────────────── */}

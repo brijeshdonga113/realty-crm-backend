@@ -136,6 +136,7 @@ function InfoRow({ label, value }) {
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp, defaultExpanded = false }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
+  const router = useRouter()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -143,19 +144,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const [diagInput, setDiagInput] = useState('')
 
   const openEdit = () => {
-    setEditForm({
-      chiefComplaint: visit.chiefComplaint || '',
-      history:        visit.history || '',
-      findings:       visit.examination?.findings || '',
-      diagnosis:      [...(visit.diagnosis || [])],
-      treatment:      visit.treatment || '',
-      notes:          visit.notes || '',
-      followUpDate:   visit.followUpDate || '',
-      paymentAmount:  linkedInvoice ? String(linkedInvoice.total ?? '') : '',
-      paymentMethod:  linkedInvoice?.paymentMethod || 'cash',
-      paymentStatus:  linkedInvoice?.status || 'paid',
-    })
-    setEditing(true)
+    router.push(`/visits/new?patientId=${patientId}&editVisitId=${visit.id}`)
   }
 
   const handleUpdate = async () => {
@@ -615,6 +604,7 @@ export default function PatientProfilePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
   const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [historyTab, setHistoryTab]           = useState(0)
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -918,67 +908,84 @@ export default function PatientProfilePage() {
           </div></Section>
         )
 
-      case 'history_ho':
+      case 'history_ho': {
         if (!isHomeopathy(specialization)) return null
+        const historyTabs = ['History', 'Female / Male H/o', 'Life Span']
         return (
-          <Section key="history_ho" title="History (H/o)"><div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <label className="form-label text-xs">Observation</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.observation || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Past History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.pastHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Family History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.familyHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Notes</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.notes || '—'}
-                </p>
-              </div>
+          <Section key="history_ho" title="History (H/o)">
+            {/* Tab bar */}
+            <div className="flex border-b border-gray-100 dark:border-gray-700 px-4">
+              {historyTabs.map((tab, idx) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setHistoryTab(idx)}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                    historyTab === idx
+                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-4">
-              <div className="lg:col-span-3">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                  {patient.historyOf && (
-                    <button type="button" onClick={() => setHistoryExpanded(e => !e)}
-                      className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                      {historyExpanded ? 'Collapse' : 'Expand'}
-                      <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                      </svg>
-                    </button>
+
+            <div className="p-6">
+              {historyTab === 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <label className="form-label text-xs">Observation</label>
+                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                      {patient.observation || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Past History</label>
+                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                      {patient.pastHistory || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Family History</label>
+                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                      {patient.familyHistory || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="form-label text-xs">Notes</label>
+                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                      {patient.notes || '—'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {historyTab === 1 && (
+                <div>
+                  <label className="form-label text-xs">Female / Male H/o</label>
+                  {patient.historyOf ? (
+                    <p className="text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                      {patient.historyOf}
+                    </p>
+                  ) : (
+                    <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
                   )}
                 </div>
-                {patient.historyOf ? (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
-                    {patient.historyOf}
+              )}
+
+              {historyTab === 2 && (
+                <div>
+                  <label className="form-label text-xs">Life Span</label>
+                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                    {patient.lifeSpan || '—'}
                   </p>
-                ) : (
-                  <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
-                )}
-              </div>
-              <div>
-                <label className="form-label text-xs">Life Span</label>
-                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.lifeSpan || '—'}
-                </p>
-              </div>
+                </div>
+              )}
             </div>
-          </div></Section>
+          </Section>
         )
+      }
 
       case 'generals':
         if (!isHomeopathy(specialization)) return null
@@ -1035,7 +1042,7 @@ export default function PatientProfilePage() {
                     <tr key={i}>
                       {['complaint','location','sensation','modality','concomitant'].map(field => (
                         <td key={field} className="px-1.5 py-2">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2 whitespace-pre-wrap">{row[field] || '—'}</span>
                         </td>
                       ))}
                     </tr>
