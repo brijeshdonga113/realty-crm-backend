@@ -11,6 +11,7 @@ import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { getBillingItems } from '@/lib/specialtyPresets'
+import ServiceSuggest from '@/components/ui/ServiceSuggest'
 
 function StockBadge({ invItem, qty }) {
   if (!invItem) return null
@@ -63,6 +64,16 @@ function NewInvoiceForm() {
       if (item.id !== id) return item
       const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...item, [field]: value }
+      const lineTotal  = updated.quantity * updated.unitPrice
+      const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
+      return { ...updated, total: lineTotal - discAmount }
+    }))
+  }
+
+  const selectServiceItem = (id, name, price) => {
+    setLineItems(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const updated = { ...item, description: name, unitPrice: Number(price) || 0 }
       const lineTotal  = updated.quantity * updated.unitPrice
       const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
       return { ...updated, total: lineTotal - discAmount }
@@ -284,14 +295,21 @@ function NewInvoiceForm() {
               </div>
             </div>
 
-            {/* Quick-add service presets */}
-            {getBillingItems(doctor?.specialization).length > 0 && (
+            {/* Quick-add service presets + saved service charges */}
+            {(getBillingItems(doctor?.specialization).length > 0 || (doctor?.serviceCharges ?? []).length > 0) && (
               <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
                 <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
                 {getBillingItems(doctor?.specialization).map(item => (
                   <button key={item.description} type="button" onClick={() => addService(item)}
                     className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
                     + {item.description}
+                  </button>
+                ))}
+                {(doctor?.serviceCharges ?? []).map(sc => (
+                  <button key={sc.id} type="button"
+                    onClick={() => addService({ description: sc.name, unitPrice: sc.price || 0 })}
+                    className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
+                    + {sc.name}{sc.price > 0 ? ` (₹${Number(sc.price).toLocaleString('en-IN')})` : ''}
                   </button>
                 ))}
               </div>
@@ -386,10 +404,11 @@ function NewInvoiceForm() {
                           )}
                         </>
                       ) : (
-                        <input
+                        <ServiceSuggest
                           value={item.description}
-                          onChange={e => updateItem(item.id, 'description', e.target.value)}
-                          placeholder="Service description"
+                          onChange={desc => updateItem(item.id, 'description', desc)}
+                          onSelect={(name, price) => selectServiceItem(item.id, name, price)}
+                          services={doctor?.serviceCharges ?? []}
                           className="input-field text-sm py-2 w-full"
                         />
                       )}
