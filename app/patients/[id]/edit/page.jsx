@@ -513,12 +513,11 @@ export default function EditPatientPage() {
                         <tr key={i} className="group border-t border-gray-100 dark:border-gray-700 first:border-t-0">
                           {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map((field, fi) => (
                             <td key={field} className="px-2 py-1.5 border-r border-gray-100 dark:border-gray-700 align-top">
-                              <textarea
-                                rows={2}
+                              <AutoTextarea
                                 value={row[field]}
                                 onChange={e => setComplaint(i, field, e.target.value)}
                                 placeholder="—"
-                                className="w-full text-sm px-1 py-0.5 bg-transparent border-0 outline-none resize-none text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none"
+                                className="w-full text-sm px-1 py-0.5 bg-transparent border-0 outline-none text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none"
                               />
                             </td>
                           ))}

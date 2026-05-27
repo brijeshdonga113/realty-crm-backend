@@ -522,6 +522,34 @@ export default function SettingsPage() {
     setBillEditingIdx(null)
   }
 
+  // ── Services & Charges ──────────────────────────────────────────────────────
+  const [serviceCharges,  setServiceCharges]  = useState(() => doctor?.serviceCharges ?? [])
+  const [scName,          setScName]          = useState('')
+  const [scPrice,         setScPrice]         = useState('')
+  const [scSaving,        setScSaving]        = useState(false)
+  const [scSaved,         setScSaved]         = useState(false)
+
+  const addServiceCharge = () => {
+    const name = scName.trim()
+    if (!name) return
+    const price = Number(scPrice) || 0
+    setServiceCharges(prev => [...prev, { id: Date.now().toString(36), name, price }])
+    setScName('')
+    setScPrice('')
+    setScSaved(false)
+  }
+  const removeServiceCharge = (id) => { setServiceCharges(prev => prev.filter(s => s.id !== id)); setScSaved(false) }
+  const saveServiceCharges = async () => {
+    setScSaving(true)
+    try {
+      await updateProfile({ serviceCharges })
+      setScSaved(true)
+      setTimeout(() => setScSaved(false), 2500)
+    } finally {
+      setScSaving(false)
+    }
+  }
+
   const [codeGenerating, setCodeGenerating] = useState(false)
   const [codeCopied, setCodeCopied]         = useState(false)
 
@@ -1081,6 +1109,66 @@ export default function SettingsPage() {
           </div>
         </CollapsibleSection>
 
+
+        {/* ── Services & Charges ───────────────────────────────────────────── */}
+        <CollapsibleSection title="Services & Charges" description="Define your clinic's service items with default prices. These appear as quick-add presets when recording a visit invoice." defaultOpen={false}>
+          <div className="p-6 space-y-4">
+            {serviceCharges.length > 0 && (
+              <div className="space-y-2">
+                {serviceCharges.map(sc => (
+                  <div key={sc.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{sc.name}</span>
+                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 tabular-nums">
+                      {sc.price > 0 ? `₹${Number(sc.price).toLocaleString('en-IN')}` : '—'}
+                    </span>
+                    <button type="button" onClick={() => removeServiceCharge(sc.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="form-label">Service Name</label>
+                <input value={scName} onChange={e => { setScName(e.target.value); setScSaved(false) }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addServiceCharge() } }}
+                  placeholder="e.g. Consultation Fee, X-Ray…" className="input-field"/>
+              </div>
+              <div className="w-32">
+                <label className="form-label">Price (₹)</label>
+                <input type="number" min="0" value={scPrice} onChange={e => { setScPrice(e.target.value); setScSaved(false) }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addServiceCharge() } }}
+                  placeholder="0" className="input-field"/>
+              </div>
+              <button type="button" onClick={addServiceCharge}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors whitespace-nowrap">
+                + Add
+              </button>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-4">
+            {scSaved && (
+              <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+                Saved!
+              </p>
+            )}
+            <div className="ml-auto">
+              <button type="button" onClick={saveServiceCharges} disabled={scSaving}
+                className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                {scSaving ? (
+                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                ) : 'Save Services'}
+              </button>
+            </div>
+          </div>
+        </CollapsibleSection>
 
         {/* ── Booking Page ─────────────────────────────────────────────────── */}
         <BookingSettings doctor={doctor} updateProfile={updateProfile} />

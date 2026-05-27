@@ -755,14 +755,21 @@ function VisitEntryForm() {
                 </div>
               </div>
 
-              {/* Quick-add service presets */}
-              {getBillingItems(doctor?.specialization).length > 0 && (
+              {/* Quick-add service presets (specialty defaults + doctor's custom services) */}
+              {(getBillingItems(doctor?.specialization).length > 0 || (doctor?.serviceCharges ?? []).length > 0) && (
                 <div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
                   {getBillingItems(doctor?.specialization).map(item => (
                     <button key={item.description} type="button" onClick={() => addServiceLine(item)}
                       className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
                       + {item.description}
+                    </button>
+                  ))}
+                  {(doctor?.serviceCharges ?? []).map(sc => (
+                    <button key={sc.id} type="button"
+                      onClick={() => addServiceLine({ description: sc.name, unitPrice: sc.price || 0 })}
+                      className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
+                      + {sc.name}{sc.price > 0 ? ` (₹${Number(sc.price).toLocaleString('en-IN')})` : ''}
                     </button>
                   ))}
                 </div>

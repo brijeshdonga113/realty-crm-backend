@@ -603,8 +603,6 @@ export default function PatientProfilePage() {
   const [tab, setTab]            = useState(0)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
-  const [historyTab, setHistoryTab]           = useState(0)
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -908,84 +906,56 @@ export default function PatientProfilePage() {
           </div></Section>
         )
 
-      case 'history_ho': {
+      case 'history_ho':
         if (!isHomeopathy(specialization)) return null
-        const historyTabs = ['History', 'Female / Male H/o', 'Life Span']
         return (
-          <Section key="history_ho" title="History (H/o)">
-            {/* Tab bar */}
-            <div className="flex border-b border-gray-100 dark:border-gray-700 px-4">
-              {historyTabs.map((tab, idx) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setHistoryTab(idx)}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                    historyTab === idx
-                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
+          <Section key="history_ho" title="History (H/o)"><div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label text-xs">Observation</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.observation || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Past History</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.pastHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Family History</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.familyHistory || '—'}
+                </p>
+              </div>
+              <div>
+                <label className="form-label text-xs">Notes</label>
+                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                  {patient.notes || '—'}
+                </p>
+              </div>
             </div>
-
-            <div className="p-6">
-              {historyTab === 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label text-xs">Observation</label>
-                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                      {patient.observation || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Past History</label>
-                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                      {patient.pastHistory || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Family History</label>
-                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                      {patient.familyHistory || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Notes</label>
-                    <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                      {patient.notes || '—'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {historyTab === 1 && (
+            {(patient.historyOf || patient.lifeSpan) && (
+              <div className="pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="form-label text-xs">Female / Male H/o</label>
                   {patient.historyOf ? (
-                    <p className="text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                      {patient.historyOf}
-                    </p>
+                    <p className="text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.historyOf}</p>
                   ) : (
                     <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
                   )}
                 </div>
-              )}
-
-              {historyTab === 2 && (
                 <div>
                   <label className="form-label text-xs">Life Span</label>
                   <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                     {patient.lifeSpan || '—'}
                   </p>
                 </div>
-              )}
-            </div>
-          </Section>
+              </div>
+            )}
+          </div></Section>
         )
-      }
 
       case 'generals':
         if (!isHomeopathy(specialization)) return null
@@ -1029,11 +999,11 @@ export default function PatientProfilePage() {
         return (
           <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="p-4 overflow-x-auto">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[640px] table-fixed">
                 <thead>
                   <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
-                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
+                    {[['Complaint (C/O)','24%'],['Location (LO)','19%'],['Sensation (S)','19%'],['Modality (M)','19%'],['Concomitant (C)','19%']].map(([h, w]) => (
+                      <th key={h} style={{ width: w }} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
