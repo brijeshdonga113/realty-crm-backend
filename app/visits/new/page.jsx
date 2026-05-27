@@ -25,6 +25,72 @@ const WA_ICON = (
 )
 
 
+// Autocomplete for service description — shows doctor's saved services as dropdown
+function ServiceSuggest({ value, onChange, onSelect, services, readOnly, className }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState(value)
+  const ref = useRef(null)
+
+  // Sync external value changes (e.g. quick-add chips)
+  useEffect(() => { setQuery(value) }, [value])
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = services.filter(s =>
+    !query || s.name.toLowerCase().includes(query.toLowerCase())
+  )
+
+  const handleChange = e => {
+    setQuery(e.target.value)
+    onChange(e.target.value)
+    setOpen(true)
+  }
+
+  const handlePick = sc => {
+    setQuery(sc.name)
+    onSelect(sc.name, sc.price)
+    setOpen(false)
+  }
+
+  if (readOnly) return (
+    <input value={value} readOnly className={className}/>
+  )
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        value={query}
+        onChange={handleChange}
+        onFocus={() => setOpen(true)}
+        placeholder="Service description"
+        className={className}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+          {filtered.map(sc => (
+            <li key={sc.id}>
+              <button type="button" onMouseDown={() => handlePick(sc)}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left transition-colors">
+                <span className="font-medium text-gray-800 dark:text-gray-200">{sc.name}</span>
+                {sc.price > 0 && (
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 ml-3 flex-shrink-0">
+                    ₹{Number(sc.price).toLocaleString('en-IN')}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -104,6 +170,16 @@ function VisitEntryForm() {
       if (line.id !== id) return line
       const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...line, [field]: value }
+      const lineTotal  = updated.quantity * updated.unitPrice
+      const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
+      return { ...updated, total: lineTotal - discAmount }
+    }))
+  }
+
+  const selectService = (id, name, price) => {
+    setInvoiceLines(prev => prev.map(line => {
+      if (line.id !== id) return line
+      const updated = { ...line, description: name, unitPrice: Number(price) || 0 }
       const lineTotal  = updated.quantity * updated.unitPrice
       const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
       return { ...updated, total: lineTotal - discAmount }
@@ -846,10 +922,11 @@ function VisitEntryForm() {
                             )}
                           </>
                         ) : (
-                          <input
+                          <ServiceSuggest
                             value={line.description}
-                            onChange={e => updateLine(line.id, 'description', e.target.value)}
-                            placeholder={isMedicine ? 'Medicine name' : 'Service description'}
+                            onChange={desc => updateLine(line.id, 'description', desc)}
+                            onSelect={(name, price) => selectService(line.id, name, price)}
+                            services={doctor?.serviceCharges ?? []}
                             readOnly={!!line.rxId}
                             className={`input-field text-sm py-2 w-full ${line.rxId ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400' : ''}`}
                           />

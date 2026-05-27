@@ -975,27 +975,29 @@ export default function PatientProfilePage() {
         if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
         return (
           <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full min-w-[640px] table-fixed">
-                <thead>
-                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                    {[['Complaint (C/O)','24%'],['Location (LO)','19%'],['Sensation (S)','19%'],['Modality (M)','19%'],['Concomitant (C)','19%']].map(([h, w]) => (
-                      <th key={h} style={{ width: w }} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
-                    <tr key={i}>
-                      {['complaint','location','sensation','modality','concomitant'].map(field => (
-                        <td key={field} className="px-1.5 py-2">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2 whitespace-pre-wrap">{row[field] || '—'}</span>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
+                <div key={i} className="px-5 py-4">
+                  {/* Complaint heading */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">{row.complaint}</p>
+                  </div>
+                  {/* Sub-fields — only render if they have content */}
+                  {(row.location || row.sensation || row.modality || row.concomitant) && (
+                    <div className="ml-9 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                      {[['Location','location'],['Sensation','sensation'],['Modality','modality'],['Concomitant','concomitant']].map(([label, key]) =>
+                        row[key] ? (
+                          <div key={key}>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">{label}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{row[key]}</p>
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </Section>
         )
