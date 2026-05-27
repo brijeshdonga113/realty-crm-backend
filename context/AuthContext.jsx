@@ -44,6 +44,7 @@ function buildDoctorProfile(uid, data) {
     waTemplates:   data.waTemplates   ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],
     patientFormFields:     data.patientFormFields     ?? [],
+    serviceCharges:        data.serviceCharges        ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
   }
 }

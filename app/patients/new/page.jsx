@@ -8,7 +8,7 @@ import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { useAuth } from '@/context/AuthContext'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { isHomeopathy } from '@/lib/patientIntakePresets'
+import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 
 const GENERALS_CONFIG = [
   { key: 'appetite',     label: 'Appetite'     },
@@ -678,32 +678,46 @@ function NewCaseForm() {
             </SectionCard>
           </>
         ) : (() => {
-          // Non-homeopathy: render doctor's saved patientFormFields grouped by section
-          const fields = doctor?.patientFormFields ?? []
-          if (!fields.length) return (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-8 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">No clinical fields configured yet.</p>
-              <a href="/settings" className="mt-2 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium block">
-                Go to Settings → Patient Registration Fields to set them up
-              </a>
-            </div>
-          )
+          // Non-homeopathy: render specialty-specific sections from presets,
+          // then any additional custom fields the doctor has saved.
+          const presetSections = getIntakeSections(specialization)
+          const customFields   = doctor?.patientFormFields ?? []
+          const customSections = customFields.length
+            ? [...new Set(customFields.map(f => f.section || 'Additional Info'))]
+            : []
           const ACCENT_KEYS = ['blue', 'teal', 'green', 'purple', 'orange']
-          const sections = [...new Set(fields.map(f => f.section || 'Clinical Information'))]
-          return sections.map((sec, si) => (
-            <SectionCard key={sec} title={sec} accentColor={ACCENT_KEYS[si % ACCENT_KEYS.length]} defaultOpen={false}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {fields.filter(f => (f.section || 'Clinical Information') === sec).map(field => (
-                  <ClinicalField
-                    key={field.id}
-                    field={field}
-                    value={(form.specialtyData || {})[field.id]}
-                    onChange={v => setSpecialtyField(field.id, v)}
-                  />
-                ))}
-              </div>
-            </SectionCard>
-          ))
+          return (
+            <>
+              {presetSections.map(sec => (
+                <SectionCard key={sec.title} title={sec.title} accentColor={sec.accentColor} defaultOpen={false}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {sec.fields.map(field => (
+                      <ClinicalField
+                        key={field.key}
+                        field={field}
+                        value={(form.specialtyData || {})[field.key]}
+                        onChange={v => setSpecialtyField(field.key, v)}
+                      />
+                    ))}
+                  </div>
+                </SectionCard>
+              ))}
+              {customSections.map((sec, si) => (
+                <SectionCard key={`custom-${sec}`} title={sec} accentColor={ACCENT_KEYS[si % ACCENT_KEYS.length]} defaultOpen={false}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {customFields.filter(f => (f.section || 'Additional Info') === sec).map(field => (
+                      <ClinicalField
+                        key={field.id}
+                        field={field}
+                        value={(form.specialtyData || {})[field.id]}
+                        onChange={v => setSpecialtyField(field.id, v)}
+                      />
+                    ))}
+                  </div>
+                </SectionCard>
+              ))}
+            </>
+          )
         })()}
 
         {/* ── Footer Actions ────────────────────────────────────────────────── */}

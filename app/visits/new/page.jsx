@@ -14,14 +14,17 @@ import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { getDiagnosisSuggestions, getBillingItems } from '@/lib/specialtyPresets'
+import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 import { useInventory } from '@/hooks/useInventory'
+import { useAppointments } from '@/hooks/useAppointments'
+import ServiceSuggest from '@/components/ui/ServiceSuggest'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
   </svg>
 )
+
 
 
 function VisitEntryForm() {
@@ -34,6 +37,7 @@ function VisitEntryForm() {
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
   const reasonParam   = searchParams.get('reason') ?? ''
+  const editVisitId   = searchParams.get('editVisitId') ?? ''
   // useRef so the active draft ID persists across re-renders without triggering
   // re-renders itself, and survives window.history.replaceState which doesn't
   // update useSearchParams in Next.js App Router.
@@ -72,8 +76,8 @@ function VisitEntryForm() {
     amount: '',
     method: '',
     collectedBy: isReceptionist ? 'receptionist' : 'doctor',
-    description: 'Consultation Fee',
-    status: 'paid',
+    description: '',
+    status: '',
     taxRate: 0,
     discount: 0,
   }))
@@ -86,9 +90,10 @@ function VisitEntryForm() {
   const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
   const [rxSugOpen,    setRxSugOpen]    = useState(false)
 
-  const [useInvoice, setUseInvoice] = useState(false)
+  const { appointments: allAppointments } = useAppointments()
+  const [useInvoice, setUseInvoice] = useState(true)
   const [invoiceLines, setInvoiceLines] = useState(() => [
-    createLineItem({ description: 'Consultation Fee', itemType: 'service' })
+    createLineItem({ description: '', itemType: 'service' })
   ])
 
   const invoiceSubtotal  = invoiceLines.reduce((s, l) => s + (l.total ?? 0), 0)
@@ -101,6 +106,16 @@ function VisitEntryForm() {
       if (line.id !== id) return line
       const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...line, [field]: value }
+      const lineTotal  = updated.quantity * updated.unitPrice
+      const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
+      return { ...updated, total: lineTotal - discAmount }
+    }))
+  }
+
+  const selectService = (id, name, price) => {
+    setInvoiceLines(prev => prev.map(line => {
+      if (line.id !== id) return line
+      const updated = { ...line, description: name, unitPrice: Number(price) || 0 }
       const lineTotal  = updated.quantity * updated.unitPrice
       const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
       return { ...updated, total: lineTotal - discAmount }
@@ -167,6 +182,28 @@ function VisitEntryForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId])
 
+  // Load existing visit data when editVisitId param is present (edit mode from patient profile).
+  useEffect(() => {
+    if (!editVisitId || !patientId) return
+    visitService.getById(editVisitId, patientId).then(v => {
+      if (!v) return
+      setForm({
+        visitDate:      v.visitDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        chiefComplaint: v.chiefComplaint || '',
+        history:        v.history || '',
+        findings:       v.examination?.findings || '',
+        diagnosis:      v.diagnosis || [],
+        treatment:      v.treatment || '',
+        prescriptions:  v.prescriptions || [],
+        labOrders:      v.labOrders || [],
+        followUpDate:   v.followUpDate || '',
+        notes:          v.notes || '',
+        vitalSigns:     v.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+      })
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editVisitId, patientId])
+
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
@@ -227,6 +264,8 @@ function VisitEntryForm() {
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
+    if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
+    if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
     if (useInvoice) {
       if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
     } else {
@@ -253,9 +292,11 @@ function VisitEntryForm() {
     setSaveError('')
     try {
       const visitData = { ...buildVisitData(), prescriptions: finalPrescriptions }
-      const visit = draftIdRef.current
-        ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
-        : await visitService.create(visitData)
+      const visit = editVisitId
+        ? await visitService.update(editVisitId, { ...visitData, status: 'completed' }, patientId)
+        : draftIdRef.current
+          ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
+          : await visitService.create(visitData)
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
@@ -377,12 +418,36 @@ function VisitEntryForm() {
   /* ───── Form ───── */
   return (
     <AppLayout
-      title={patient ? `Visit — ${patient.firstName} ${patient.lastName}` : 'Record Visit'}
+      title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
-        <button onClick={() => router.back()}
-          className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
-          ← Back
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()}
+            className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
+            ← Back
+          </button>
+          <button type="button" onClick={handleSaveDraft}
+            disabled={savingDraft || saving || !patientId}
+            className="px-4 py-1.5 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed">
+            {savingDraft && (
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft' : 'Save Draft'}
+          </button>
+          <button type="button" onClick={handleSave}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+            {saving && (
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+          </button>
+        </div>
       }
     >
       <div className="max-w-6xl mx-auto pb-10">
@@ -666,21 +731,40 @@ function VisitEntryForm() {
               </button>
             </div>
           )}
+          {/* Appointments already booked on the selected follow-up date */}
+          {form.followUpDate && (() => {
+            const apptOnDay = allAppointments.filter(a => a.date === form.followUpDate && a.status !== 'cancelled')
+            if (!apptOnDay.length) return null
+            return (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                  {apptOnDay.length} appointment{apptOnDay.length !== 1 ? 's' : ''} already on this day:
+                </p>
+                <div className="space-y-1.5">
+                  {apptOnDay.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 text-xs bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border border-blue-100 dark:border-blue-800">
+                      <span className="font-bold text-blue-700 dark:text-blue-300 tabular-nums w-10 flex-shrink-0">{a.time}</span>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium flex-1 truncate">{a.patientName}</span>
+                      <span className="text-gray-400 dark:text-gray-500 capitalize hidden sm:block">{a.type?.replace(/_/g, ' ') || 'Appointment'}</span>
+                      <span className={`flex-shrink-0 px-1.5 py-0.5 rounded font-medium capitalize ${
+                        a.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                        a.status === 'scheduled' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}>{a.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Payment / Invoice */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          {/* Header with invoice toggle */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Payment Collection <span className="text-red-500">*</span></h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Required — enter the amount for this visit</p>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={useInvoice} onChange={e => setUseInvoice(e.target.checked)}
-                className="rounded border-gray-300 text-primary-500 focus:ring-primary-400"/>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Itemized invoice</span>
-            </label>
+          {/* Header */}
+          <div className="mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Payment Collection <span className="text-red-500">*</span></h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Add line items and record payment for this visit</p>
           </div>
 
           {useInvoice ? (
@@ -707,14 +791,15 @@ function VisitEntryForm() {
                 </div>
               </div>
 
-              {/* Quick-add service presets */}
-              {getBillingItems(doctor?.specialization).length > 0 && (
+              {/* Quick-add from doctor's saved service charges */}
+              {(doctor?.serviceCharges ?? []).length > 0 && (
                 <div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
-                  {getBillingItems(doctor?.specialization).map(item => (
-                    <button key={item.description} type="button" onClick={() => addServiceLine(item)}
+                  {(doctor?.serviceCharges ?? []).map(sc => (
+                    <button key={sc.id} type="button"
+                      onClick={() => addServiceLine({ description: sc.name, unitPrice: sc.price || 0 })}
                       className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
-                      + {item.description}
+                      + {sc.name}{sc.price > 0 ? ` (₹${Number(sc.price).toLocaleString('en-IN')})` : ''}
                     </button>
                   ))}
                 </div>
@@ -791,10 +876,11 @@ function VisitEntryForm() {
                             )}
                           </>
                         ) : (
-                          <input
+                          <ServiceSuggest
                             value={line.description}
-                            onChange={e => updateLine(line.id, 'description', e.target.value)}
-                            placeholder={isMedicine ? 'Medicine name' : 'Service description'}
+                            onChange={desc => updateLine(line.id, 'description', desc)}
+                            onSelect={(name, price) => selectService(line.id, name, price)}
+                            services={doctor?.serviceCharges ?? []}
                             readOnly={!!line.rxId}
                             className={`input-field text-sm py-2 w-full ${line.rxId ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400' : ''}`}
                           />
@@ -968,54 +1054,60 @@ function VisitEntryForm() {
 
           {/* Shared payment meta */}
           <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 space-y-4">
-            <div>
-              <label className="form-label">Payment Method</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {PAYMENT_METHODS.map(m => (
-                  <button type="button" key={m.value}
-                    onClick={() => setPayment(p => ({ ...p, method: p.method === m.value ? '' : m.value }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      payment.method === m.value
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-                    }`}>{m.label}</button>
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Payment Status <span className="text-red-500">*</span></label>
+                <div className={`flex rounded-lg border overflow-hidden text-sm font-medium ${!payment.status ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-gray-600'}`}>
+                  <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'paid' }))}
+                    className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                    Paid
+                  </button>
+                  <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'draft' }))}
+                    className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Due
+                  </button>
+                </div>
+                {!payment.status && <p className="text-xs text-red-500 mt-1">Required — select Paid or Due</p>}
+              </div>
+
+              <div>
+                <label className="form-label">Payment Method <span className="text-red-500">*</span></label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {PAYMENT_METHODS.map(m => (
+                    <button type="button" key={m.value}
+                      onClick={() => setPayment(p => ({ ...p, method: p.method === m.value ? '' : m.value }))}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                        payment.method === m.value
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : !payment.method
+                            ? 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-red-200 dark:border-red-700 hover:border-primary-400'
+                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                      }`}>{m.label}</button>
+                  ))}
+                </div>
+                {!payment.method && <p className="text-xs text-red-500 mt-1">Required — select a method</p>}
               </div>
             </div>
 
-            {payment.method && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'paid' }))}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-                      Paid
-                    </button>
-                    <button type="button" onClick={() => setPayment(p => ({ ...p, status: 'draft' }))}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${payment.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      Due
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label">Collected By</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    {COLLECTED_BY_OPTIONS.map(o => (
-                      <button type="button" key={o.value}
-                        onClick={() => setPayment(p => ({ ...p, collectedBy: o.value }))}
-                        className={`flex-1 py-2 transition-colors text-center ${
-                          payment.collectedBy === o.value
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}>{o.label}</button>
-                    ))}
-                  </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>{/* spacer */}</div>
+              <div>
+                <label className="form-label">Collected By</label>
+                <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                  {COLLECTED_BY_OPTIONS.map(o => (
+                    <button type="button" key={o.value}
+                      onClick={() => setPayment(p => ({ ...p, collectedBy: o.value }))}
+                      className={`flex-1 py-2 transition-colors text-center ${
+                        payment.collectedBy === o.value
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}>{o.label}</button>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -1042,7 +1134,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft Saved' : 'Save as Draft'}
           </button>
           <button onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
             {saving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

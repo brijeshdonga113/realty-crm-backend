@@ -22,7 +22,7 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
-import { isHomeopathy } from '@/lib/patientIntakePresets'
+import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
@@ -136,6 +136,7 @@ function InfoRow({ label, value }) {
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp, defaultExpanded = false }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
+  const router = useRouter()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -143,19 +144,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const [diagInput, setDiagInput] = useState('')
 
   const openEdit = () => {
-    setEditForm({
-      chiefComplaint: visit.chiefComplaint || '',
-      history:        visit.history || '',
-      findings:       visit.examination?.findings || '',
-      diagnosis:      [...(visit.diagnosis || [])],
-      treatment:      visit.treatment || '',
-      notes:          visit.notes || '',
-      followUpDate:   visit.followUpDate || '',
-      paymentAmount:  linkedInvoice ? String(linkedInvoice.total ?? '') : '',
-      paymentMethod:  linkedInvoice?.paymentMethod || 'cash',
-      paymentStatus:  linkedInvoice?.status || 'paid',
-    })
-    setEditing(true)
+    router.push(`/visits/new?patientId=${patientId}&editVisitId=${visit.id}`)
   }
 
   const handleUpdate = async () => {
@@ -614,7 +603,6 @@ export default function PatientProfilePage() {
   const [tab, setTab]            = useState(0)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -632,11 +620,14 @@ export default function PatientProfilePage() {
         { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
       ]
     }
-    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+    const presetSecs = getIntakeSections(specialization)
+      .map(s => ({ id: `preset__${s.title}`, label: s.title, icon: '📋' }))
+    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
       .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
     return [
       ...base,
       { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
+      ...presetSecs,
       ...customSecs,
     ]
   }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -918,67 +909,30 @@ export default function PatientProfilePage() {
           </div></Section>
         )
 
-      case 'history_ho':
+      case 'history_ho': {
         if (!isHomeopathy(specialization)) return null
+        const hoFields = [
+          { key: 'observation',   label: 'Observation',       value: patient.observation   },
+          { key: 'pastHistory',   label: 'Past History',      value: patient.pastHistory   },
+          { key: 'familyHistory', label: 'Family History',    value: patient.familyHistory },
+          { key: 'notes',         label: 'Notes',             value: patient.notes         },
+          { key: 'historyOf',     label: 'Female / Male H/o', value: patient.historyOf     },
+          { key: 'lifeSpan',      label: 'Life Span',         value: patient.lifeSpan      },
+        ].filter(f => f.value)
+        if (!hoFields.length) return null
         return (
-          <Section key="history_ho" title="History (H/o)"><div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <label className="form-label text-xs">Observation</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.observation || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Past History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.pastHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Family History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.familyHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Notes</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.notes || '—'}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-4">
-              <div className="lg:col-span-3">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                  {patient.historyOf && (
-                    <button type="button" onClick={() => setHistoryExpanded(e => !e)}
-                      className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                      {historyExpanded ? 'Collapse' : 'Expand'}
-                      <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                      </svg>
-                    </button>
-                  )}
+          <Section key="history_ho" title="History (H/o)">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {hoFields.map(f => (
+                <div key={f.key} className="px-6 py-4">
+                  <p className="form-label text-xs mb-1">{f.label}</p>
+                  <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
                 </div>
-                {patient.historyOf ? (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
-                    {patient.historyOf}
-                  </p>
-                ) : (
-                  <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
-                )}
-              </div>
-              <div>
-                <label className="form-label text-xs">Life Span</label>
-                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.lifeSpan || '—'}
-                </p>
-              </div>
+              ))}
             </div>
-          </div></Section>
+          </Section>
         )
+      }
 
       case 'generals':
         if (!isHomeopathy(specialization)) return null
@@ -1021,27 +975,29 @@ export default function PatientProfilePage() {
         if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
         return (
           <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full min-w-[640px]">
-                <thead>
-                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
-                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
-                    <tr key={i}>
-                      {['complaint','location','sensation','modality','concomitant'].map(field => (
-                        <td key={field} className="px-1.5 py-2">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
+                <div key={i} className="px-5 py-4">
+                  {/* Complaint heading */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">{row.complaint}</p>
+                  </div>
+                  {/* Sub-fields — only render if they have content */}
+                  {(row.location || row.sensation || row.modality || row.concomitant) && (
+                    <div className="ml-9 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                      {[['Location','location'],['Sensation','sensation'],['Modality','modality'],['Concomitant','concomitant']].map(([label, key]) =>
+                        row[key] ? (
+                          <div key={key}>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">{label}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{row[key]}</p>
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </Section>
         )
@@ -1093,11 +1049,54 @@ export default function PatientProfilePage() {
       }
 
       default: {
+        // ── Preset specialty section ─────────────────────────────────────────
+        if (sectionId.startsWith('preset__')) {
+          const secTitle = sectionId.slice('preset__'.length)
+          const allPreset = getIntakeSections(specialization)
+          const sec = allPreset.find(s => s.title === secTitle)
+          if (!sec) return null
+          const hasData = sec.fields.some(f => {
+            const v = (patient.specialtyData ?? {})[f.key]
+            return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+          })
+          if (!hasData) return null
+          const presetIdx = allPreset.indexOf(sec)
+          return (
+            <Section key={sectionId} title={sec.title} accentClass={ACCENT_COLORS[presetIdx % ACCENT_COLORS.length]}>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sec.fields.map(field => {
+                  const val = (patient.specialtyData ?? {})[field.key]
+                  if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) return null
+                  return (
+                    <div key={field.key} className={field.type === 'textarea' || field.type === 'chips' || field.type === 'scale' ? 'sm:col-span-2' : ''}>
+                      <p className="form-label text-xs">{field.label}</p>
+                      {field.type === 'scale' ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${val >= 8 ? 'bg-red-500' : val >= 5 ? 'bg-amber-400' : 'bg-green-500'}`}
+                              style={{ width: `${val * 10}%` }}/>
+                          </div>
+                          <span className={`text-sm font-bold w-6 text-center ${val >= 8 ? 'text-red-500' : val >= 5 ? 'text-amber-500' : 'text-green-500'}`}>{val}</span>
+                        </div>
+                      ) : (
+                        <p className={`text-sm mt-0.5 whitespace-pre-wrap ${val ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                          {Array.isArray(val) ? val.join(', ') : (val || '—')}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Section>
+          )
+        }
+
+        // ── Custom doctor-added field section ────────────────────────────────
         if (!sectionId.startsWith('section__')) return null
         const secName = sectionId.slice('section__'.length)
-        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Clinical Information') === secName)
+        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Additional Info') === secName)
         if (!fields.length) return null
-        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
         const si = allSecNames.indexOf(secName)
         return (
           <Section key={sectionId} title={secName} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
