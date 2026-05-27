@@ -355,6 +355,40 @@ export default function SettingsPage() {
 
   useEffect(() => { setGcalConnected(isGoogleCalendarConnected()) }, [])
 
+  // ── Patient registration custom fields ──────────────────────────────────────
+  const [prFields,   setPrFields]   = useState(() => doctor?.patientFormFields ?? [])
+  const [prLabel,    setPrLabel]    = useState('')
+  const [prType,     setPrType]     = useState('text')
+  const [prSection,  setPrSection]  = useState('')
+  const [prOptions,  setPrOptions]  = useState('')
+  const [prSaving,   setPrSaving]   = useState(false)
+  const [prSaved,    setPrSaved]    = useState(false)
+  const prUid = useId()
+
+  const addPrField = () => {
+    const label = prLabel.trim()
+    if (!label) return
+    const id      = Date.now().toString(36)
+    const options = ['chips', 'select'].includes(prType)
+      ? prOptions.split(',').map(s => s.trim()).filter(Boolean)
+      : []
+    setPrFields(f => [...f, { id, label, type: prType, options, section: prSection.trim() || 'Additional Info' }])
+    setPrLabel('')
+    setPrOptions('')
+    setPrSaved(false)
+  }
+  const removePrField = (id) => { setPrFields(f => f.filter(x => x.id !== id)); setPrSaved(false) }
+  const savePrFields = async () => {
+    setPrSaving(true)
+    try {
+      await updateProfile({ patientFormFields: prFields })
+      setPrSaved(true)
+      setTimeout(() => setPrSaved(false), 2500)
+    } finally {
+      setPrSaving(false)
+    }
+  }
+
   // ── Inventory custom fields ─────────────────────────────────────────────────
   const [cfFields,  setCfFields]  = useState(() => doctor?.inventoryCustomFields ?? [])
   const [cfLabel,   setCfLabel]   = useState('')
@@ -1043,6 +1077,96 @@ export default function SettingsPage() {
                 </ul>
               </div>
             )}
+          </div>
+        </CollapsibleSection>
+
+        {/* ── Patient Registration — Custom Fields ─────────────────────────── */}
+        <CollapsibleSection title="Patient Registration — Custom Fields" description="Add extra fields that appear after the specialty-specific sections when registering or editing a patient." defaultOpen={false}>
+          <div className="p-6 space-y-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Specialty fields (e.g. Vitals, Pain Assessment) are shown automatically for your practice type.
+              Use this to add any additional fields your clinic needs.
+            </p>
+            {prFields.length > 0 && (
+              <div className="space-y-2">
+                {prFields.map(f => (
+                  <div key={f.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{f.label}</span>
+                      <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">{f.section}</span>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-gray-500 dark:text-gray-300 capitalize">{f.type}</span>
+                    {f.options?.length > 0 && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[120px]">{f.options.join(', ')}</span>
+                    )}
+                    <button type="button" onClick={() => removePrField(f.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded flex-shrink-0">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor={`${prUid}-label`} className="form-label">Field Label</label>
+                <input id={`${prUid}-label`} value={prLabel}
+                  onChange={e => { setPrLabel(e.target.value); setPrSaved(false) }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPrField() } }}
+                  placeholder="e.g. Allergies, BMI, Chief Complaint…" className="input-field"/>
+              </div>
+              <div>
+                <label htmlFor={`${prUid}-section`} className="form-label">Section Name</label>
+                <input id={`${prUid}-section`} value={prSection}
+                  onChange={e => { setPrSection(e.target.value); setPrSaved(false) }}
+                  placeholder="e.g. Additional Info, Lifestyle…" className="input-field"/>
+              </div>
+              <div>
+                <label htmlFor={`${prUid}-type`} className="form-label">Field Type</label>
+                <select id={`${prUid}-type`} value={prType} onChange={e => { setPrType(e.target.value); setPrSaved(false) }} className="input-field">
+                  <option value="text">Text</option>
+                  <option value="textarea">Long Text</option>
+                  <option value="number">Number</option>
+                  <option value="chips">Chip selector (multi-choice)</option>
+                  <option value="select">Dropdown</option>
+                  <option value="scale">Scale 0–10</option>
+                </select>
+              </div>
+              {(['chips', 'select'].includes(prType)) && (
+                <div>
+                  <label htmlFor={`${prUid}-options`} className="form-label">
+                    Options <span className="text-gray-400 font-normal">(comma-separated)</span>
+                  </label>
+                  <input id={`${prUid}-options`} value={prOptions}
+                    onChange={e => { setPrOptions(e.target.value); setPrSaved(false) }}
+                    placeholder="Option A, Option B, Option C…" className="input-field"/>
+                </div>
+              )}
+            </div>
+            <button type="button" onClick={addPrField}
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors">
+              + Add Field
+            </button>
+          </div>
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-4">
+            {prSaved && (
+              <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+                Saved!
+              </p>
+            )}
+            <div className="ml-auto">
+              <button type="button" onClick={savePrFields} disabled={prSaving}
+                className="bg-primary-500 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                {prSaving ? (
+                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Saving…</>
+                ) : 'Save Fields'}
+              </button>
+            </div>
           </div>
         </CollapsibleSection>
 

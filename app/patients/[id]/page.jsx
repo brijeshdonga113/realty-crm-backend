@@ -22,7 +22,7 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
-import { isHomeopathy } from '@/lib/patientIntakePresets'
+import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
@@ -620,11 +620,14 @@ export default function PatientProfilePage() {
         { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
       ]
     }
-    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+    const presetSecs = getIntakeSections(specialization)
+      .map(s => ({ id: `preset__${s.title}`, label: s.title, icon: '📋' }))
+    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
       .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
     return [
       ...base,
       { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
+      ...presetSecs,
       ...customSecs,
     ]
   }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -906,56 +909,30 @@ export default function PatientProfilePage() {
           </div></Section>
         )
 
-      case 'history_ho':
+      case 'history_ho': {
         if (!isHomeopathy(specialization)) return null
+        const hoFields = [
+          { key: 'observation',   label: 'Observation',       value: patient.observation   },
+          { key: 'pastHistory',   label: 'Past History',      value: patient.pastHistory   },
+          { key: 'familyHistory', label: 'Family History',    value: patient.familyHistory },
+          { key: 'notes',         label: 'Notes',             value: patient.notes         },
+          { key: 'historyOf',     label: 'Female / Male H/o', value: patient.historyOf     },
+          { key: 'lifeSpan',      label: 'Life Span',         value: patient.lifeSpan      },
+        ].filter(f => f.value)
+        if (!hoFields.length) return null
         return (
-          <Section key="history_ho" title="History (H/o)"><div className="p-6 space-y-5">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className="form-label text-xs">Observation</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.observation || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Past History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.pastHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Family History</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.familyHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <label className="form-label text-xs">Notes</label>
-                <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.notes || '—'}
-                </p>
-              </div>
+          <Section key="history_ho" title="History (H/o)">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {hoFields.map(f => (
+                <div key={f.key} className="px-6 py-4">
+                  <p className="form-label text-xs mb-1">{f.label}</p>
+                  <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
+                </div>
+              ))}
             </div>
-            {(patient.historyOf || patient.lifeSpan) && (
-              <div className="pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label text-xs">Female / Male H/o</label>
-                  {patient.historyOf ? (
-                    <p className="text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.historyOf}</p>
-                  ) : (
-                    <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
-                  )}
-                </div>
-                <div>
-                  <label className="form-label text-xs">Life Span</label>
-                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                    {patient.lifeSpan || '—'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div></Section>
+          </Section>
         )
+      }
 
       case 'generals':
         if (!isHomeopathy(specialization)) return null
@@ -1070,11 +1047,54 @@ export default function PatientProfilePage() {
       }
 
       default: {
+        // ── Preset specialty section ─────────────────────────────────────────
+        if (sectionId.startsWith('preset__')) {
+          const secTitle = sectionId.slice('preset__'.length)
+          const allPreset = getIntakeSections(specialization)
+          const sec = allPreset.find(s => s.title === secTitle)
+          if (!sec) return null
+          const hasData = sec.fields.some(f => {
+            const v = (patient.specialtyData ?? {})[f.key]
+            return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+          })
+          if (!hasData) return null
+          const presetIdx = allPreset.indexOf(sec)
+          return (
+            <Section key={sectionId} title={sec.title} accentClass={ACCENT_COLORS[presetIdx % ACCENT_COLORS.length]}>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sec.fields.map(field => {
+                  const val = (patient.specialtyData ?? {})[field.key]
+                  if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) return null
+                  return (
+                    <div key={field.key} className={field.type === 'textarea' || field.type === 'chips' || field.type === 'scale' ? 'sm:col-span-2' : ''}>
+                      <p className="form-label text-xs">{field.label}</p>
+                      {field.type === 'scale' ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${val >= 8 ? 'bg-red-500' : val >= 5 ? 'bg-amber-400' : 'bg-green-500'}`}
+                              style={{ width: `${val * 10}%` }}/>
+                          </div>
+                          <span className={`text-sm font-bold w-6 text-center ${val >= 8 ? 'text-red-500' : val >= 5 ? 'text-amber-500' : 'text-green-500'}`}>{val}</span>
+                        </div>
+                      ) : (
+                        <p className={`text-sm mt-0.5 whitespace-pre-wrap ${val ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                          {Array.isArray(val) ? val.join(', ') : (val || '—')}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Section>
+          )
+        }
+
+        // ── Custom doctor-added field section ────────────────────────────────
         if (!sectionId.startsWith('section__')) return null
         const secName = sectionId.slice('section__'.length)
-        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Clinical Information') === secName)
+        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Additional Info') === secName)
         if (!fields.length) return null
-        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Clinical Information'))]
+        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
         const si = allSecNames.indexOf(secName)
         return (
           <Section key={sectionId} title={secName} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
