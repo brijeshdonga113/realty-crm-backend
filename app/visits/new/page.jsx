@@ -14,7 +14,7 @@ import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { getDiagnosisSuggestions, getBillingItems } from '@/lib/specialtyPresets'
+import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 import { useInventory } from '@/hooks/useInventory'
 import { useAppointments } from '@/hooks/useAppointments'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
@@ -76,7 +76,7 @@ function VisitEntryForm() {
     amount: '',
     method: '',
     collectedBy: isReceptionist ? 'receptionist' : 'doctor',
-    description: 'Consultation Fee',
+    description: '',
     status: '',
     taxRate: 0,
     discount: 0,
@@ -93,7 +93,7 @@ function VisitEntryForm() {
   const { appointments: allAppointments } = useAppointments()
   const [useInvoice, setUseInvoice] = useState(true)
   const [invoiceLines, setInvoiceLines] = useState(() => [
-    createLineItem({ description: 'Consultation Fee', itemType: 'service' })
+    createLineItem({ description: '', itemType: 'service' })
   ])
 
   const invoiceSubtotal  = invoiceLines.reduce((s, l) => s + (l.total ?? 0), 0)
@@ -420,10 +420,34 @@ function VisitEntryForm() {
     <AppLayout
       title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
-        <button onClick={() => router.back()}
-          className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
-          ← Back
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()}
+            className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
+            ← Back
+          </button>
+          <button type="button" onClick={handleSaveDraft}
+            disabled={savingDraft || saving || !patientId}
+            className="px-4 py-1.5 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed">
+            {savingDraft && (
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft' : 'Save Draft'}
+          </button>
+          <button type="button" onClick={handleSave}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+            {saving && (
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+          </button>
+        </div>
       }
     >
       <div className="max-w-6xl mx-auto pb-10">
@@ -767,16 +791,10 @@ function VisitEntryForm() {
                 </div>
               </div>
 
-              {/* Quick-add service presets (specialty defaults + doctor's custom services) */}
-              {(getBillingItems(doctor?.specialization).length > 0 || (doctor?.serviceCharges ?? []).length > 0) && (
+              {/* Quick-add from doctor's saved service charges */}
+              {(doctor?.serviceCharges ?? []).length > 0 && (
                 <div className="flex flex-wrap gap-2 pb-3 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
-                  {getBillingItems(doctor?.specialization).map(item => (
-                    <button key={item.description} type="button" onClick={() => addServiceLine(item)}
-                      className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
-                      + {item.description}
-                    </button>
-                  ))}
                   {(doctor?.serviceCharges ?? []).map(sc => (
                     <button key={sc.id} type="button"
                       onClick={() => addServiceLine({ description: sc.name, unitPrice: sc.price || 0 })}

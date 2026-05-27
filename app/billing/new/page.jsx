@@ -10,7 +10,6 @@ import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/
 import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { getBillingItems } from '@/lib/specialtyPresets'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
 
 function StockBadge({ invItem, qty }) {
@@ -221,54 +220,6 @@ function NewInvoiceForm() {
               </div>
             </div>
 
-            <div>
-              <label className="form-label">Payment Method</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {PAYMENT_METHODS.map(m => (
-                  <button type="button" key={m.value}
-                    onClick={() => set('paymentMethod', form.paymentMethod === m.value ? '' : m.value)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      form.paymentMethod === m.value
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-                    }`}>{m.label}</button>
-                ))}
-              </div>
-            </div>
-
-            {form.paymentMethod && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    <button type="button" onClick={() => set('status', 'paid')}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-                      Paid
-                    </button>
-                    <button type="button" onClick={() => set('status', 'draft')}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      Due
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label">Collected By</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    {COLLECTED_BY_OPTIONS.map(o => (
-                      <button type="button" key={o.value}
-                        onClick={() => set('collectedBy', o.value)}
-                        className={`flex-1 py-2 transition-colors text-center ${
-                          form.collectedBy === o.value
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}>{o.label}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ── Line Items ── */}
@@ -295,16 +246,10 @@ function NewInvoiceForm() {
               </div>
             </div>
 
-            {/* Quick-add service presets + saved service charges */}
-            {(getBillingItems(doctor?.specialization).length > 0 || (doctor?.serviceCharges ?? []).length > 0) && (
+            {/* Quick-add from doctor's saved service charges */}
+            {(doctor?.serviceCharges ?? []).length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
                 <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
-                {getBillingItems(doctor?.specialization).map(item => (
-                  <button key={item.description} type="button" onClick={() => addService(item)}
-                    className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
-                    + {item.description}
-                  </button>
-                ))}
                 {(doctor?.serviceCharges ?? []).map(sc => (
                   <button key={sc.id} type="button"
                     onClick={() => addService({ description: sc.name, unitPrice: sc.price || 0 })}
@@ -543,6 +488,60 @@ function NewInvoiceForm() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ── Payment ── */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Payment</h3>
+
+            <div>
+              <label className="form-label">Payment Method</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button type="button" key={m.value}
+                    onClick={() => set('paymentMethod', form.paymentMethod === m.value ? '' : m.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      form.paymentMethod === m.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
+                    }`}>{m.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {form.paymentMethod && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    <button type="button" onClick={() => set('status', 'paid')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                      Paid
+                    </button>
+                    <button type="button" onClick={() => set('status', 'draft')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      Due
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Collected By</label>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    {COLLECTED_BY_OPTIONS.map(o => (
+                      <button type="button" key={o.value}
+                        onClick={() => set('collectedBy', o.value)}
+                        className={`flex-1 py-2 transition-colors text-center ${
+                          form.collectedBy === o.value
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}>{o.label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Notes ── */}

@@ -562,6 +562,9 @@ export default function SettingsPage() {
   const [scPrice,         setScPrice]         = useState('')
   const [scSaving,        setScSaving]        = useState(false)
   const [scSaved,         setScSaved]         = useState(false)
+  const [scEditId,        setScEditId]        = useState(null)
+  const [scEditName,      setScEditName]      = useState('')
+  const [scEditPrice,     setScEditPrice]     = useState('')
 
   const addServiceCharge = () => {
     const name = scName.trim()
@@ -570,6 +573,14 @@ export default function SettingsPage() {
     setServiceCharges(prev => [...prev, { id: Date.now().toString(36), name, price }])
     setScName('')
     setScPrice('')
+    setScSaved(false)
+  }
+  const startEditService = (sc) => { setScEditId(sc.id); setScEditName(sc.name); setScEditPrice(sc.price?.toString() ?? ''); setScSaved(false) }
+  const saveEditService = () => {
+    const name = scEditName.trim()
+    if (!name) return
+    setServiceCharges(prev => prev.map(s => s.id === scEditId ? { ...s, name, price: Number(scEditPrice) || 0 } : s))
+    setScEditId(null)
     setScSaved(false)
   }
   const removeServiceCharge = (id) => { setServiceCharges(prev => prev.filter(s => s.id !== id)); setScSaved(false) }
@@ -1240,17 +1251,55 @@ export default function SettingsPage() {
             {serviceCharges.length > 0 && (
               <div className="space-y-2">
                 {serviceCharges.map(sc => (
-                  <div key={sc.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{sc.name}</span>
-                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 tabular-nums">
-                      {sc.price > 0 ? `₹${Number(sc.price).toLocaleString('en-IN')}` : '—'}
-                    </span>
-                    <button type="button" onClick={() => removeServiceCharge(sc.id)}
-                      className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                      </svg>
-                    </button>
+                  <div key={sc.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    {scEditId === sc.id ? (
+                      <>
+                        <input
+                          value={scEditName}
+                          onChange={e => setScEditName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEditService(); if (e.key === 'Escape') setScEditId(null) }}
+                          className="input-field flex-1 text-sm py-1"
+                          autoFocus
+                        />
+                        <input
+                          type="number" min="0"
+                          value={scEditPrice}
+                          onChange={e => setScEditPrice(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEditService(); if (e.key === 'Escape') setScEditId(null) }}
+                          placeholder="0"
+                          className="input-field w-24 text-sm py-1"
+                        />
+                        <button type="button" onClick={saveEditService}
+                          className="px-3 py-1 bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                          Save
+                        </button>
+                        <button type="button" onClick={() => setScEditId(null)}
+                          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{sc.name}</span>
+                        <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 tabular-nums">
+                          {sc.price > 0 ? `₹${Number(sc.price).toLocaleString('en-IN')}` : '—'}
+                        </span>
+                        <button type="button" onClick={() => startEditService(sc)}
+                          className="p-1 text-gray-400 hover:text-blue-500 transition-colors rounded">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                        <button type="button" onClick={() => removeServiceCharge(sc.id)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
