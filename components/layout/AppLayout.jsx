@@ -8,6 +8,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useSubscription } from '@/hooks/useSubscription'
 import { SubscriptionBanner } from '@/components/ui/SubscriptionBanner'
 import { ChatWidget } from '@/components/chat/ChatWidget'
+import { GlobalSearch } from '@/components/ui/GlobalSearch'
 
 function ThemeToggle() {
   const { dark, toggle } = useTheme()
@@ -100,13 +101,11 @@ export function AppLayout({ children, title, action }) {
               </button>
               <h1 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white truncate">{title}</h1>
             </div>
-            {/* Desktop: action + theme in same row */}
-            <div className="hidden lg:flex items-center gap-2">
-              {action}
-              <ThemeToggle />
-            </div>
-            {/* Mobile: theme toggle only in row 1 */}
-            <div className="lg:hidden flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <GlobalSearch />
+              <div className="hidden lg:flex items-center gap-2">
+                {action}
+              </div>
               <ThemeToggle />
             </div>
           </div>

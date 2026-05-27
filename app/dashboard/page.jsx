@@ -66,15 +66,24 @@ function StatCard({ label, value, sub, color, icon, href }) {
 export default function DashboardPage() {
   const { doctor, isReceptionist } = useAuth()
   const router = useRouter()
-  const { formatCurrency, formatDate } = usePreferences()
+  const { formatDate } = usePreferences()
   const { stats, rawAppointments: appointments, rawPatients: patients, rawFollowups: followups, loading: reportLoading } = useReports()
 
-  const [layout, setLayout]         = useState(DEFAULT_LAYOUT)
-  const [customizing, setCustomizing] = useState(false)
-  const [draftLayout, setDraftLayout] = useState(DEFAULT_LAYOUT)
-  const [saving, setSaving]         = useState(false)
-  const [linkCopied, setLinkCopied] = useState(false)
+  const [layout, setLayout]           = useState(DEFAULT_LAYOUT)
+  const [customizing, setCustomizing]   = useState(false)
+  const [draftLayout, setDraftLayout]   = useState(DEFAULT_LAYOUT)
+  const [saving, setSaving]             = useState(false)
+  const [linkCopied, setLinkCopied]     = useState(false)
+  const [recentVisits, setRecentVisits] = useState([])
   const dragId = useRef(null)
+
+  // Load denormalized recent visits from meta doc (avoids needing a Firestore collection-group index)
+  useEffect(() => {
+    if (!doctor) return
+    dataStore.getMeta('recentVisits').then(data => {
+      if (Array.isArray(data)) setRecentVisits(data)
+    }).catch(() => {})
+  }, [doctor])
 
   // Load saved layout from Firestore
   useEffect(() => {
@@ -376,14 +385,14 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-gray-900 dark:text-white">Recent Visits</h3>
           <button onClick={() => router.push('/patients')} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View patients</button>
         </div>
-        {!stats?.visits?.recent?.length ? (
+        {!recentVisits.length ? (
           <div className="px-6 py-10 text-center">
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No visits recorded yet</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Open a patient profile to record a visit.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Record a visit from a patient profile to see it here.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
-            {stats.visits.recent.map(v => (
+            {recentVisits.map(v => (
               <div key={v.id} onClick={() => router.push(`/patients/${v.patientId}`)}
                 className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
@@ -398,7 +407,7 @@ export default function DashboardPage() {
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(v.visitDate)}</p>
                   {v.followUpDate && (
-                    <p className="text-xs text-orange-500 font-medium mt-0.5">Follow-up {formatDate(v.followUpDate)}</p>
+                    <p className="text-xs text-orange-500 font-medium mt-0.5">FU {formatDate(v.followUpDate)}</p>
                   )}
                 </div>
               </div>

@@ -65,6 +65,22 @@ export const visitService = {
       }).catch(() => {})
     }
 
+    // Keep a denormalized recent-visits list so the dashboard doesn't need
+    // a Firestore collection-group index to display recent visits.
+    dataStore.getMeta('recentVisits').then(current => {
+      const list = Array.isArray(current) ? current : []
+      const entry = {
+        id:             saved.id,
+        patientId:      saved.patientId,
+        patientName:    saved.patientName,
+        visitDate:      saved.visitDate,
+        chiefComplaint: saved.chiefComplaint || '',
+        followUpDate:   saved.followUpDate   || null,
+      }
+      const updated = [entry, ...list.filter(v => v.id !== saved.id)].slice(0, 10)
+      return dataStore.setMeta('recentVisits', updated)
+    }).catch(() => {})
+
     return saved
   },
 

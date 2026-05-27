@@ -48,7 +48,7 @@ function computeStats({ patients, appointments, invoices, followups, visits }) {
   // Visits
   const sortedVisits = [...visits].sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   const visitStats = {
-    todayCount:       visits.filter(v => v.visitDate === today).length,
+    todayCount:       visits.filter(v => v.visitDate?.slice(0, 10) === today).length,
     followupToday:    visits.filter(v => v.followUpDate === today).length,
     followupTomorrow: visits.filter(v => v.followUpDate === tomorrow).length,
     recent:           sortedVisits.slice(0, 5),
