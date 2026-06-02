@@ -191,6 +191,19 @@
   background: rgb(55 65 81);
 }
 
+@media print {
+  body * { visibility: hidden; }
+  #patient-print {
+    visibility: visible;
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  #patient-print * { visibility: visible; }
+}
+
 @layer components {
 
   .nav-link {
