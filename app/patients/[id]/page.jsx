@@ -25,6 +25,7 @@ import { formatDate as fmtDateLib } from '@/lib/preferences'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 
 const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-500','border-l-purple-500','border-l-orange-500']
 
@@ -51,7 +52,7 @@ function ClinicalField({ field, value, onChange, editing }) {
   if (type === 'textarea') return (
     <div className="sm:col-span-2">
       <label className="form-label">{label}</label>
-      <AutoTextarea value={value || ''} onChange={e => onChange(e.target.value)} className="input-field resize"/>
+      <RichTextEditor value={value || ''} onChange={onChange} placeholder=""/>
     </div>
   )
   if (type === 'number') return (
@@ -393,13 +394,13 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">History</label>
-              <AutoTextarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.history || ''} onChange={v => setEditForm(f => ({...f, history: v}))}
+                placeholder="Detailed history, existing conditions, onset, duration…"/>
             </div>
             <div>
               <label className="form-label">Clinical Findings</label>
-              <AutoTextarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.findings || ''} onChange={v => setEditForm(f => ({...f, findings: v}))}
+                placeholder="Examination findings…"/>
             </div>
             <div>
               <label className="form-label">Diagnosis</label>
@@ -421,8 +422,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Treatment Plan</label>
-              <AutoTextarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.treatment || ''} onChange={v => setEditForm(f => ({...f, treatment: v}))}
+                placeholder="Treatment plan, medication, advice…"/>
             </div>
             <div>
               <label className="form-label">Follow-up Date</label>
@@ -447,8 +448,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Notes</label>
-              <AutoTextarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.notes || ''} onChange={v => setEditForm(f => ({...f, notes: v}))}
+                placeholder="Additional notes…"/>
             </div>
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
