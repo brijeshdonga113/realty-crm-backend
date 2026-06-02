@@ -192,8 +192,16 @@
 }
 
 @media print {
-  body > * { display: none !important; }
-  #patient-print { display: block !important; }
+  body * { visibility: hidden; }
+  #patient-print {
+    visibility: visible;
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  #patient-print * { visibility: visible; }
 }
 
 @layer components {
