@@ -970,7 +970,10 @@ export default function PatientProfilePage() {
               {hoFields.map(f => (
                 <div key={f.key} className="px-6 py-4">
                   <p className="form-label mb-1">{f.label}</p>
-                  <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
+                  {/<[a-z][\s\S]*>/i.test(f.value)
+                    ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: f.value }}/>
+                    : <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
+                  }
                 </div>
               ))}
             </div>
@@ -1051,7 +1054,10 @@ export default function PatientProfilePage() {
         return (
           <Section key="prescription_details" title="Prescription Details" accentClass="border-l-teal-500">
             <div className="p-6">
-              <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+              {/<[a-z][\s\S]*>/i.test(patient.prescriptionDetails)
+                ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: patient.prescriptionDetails }}/>
+                : <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+              }
             </div>
           </Section>
         )
@@ -1063,30 +1069,22 @@ export default function PatientProfilePage() {
         return (
           <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="form-label">Observation</p>
-                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.observation || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="form-label">Past History</p>
-                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.pastHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="form-label">Family History</p>
-                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.familyHistory || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="form-label">Notes</p>
-                <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.notes || '—'}
-                </p>
-              </div>
+              {[
+                { label: 'Observation',    value: patient.observation   },
+                { label: 'Past History',   value: patient.pastHistory   },
+                { label: 'Family History', value: patient.familyHistory },
+                { label: 'Notes',          value: patient.notes         },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="form-label">{label}</p>
+                  {value
+                    ? (/<[a-z][\s\S]*>/i.test(value)
+                        ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300 mt-0.5" dangerouslySetInnerHTML={{ __html: value }}/>
+                        : <p className="text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{value}</p>)
+                    : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
+                  }
+                </div>
+              ))}
             </div>
           </Section>
         )
