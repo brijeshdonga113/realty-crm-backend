@@ -2,6 +2,11 @@ import { dataStore } from '@/lib/dataStore'
 
 const COLLECTION = 'expenses'
 
+let _c = 0
+function uid() {
+  return `${Date.now().toString(36)}-${(++_c).toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
 export const expenseService = {
   async getAll() {
     const expenses = await dataStore.getAll(COLLECTION)
@@ -10,6 +15,7 @@ export const expenseService = {
 
   async create(data) {
     return dataStore.create(COLLECTION, {
+      id: uid(),
       ...data,
       createdAt: new Date().toISOString(),
     })
