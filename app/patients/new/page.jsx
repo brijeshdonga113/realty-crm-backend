@@ -8,6 +8,7 @@ import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { useAuth } from '@/context/AuthContext'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 
 const GENERALS_CONFIG = [
@@ -69,7 +70,7 @@ function ClinicalField({ field, value, onChange }) {
   if (type === 'textarea') return (
     <div className="sm:col-span-2">
       <label className="form-label">{label}</label>
-      <AutoTextarea value={value || ''} onChange={e => onChange(e.target.value)} className="input-field resize-y-y" placeholder=""/>
+      <RichTextEditor value={value || ''} onChange={onChange} placeholder=""/>
     </div>
   )
   if (type === 'number') return (
@@ -517,22 +518,22 @@ function NewCaseForm() {
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
-            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
-              placeholder="Doctor's initial observations…" className="input-field resize-y-y"/>
+            <RichTextEditor value={form.observation} onChange={v => set('observation', v)}
+              placeholder="Doctor's initial observations…"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
-            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize-y-y"/>
+            <RichTextEditor value={form.pastHistory} onChange={v => set('pastHistory', v)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
-            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-              placeholder="Hereditary conditions, family medical background…" className="input-field resize-y-y"/>
+            <RichTextEditor value={form.familyHistory} onChange={v => set('familyHistory', v)}
+              placeholder="Hereditary conditions, family medical background…"/>
           </div>
         </SectionCard>
 
@@ -642,9 +643,8 @@ function NewCaseForm() {
                 </svg>
               }
             >
-              <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
-                placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
-                className="input-field resize-y-y min-h-[96px]"/>
+              <RichTextEditor value={form.historyOf} onChange={v => set('historyOf', v)}
+                placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"/>
             </SectionCard>
 
             {/* ── Life Span ────────────────────────────────────────────────── */}
@@ -657,9 +657,8 @@ function NewCaseForm() {
                 </svg>
               }
             >
-              <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
-                placeholder="Key life events, miasmatic background, constitutional timeline…"
-                className="input-field resize-y-y min-h-[96px]"/>
+              <RichTextEditor value={form.lifeSpan} onChange={v => set('lifeSpan', v)}
+                placeholder="Key life events, miasmatic background, constitutional timeline…"/>
             </SectionCard>
 
             {/* ── Prescription Details ─────────────────────────────────────── */}
@@ -672,9 +671,8 @@ function NewCaseForm() {
                 </svg>
               }
             >
-              <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
-                placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
-                className="input-field resize-y-y min-h-[96px]"/>
+              <RichTextEditor value={form.prescriptionDetails} onChange={v => set('prescriptionDetails', v)}
+                placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"/>
             </SectionCard>
           </>
         ) : (() => {

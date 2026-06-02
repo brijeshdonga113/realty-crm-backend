@@ -8,6 +8,8 @@ import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { useInventory } from '@/hooks/useInventory'
 import { useBilling } from '@/hooks/useBilling'
+import { useExpenses } from '@/hooks/useExpenses'
+import { EXPENSE_CATEGORIES } from '@/app/expenses/page'
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -227,6 +229,7 @@ const TABS = [
   { key: 'inv_overview', label: 'Inventory Overview' },
   { key: 'products',     label: 'Product Analysis' },
   { key: 'revenue',      label: 'Revenue Analysis' },
+  { key: 'expenses',     label: 'Expenses' },
 ]
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -237,6 +240,7 @@ export default function ReportsPage() {
   const { stats, rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()
   const { items }    = useInventory()
   const { invoices } = useBilling()
+  const { expenses } = useExpenses()
 
   const [activeTab, setActiveTab] = useState('general')
 
@@ -404,6 +408,26 @@ export default function ReportsPage() {
     return { invRevenue, svcRevenue, total, invDiscount, svcDiscount, invUnits, svcCount, months, monthlyMap, topServices }
   }, [revInvoices])
 
+  const expenseData = useMemo(() => {
+    const revFrom = revRange.from
+    const revTo   = revRange.to
+    const inRange = expenses.filter(e => {
+      const d = (e.date ?? '').slice(0, 10)
+      return d >= revFrom && d <= revTo
+    })
+    const total = inRange.reduce((s, e) => s + (e.amount ?? 0), 0)
+    const byCategory = {}
+    inRange.forEach(e => {
+      byCategory[e.category] = (byCategory[e.category] ?? 0) + (e.amount ?? 0)
+    })
+    const monthly = {}
+    inRange.forEach(e => {
+      const mk = getMonthKey(e.date)
+      if (mk) monthly[mk] = (monthly[mk] ?? 0) + (e.amount ?? 0)
+    })
+    return { total, byCategory, monthly, count: inRange.length }
+  }, [expenses, revRange])
+
   const revItemStats = useMemo(() => {
     const map = {}
     items.forEach(item => {
@@ -431,9 +455,19 @@ export default function ReportsPage() {
     return [...list].sort((a, b) => b.netRevenue - a.netRevenue)
   }, [itemStats, search])
 
+  const allMonthlyKeys = useMemo(() => {
+    const keys = new Set([...revenueData.months, ...Object.keys(expenseData.monthly)])
+    return [...keys].sort()
+  }, [revenueData.months, expenseData.monthly])
+
   const maxMonthly = useMemo(() =>
-    revenueData.months.reduce((m, k) => { const d = revenueData.monthlyMap[k]; return Math.max(m, (d?.inv || 0) + (d?.svc || 0)) }, 0),
-    [revenueData])
+    allMonthlyKeys.reduce((m, k) => {
+      const d   = revenueData.monthlyMap[k]
+      const rev = (d?.inv || 0) + (d?.svc || 0)
+      const exp = expenseData.monthly[k] || 0
+      return Math.max(m, rev, exp)
+    }, 0),
+    [allMonthlyKeys, revenueData.monthlyMap, expenseData.monthly])
 
   if (loading) return (
     <AppLayout title="Reports & Analytics">
@@ -858,80 +892,125 @@ export default function ReportsPage() {
           </div>
 
           {/* Summary split cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 lg:col-span-1">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Total Revenue</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{fmt(revenueData.total)}</p>
-              <p className="text-xs text-gray-400 mt-1">across {revInvoices.length} invoice{revInvoices.length !== 1 ? 's' : ''}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{fmt(revenueData.total)}</p>
+              <p className="text-xs text-gray-400 mt-1">{revInvoices.length} invoice{revInvoices.length !== 1 ? 's' : ''}</p>
               {revenueData.total > 0 && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm bg-teal-500 flex-shrink-0"/>
-                    <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-teal-500 rounded-l-full transition-all" style={{ width: `${pct(revenueData.invRevenue, revenueData.total)}%` }}/>
-                      <div className="h-full bg-primary-500 rounded-r-full transition-all" style={{ width: `${pct(revenueData.svcRevenue, revenueData.total)}%` }}/>
-                    </div>
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
+                    <div className="h-full bg-teal-500 transition-all" style={{ width: `${pct(revenueData.invRevenue, revenueData.total)}%` }}/>
+                    <div className="h-full bg-primary-500 transition-all" style={{ width: `${pct(revenueData.svcRevenue, revenueData.total)}%` }}/>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span className="text-teal-600 dark:text-teal-400 font-medium">Medicine {pct(revenueData.invRevenue, revenueData.total)}%</span>
-                    <span className="text-primary-600 dark:text-primary-400 font-medium">Service {pct(revenueData.svcRevenue, revenueData.total)}%</span>
+                    <span className="text-teal-600 dark:text-teal-400">Med {pct(revenueData.invRevenue, revenueData.total)}%</span>
+                    <span className="text-primary-600 dark:text-primary-400">Svc {pct(revenueData.svcRevenue, revenueData.total)}%</span>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-100 dark:border-teal-800 p-5">
-              <p className="text-xs font-semibold text-teal-500 dark:text-teal-400 uppercase tracking-wider mb-1">Medicine / Inventory</p>
-              <p className="text-3xl font-bold text-teal-700 dark:text-teal-300">{fmt(revenueData.invRevenue)}</p>
-              <p className="text-xs text-teal-600/70 dark:text-teal-400/70 mt-1">{pct(revenueData.invRevenue, revenueData.total)}% of total</p>
-              <div className="mt-3 space-y-1 text-xs text-teal-700 dark:text-teal-300">
+              <p className="text-xs font-semibold text-teal-500 dark:text-teal-400 uppercase tracking-wider mb-1">Medicine</p>
+              <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{fmt(revenueData.invRevenue)}</p>
+              <p className="text-xs text-teal-600/70 dark:text-teal-400/70 mt-1">{pct(revenueData.invRevenue, revenueData.total)}% of revenue</p>
+              <div className="mt-2 space-y-0.5 text-xs text-teal-700 dark:text-teal-300">
                 <div className="flex justify-between"><span>Units sold</span><span className="font-semibold">{revenueData.invUnits}</span></div>
-                <div className="flex justify-between"><span>Discount given</span><span className="font-semibold">{revenueData.invDiscount > 0 ? `−${fmt(revenueData.invDiscount)}` : '—'}</span></div>
+                <div className="flex justify-between"><span>Discount</span><span className="font-semibold">{revenueData.invDiscount > 0 ? `−${fmt(revenueData.invDiscount)}` : '—'}</span></div>
               </div>
             </div>
 
             <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl border border-primary-100 dark:border-primary-800 p-5">
               <p className="text-xs font-semibold text-primary-500 dark:text-primary-400 uppercase tracking-wider mb-1">Services</p>
-              <p className="text-3xl font-bold text-primary-700 dark:text-primary-300">{fmt(revenueData.svcRevenue)}</p>
-              <p className="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1">{pct(revenueData.svcRevenue, revenueData.total)}% of total</p>
-              <div className="mt-3 space-y-1 text-xs text-primary-700 dark:text-primary-300">
-                <div className="flex justify-between"><span>Line items billed</span><span className="font-semibold">{revenueData.svcCount}</span></div>
-                <div className="flex justify-between"><span>Discount given</span><span className="font-semibold">{revenueData.svcDiscount > 0 ? `−${fmt(revenueData.svcDiscount)}` : '—'}</span></div>
+              <p className="text-2xl font-bold text-primary-700 dark:text-primary-300">{fmt(revenueData.svcRevenue)}</p>
+              <p className="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1">{pct(revenueData.svcRevenue, revenueData.total)}% of revenue</p>
+              <div className="mt-2 space-y-0.5 text-xs text-primary-700 dark:text-primary-300">
+                <div className="flex justify-between"><span>Line items</span><span className="font-semibold">{revenueData.svcCount}</span></div>
+                <div className="flex justify-between"><span>Discount</span><span className="font-semibold">{revenueData.svcDiscount > 0 ? `−${fmt(revenueData.svcDiscount)}` : '—'}</span></div>
               </div>
             </div>
+
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800 p-5">
+              <p className="text-xs font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider mb-1">Total Expenses</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300">{fmt(expenseData.total)}</p>
+              <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-1">{expenseData.count} record{expenseData.count !== 1 ? 's' : ''}</p>
+              <div className="mt-2 space-y-0.5 text-xs text-red-700 dark:text-red-300">
+                {Object.entries(expenseData.byCategory).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([cat, amt]) => (
+                  <div key={cat} className="flex justify-between">
+                    <span className="truncate">{EXPENSE_CATEGORIES.find(c=>c.value===cat)?.label ?? cat}</span>
+                    <span className="font-semibold ml-1">{fmt(amt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {(() => {
+              const netProfit = revenueData.total - expenseData.total
+              const isProfit  = netProfit >= 0
+              return (
+                <div className={`rounded-xl border p-5 ${isProfit ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800'}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isProfit ? 'text-green-500 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>Net Profit / Loss</p>
+                  <p className={`text-2xl font-bold ${isProfit ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                    {isProfit ? '+' : ''}{fmt(netProfit)}
+                  </p>
+                  <p className={`text-xs mt-1 ${isProfit ? 'text-green-600/70 dark:text-green-400/70' : 'text-orange-600/70 dark:text-orange-400/70'}`}>
+                    Revenue − Expenses
+                  </p>
+                  {revenueData.total > 0 && (
+                    <div className={`mt-2 text-xs font-semibold ${isProfit ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                      Margin: {((netProfit / revenueData.total) * 100).toFixed(1)}%
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Monthly trend */}
-          {revenueData.months.length > 0 && (
+          {allMonthlyKeys.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Monthly Trend ({revenueData.months.length} month{revenueData.months.length !== 1 ? 's' : ''})</p>
-              <div className="space-y-3">
-                {revenueData.months.map(monthKey => {
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Monthly Trend — Revenue vs Expenses</p>
+              <div className="space-y-4">
+                {allMonthlyKeys.map(monthKey => {
                   const d   = revenueData.monthlyMap[monthKey] || {}
                   const inv = d.inv || 0
                   const svc = d.svc || 0
-                  const tot = inv + svc
+                  const rev = inv + svc
+                  const exp = expenseData.monthly[monthKey] || 0
+                  const net = rev - exp
                   return (
-                    <div key={monthKey} className="grid grid-cols-[100px_1fr_80px] gap-3 items-center">
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{MonthLabel(monthKey)}</span>
-                      <div className="flex gap-1 h-5">
-                        {tot > 0 ? (
-                          <>
-                            <div className="bg-teal-400 dark:bg-teal-500 rounded-l h-full transition-all" style={{ width: `${pct(inv, maxMonthly)}%`, minWidth: inv > 0 ? '4px' : '0' }} title={`Medicine: ${fmt(inv)}`}/>
-                            <div className="bg-primary-400 dark:bg-primary-500 rounded-r h-full transition-all" style={{ width: `${pct(svc, maxMonthly)}%`, minWidth: svc > 0 ? '4px' : '0' }} title={`Service: ${fmt(svc)}`}/>
-                          </>
-                        ) : (
-                          <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded"/>
+                    <div key={monthKey}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-20">{MonthLabel(monthKey)}</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          {rev > 0 && <span className="text-green-600 dark:text-green-400 font-medium">+{fmt(rev)}</span>}
+                          {exp > 0 && <span className="text-red-500 dark:text-red-400 font-medium">−{fmt(exp)}</span>}
+                          <span className={`font-bold ${net >= 0 ? 'text-gray-800 dark:text-white' : 'text-orange-600 dark:text-orange-400'}`}>{net >= 0 ? '' : '−'}{fmt(Math.abs(net))}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {rev > 0 && (
+                          <div className="flex gap-0.5 h-3">
+                            <div className="bg-teal-400 dark:bg-teal-500 rounded-l h-full transition-all" style={{ width: `${pct(inv, maxMonthly)}%`, minWidth: inv > 0 ? '3px' : '0' }} title={`Medicine: ${fmt(inv)}`}/>
+                            <div className="bg-primary-400 dark:bg-primary-500 rounded-r h-full transition-all" style={{ width: `${pct(svc, maxMonthly)}%`, minWidth: svc > 0 ? '3px' : '0' }} title={`Service: ${fmt(svc)}`}/>
+                            {inv === 0 && svc === 0 && <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded"/>}
+                          </div>
+                        )}
+                        {exp > 0 && (
+                          <div className="flex h-2">
+                            <div className="bg-red-400 dark:bg-red-500 rounded h-full transition-all opacity-80" style={{ width: `${pct(exp, maxMonthly)}%`, minWidth: '3px' }} title={`Expenses: ${fmt(exp)}`}/>
+                          </div>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 text-right">{fmt(tot)}</span>
                     </div>
                   )
                 })}
               </div>
-              <div className="flex gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-teal-400 dark:bg-teal-500"/>Medicine / Inventory</div>
+              <div className="flex flex-wrap gap-4 mt-5 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-teal-400 dark:bg-teal-500"/>Medicine</div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-primary-400 dark:bg-primary-500"/>Services</div>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-red-400 dark:bg-red-500"/>Expenses</div>
               </div>
             </div>
           )}
@@ -1013,11 +1092,142 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {revenueData.total === 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-16 text-center">
-              <p className="text-gray-400 dark:text-gray-500 text-sm">No invoice data yet. Revenue analysis will appear once invoices are created.</p>
+          {/* Expense breakdown by category */}
+          {expenseData.total > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Expense Breakdown by Category</p>
+                <span className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(expenseData.total)} total</span>
+              </div>
+              <div className="p-5 space-y-3">
+                {EXPENSE_CATEGORIES.filter(c => expenseData.byCategory[c.value] > 0)
+                  .sort((a, b) => (expenseData.byCategory[b.value] ?? 0) - (expenseData.byCategory[a.value] ?? 0))
+                  .map((cat, idx) => {
+                    const amt = expenseData.byCategory[cat.value] ?? 0
+                    const p   = expenseData.total > 0 ? Math.round((amt / expenseData.total) * 100) : 0
+                    return (
+                      <div key={cat.value}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{cat.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">{p}%</span>
+                            <span className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(amt)}</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                          <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2 rounded-full transition-all`} style={{ width: `${p}%` }}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
             </div>
           )}
+
+          {revenueData.total === 0 && expenseData.total === 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-16 text-center">
+              <p className="text-gray-400 dark:text-gray-500 text-sm">No data yet. Revenue analysis will appear once invoices or expenses are recorded.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          EXPENSES TAB
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'expenses' && (
+        <div className="space-y-6">
+
+          {/* Period filter */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Period</span>
+              <SectionFilter
+                value={revPeriod}
+                onChange={setRevPeriod}
+                customFrom={revCustomFrom}
+                customTo={revCustomTo}
+                onCustomFrom={setRevCustomFrom}
+                onCustomTo={setRevCustomTo}
+              />
+            </div>
+          </div>
+
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Expenses', value: fmt(expenseData.total), sub: `${expenseData.count} records`, color: 'text-red-600 dark:text-red-400' },
+              { label: 'Total Revenue',  value: fmt(revenueData.total), sub: `${revInvoices.length} invoices`, color: 'text-green-600 dark:text-green-400' },
+              { label: 'Net Profit / Loss', value: `${revenueData.total - expenseData.total >= 0 ? '+' : ''}${fmt(revenueData.total - expenseData.total)}`, sub: 'Revenue − Expenses', color: revenueData.total - expenseData.total >= 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400' },
+              { label: 'Profit Margin', value: revenueData.total > 0 ? `${(((revenueData.total - expenseData.total) / revenueData.total) * 100).toFixed(1)}%` : '—', sub: 'Net ÷ Revenue', color: 'text-primary-600 dark:text-primary-400' },
+            ].map(c => (
+              <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.label}</p>
+                <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Category breakdown */}
+          {expenseData.total > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Expenses by Category</h3>
+                <div className="space-y-3">
+                  {EXPENSE_CATEGORIES.filter(c => expenseData.byCategory[c.value] > 0)
+                    .sort((a, b) => (expenseData.byCategory[b.value] ?? 0) - (expenseData.byCategory[a.value] ?? 0))
+                    .map((cat, idx) => {
+                      const amt = expenseData.byCategory[cat.value] ?? 0
+                      const p   = expenseData.total > 0 ? Math.round((amt / expenseData.total) * 100) : 0
+                      return (
+                        <div key={cat.value}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{cat.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">{p}%</span>
+                              <span className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(amt)}</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                            <div className={`${BAR_COLORS[idx % BAR_COLORS.length]} h-2 rounded-full transition-all`} style={{ width: `${p}%` }}/>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+
+              {/* Monthly expense trend */}
+              {Object.keys(expenseData.monthly).length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Monthly Expenses</h3>
+                  <div className="space-y-3">
+                    {(() => {
+                      const maxExp = Math.max(...Object.values(expenseData.monthly), 1)
+                      return Object.keys(expenseData.monthly).sort().map(mk => {
+                        const amt = expenseData.monthly[mk] ?? 0
+                        return (
+                          <div key={mk} className="grid grid-cols-[80px_1fr_90px] gap-3 items-center">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{MonthLabel(mk)}</span>
+                            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3">
+                              <div className="bg-red-400 dark:bg-red-500 h-3 rounded-full transition-all" style={{ width: `${(amt / maxExp) * 100}%` }}/>
+                            </div>
+                            <span className="text-xs font-semibold text-red-600 dark:text-red-400 text-right">{fmt(amt)}</span>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-16 text-center">
+              <p className="text-gray-400 dark:text-gray-500 text-sm">No expenses recorded in this period. Add expenses from the Expenses page.</p>
+            </div>
+          )}
+
         </div>
       )}
 
