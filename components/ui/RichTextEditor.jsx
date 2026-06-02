@@ -9,7 +9,7 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import Color from '@tiptap/extension-color'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 const FONTS = [
   { label: 'Default',    value: null },
