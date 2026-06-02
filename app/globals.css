@@ -191,6 +191,11 @@
   background: rgb(55 65 81);
 }
 
+@media print {
+  body > * { display: none !important; }
+  #patient-print { display: block !important; }
+}
+
 @layer components {
 
   .nav-link {

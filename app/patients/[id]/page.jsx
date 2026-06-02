@@ -588,6 +588,200 @@ function Section({ title, subtitle, action, accentClass, className = '', childre
 }
 
 /* ─────────────── Main Page ─────────────── */
+function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency }) {
+  const spec = doctor?.specialization ?? ''
+  const isHom = isHomeopathy(spec)
+  const age = patient.dateOfBirth
+    ? `${Math.floor((Date.now() - new Date(patient.dateOfBirth)) / 31557600000)} yrs`
+    : null
+
+  const RichVal = ({ val }) => val
+    ? (/<[a-z][\s\S]*>/i.test(val)
+        ? <div dangerouslySetInnerHTML={{ __html: val }} style={{ fontSize: 12, lineHeight: 1.6 }}/>
+        : <span style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{val}</span>)
+    : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 12 }}>—</span>
+
+  const Field = ({ label, value }) => (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 2 }}>{label}</div>
+      <RichVal val={value}/>
+    </div>
+  )
+
+  const SectionHeader = ({ title }) => (
+    <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: 4, marginBottom: 12, marginTop: 20 }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{title}</span>
+    </div>
+  )
+
+  const sortedVisits = [...(visits ?? [])].filter(v => v.status !== 'draft').sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? '')).slice(0, 15)
+
+  return (
+    <div id="patient-print" style={{ display: 'none', fontFamily: 'Arial, sans-serif', color: '#111827', padding: '32px 40px', maxWidth: 800, margin: '0 auto', fontSize: 13 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #111827' }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#111827' }}>{doctor?.clinicName || `Dr. ${doctor?.firstName} ${doctor?.lastName}`}</div>
+          {doctor?.clinicName && <div style={{ fontSize: 13, color: '#6b7280' }}>Dr. {doctor?.firstName} {doctor?.lastName}</div>}
+          {doctor?.phone && <div style={{ fontSize: 12, color: '#6b7280' }}>{doctor.phone}</div>}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: '#6b7280' }}>Generated: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Patient Record</div>
+        </div>
+      </div>
+
+      {/* Patient name + UHID */}
+      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 4 }}>
+          {patient.firstName} {patient.lastName}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: 12, color: '#374151' }}>
+          {patient.patientNumber && <span><b>UHID:</b> {patient.patientNumber}</span>}
+          {patient.dateOfBirth && <span><b>DOB:</b> {formatDate(patient.dateOfBirth)}{age ? ` (${age})` : ''}</span>}
+          {patient.gender && <span><b>Gender:</b> {patient.gender}</span>}
+          {patient.bloodType && <span><b>Blood Type:</b> {patient.bloodType}</span>}
+          {patient.phone && <span><b>Phone:</b> {patient.phone}</span>}
+          {patient.email && <span><b>Email:</b> {patient.email}</span>}
+        </div>
+        {patient.address && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}><b>Address:</b> {patient.address}</div>}
+      </div>
+
+      {/* Medical Background */}
+      {(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length) ? (
+        <>
+          <SectionHeader title="Medical Background"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
+            {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
+            {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Emergency Contact */}
+      {(patient.emergencyName || patient.emergencyPhone) ? (
+        <>
+          <SectionHeader title="Emergency Contact"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            {patient.emergencyName && <Field label="Name" value={patient.emergencyName}/>}
+            {patient.emergencyPhone && <Field label="Phone" value={patient.emergencyPhone}/>}
+            {patient.emergencyRelation && <Field label="Relationship" value={patient.emergencyRelation}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Homeopathy: History */}
+      {isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan) ? (
+        <>
+          <SectionHeader title="History (H/o)"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+            {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
+            {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Non-homeopathy: Other Medical History */}
+      {!isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes) ? (
+        <>
+          <SectionHeader title="Other Medical History"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Homeopathy: Chief Complaints */}
+      {isHom && patient.chiefComplaints?.some(c => c.complaint) ? (
+        <>
+          <SectionHeader title="Chief Complaints (C/o)"/>
+          {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
+            <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
+                {row.location    && <span><b>Location:</b> {row.location}</span>}
+                {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
+                {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
+                {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
+              </div>
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {/* Homeopathy: Prescription Details */}
+      {isHom && patient.prescriptionDetails ? (
+        <>
+          <SectionHeader title="Prescription Details"/>
+          <RichVal val={patient.prescriptionDetails}/>
+        </>
+      ) : null}
+
+      {/* Non-homeopathy: Specialty Preset Sections */}
+      {!isHom && (() => {
+        const sections = getIntakeSections(spec)
+        const hasData = sections.some(sec => sec.fields.some(f => patient.specialtyData?.[f.key]))
+        if (!hasData) return null
+        return sections.map(sec => {
+          const fields = sec.fields.filter(f => patient.specialtyData?.[f.key] != null && patient.specialtyData?.[f.key] !== '')
+          if (!fields.length) return null
+          return (
+            <div key={sec.title}>
+              <SectionHeader title={sec.title}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.key} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
+                    ? patient.specialtyData[f.key].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.key]} / 10`
+                      : String(patient.specialtyData[f.key] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        })
+      })()}
+
+      {/* Visit History */}
+      {sortedVisits.length > 0 ? (
+        <>
+          <SectionHeader title={`Visit History (${sortedVisits.length} shown)`}/>
+          {sortedVisits.map((v, i) => (
+            <div key={v.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < sortedVisits.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{v.visitDate ? formatDate(v.visitDate) : '—'}</span>
+                {v.followUpDate && <span style={{ fontSize: 11, color: '#6b7280' }}>Follow-up: {formatDate(v.followUpDate)}</span>}
+              </div>
+              {v.chiefComplaint && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Chief Complaint:</b> {v.chiefComplaint}</div>}
+              {v.diagnosis?.length > 0 && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Diagnosis:</b> {v.diagnosis.join(', ')}</div>}
+              {v.treatment && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Treatment:</b> <RichVal val={v.treatment}/></div>}
+              {v.prescriptions?.length > 0 && (
+                <div style={{ fontSize: 12, marginBottom: 3 }}>
+                  <b>Prescriptions:</b> {v.prescriptions.map(rx => `${rx.medication} ${rx.dosage} ${rx.frequency}`).join('; ')}
+                </div>
+              )}
+              {v.payment?.amount > 0 && <div style={{ fontSize: 12, color: '#059669' }}><b>Payment:</b> {formatCurrency(v.payment.amount)} ({v.payment.status})</div>}
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {/* Footer */}
+      <div style={{ marginTop: 32, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 10, color: '#9ca3af', textAlign: 'center' }}>
+        This document is confidential and intended solely for the patient and authorised medical personnel.
+      </div>
+    </div>
+  )
+}
+
 export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
@@ -1174,6 +1368,13 @@ export default function PatientProfilePage() {
             </svg>
             Edit
           </button>
+          <button onClick={() => window.print()}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export PDF
+          </button>
           <button onClick={() => setShowDeleteModal(true)}
             className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1662,6 +1863,14 @@ export default function PatientProfilePage() {
           </button>
         </div>
       </Modal>
+
+      <PatientPrintView
+        patient={patient}
+        visits={visits}
+        doctor={doctor}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
     </AppLayout>
   )
 }
