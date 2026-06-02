@@ -31,6 +31,7 @@ const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-5
 // Renders one specialty field in view or edit mode
 function ClinicalField({ field, value, onChange, editing }) {
   const { label, type, options = [] } = field
+  const isHtml = v => typeof v === 'string' && /<[a-z][\s\S]*>/i.test(v)
   if (!editing) {
     let display = value
     if (type === 'chips' && Array.isArray(value)) display = value.join(', ')
@@ -38,9 +39,12 @@ function ClinicalField({ field, value, onChange, editing }) {
     return (
       <div className={type === 'textarea' ? 'sm:col-span-2' : ''}>
         <p className="form-label">{label}</p>
-        <p className={`text-sm mt-0.5 ${display ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-          {display || '—'}
-        </p>
+        {display
+          ? (type === 'textarea' && isHtml(display)
+              ? <div className="rich-text-view text-sm mt-0.5 text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: display }}/>
+              : <p className={`text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300`}>{display}</p>)
+          : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
+        }
       </div>
     )
   }
@@ -1314,6 +1318,8 @@ export default function PatientProfilePage() {
                           </div>
                           <span className={`text-sm font-bold w-6 text-center ${val >= 8 ? 'text-red-500' : val >= 5 ? 'text-amber-500' : 'text-green-500'}`}>{val}</span>
                         </div>
+                      ) : field.type === 'textarea' && typeof val === 'string' && /<[a-z][\s\S]*>/i.test(val) ? (
+                        <div className="rich-text-view text-sm mt-0.5 text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: val }}/>
                       ) : (
                         <p className={`text-sm mt-0.5 whitespace-pre-wrap ${val ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                           {Array.isArray(val) ? val.join(', ') : (val || '—')}
