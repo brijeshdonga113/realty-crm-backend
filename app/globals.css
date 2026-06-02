@@ -193,7 +193,8 @@
 
 @media print {
   body * { visibility: hidden; }
-  #patient-print {
+  #patient-print,
+  #invoice-print {
     visibility: visible;
     display: block !important;
     position: absolute;
@@ -201,7 +202,8 @@
     top: 0;
     width: 100%;
   }
-  #patient-print * { visibility: visible; }
+  #patient-print *,
+  #invoice-print * { visibility: visible; }
 }
 
 @layer components {
