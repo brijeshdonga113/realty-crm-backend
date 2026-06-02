@@ -4,13 +4,12 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Highlight from '@tiptap/extension-highlight'
-import Link from '@tiptap/extension-link'
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import Color from '@tiptap/extension-color'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 
 const FONTS = [
   { label: 'Default',    value: null },
@@ -88,17 +87,12 @@ function DropdownItem({ onClick, active, children }) {
 }
 
 export default function RichTextEditor({ value, onChange, placeholder, className }) {
-  const [showLinkPopover, setShowLinkPopover] = useState(false)
-  const [linkUrl, setLinkUrl] = useState('')
-  const linkRef = useRef(null)
-
   const editor = useEditor({
     extensions: [
       StarterKit,
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Highlight.configure({ multicolor: true }),
-      Link.configure({ openOnClick: false, autolink: true }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
@@ -124,21 +118,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
     if (value !== current) editor.commands.setContent(value || '', false)
   }, [value, editor])
 
-  // Close link popover on outside click
-  useEffect(() => {
-    const h = e => { if (!linkRef.current?.contains(e.target)) setShowLinkPopover(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-
   if (!editor) return null
-
-  const applyLink = () => {
-    if (!linkUrl.trim()) return
-    editor.chain().focus().setLink({ href: linkUrl.trim() }).run()
-    setShowLinkPopover(false)
-    setLinkUrl('')
-  }
 
   const currentFont = FONTS.find(f => f.value && editor.isActive('textStyle', { fontFamily: f.value }))?.label || 'Font'
 
@@ -310,52 +290,6 @@ export default function RichTextEditor({ value, onChange, placeholder, className
             </>
           )}
         </Dropdown>
-
-        <Sep />
-
-        {/* Link */}
-        <div className="relative" ref={linkRef}>
-          <ToolBtn
-            onClick={() => {
-              if (editor.isActive('link')) {
-                editor.chain().focus().unsetLink().run()
-              } else {
-                setLinkUrl(editor.getAttributes('link').href || '')
-                setShowLinkPopover(v => !v)
-              }
-            }}
-            active={editor.isActive('link')}
-            title="Link"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-            </svg>
-          </ToolBtn>
-          {showLinkPopover && (
-            <div className="absolute top-full left-0 mt-1 z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl p-3 min-w-[220px]"
-              onMouseDown={e => e.stopPropagation()}>
-              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">URL</p>
-              <input
-                value={linkUrl}
-                onChange={e => setLinkUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyLink() } }}
-                placeholder="https://…"
-                autoFocus
-                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:border-primary-500 mb-2"
-              />
-              <div className="flex gap-2">
-                <button type="button" onMouseDown={e => { e.preventDefault(); applyLink() }}
-                  className="flex-1 px-2.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors">
-                  Apply
-                </button>
-                <button type="button" onMouseDown={e => { e.preventDefault(); setShowLinkPopover(false) }}
-                  className="px-2.5 py-1.5 border border-gray-200 dark:border-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
 
       </div>
 
