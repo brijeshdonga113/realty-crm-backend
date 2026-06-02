@@ -14,7 +14,7 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
@@ -603,6 +603,9 @@ export default function PatientProfilePage() {
   const [tab, setTab]            = useState(0)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
+  const [editInvoice,   setEditInvoice]   = useState(null)
+  const [editInvForm,   setEditInvForm]   = useState({ description: '', amount: '', method: 'cash', status: 'draft', collectedBy: '' })
+  const [editInvSaving, setEditInvSaving] = useState(false)
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -785,6 +788,43 @@ export default function PatientProfilePage() {
   function cancelCustomizeProfile() {
     setDraftSectionLayout(sectionLayout)
     setCustomizingProfile(false)
+  }
+
+  // ─── Invoice edit handlers ────────────────────────────────────────────────
+
+  function openInvEdit(inv) {
+    setEditInvoice(inv)
+    setEditInvForm({
+      description: inv.lineItems?.[0]?.description || '',
+      amount:      String(inv.total ?? ''),
+      method:      inv.paymentMethod || 'cash',
+      status:      inv.status || 'draft',
+      collectedBy: inv.collectedBy || '',
+    })
+  }
+
+  async function handleInvEdit() {
+    if (!editInvoice) return
+    setEditInvSaving(true)
+    try {
+      const newTotal = Number(editInvForm.amount)
+      await billingService.update(editInvoice.id, {
+        lineItems: editInvoice.lineItems?.length
+          ? [{ ...editInvoice.lineItems[0], description: editInvForm.description, unitPrice: newTotal, quantity: 1, total: newTotal }]
+          : editInvoice.lineItems,
+        total:         newTotal,
+        subtotal:      newTotal,
+        status:        editInvForm.status,
+        paymentMethod: editInvForm.method,
+        collectedBy:   editInvForm.collectedBy,
+        paymentDate:   editInvForm.status === 'paid' ? (editInvoice.paymentDate || editInvoice.issueDate) : null,
+      })
+      setEditInvoice(null)
+    } catch {
+      toast.error('Failed to update invoice. Please try again.')
+    } finally {
+      setEditInvSaving(false)
+    }
   }
 
   // ─── Section renderer (Overview tab) ─────────────────────────────────────
@@ -1505,15 +1545,14 @@ export default function PatientProfilePage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                    {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status'].map(h => (
+                    {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {invoices.map(inv => (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/billing?invoice=${inv.id}`)}>
+                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">
@@ -1524,6 +1563,18 @@ export default function PatientProfilePage() {
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3">
                         <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openInvEdit(inv)}
+                            className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:underline transition-colors">
+                            Edit
+                          </button>
+                          <button onClick={() => router.push(`/billing?invoice=${inv.id}`)}
+                            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors">
+                            View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1541,6 +1592,53 @@ export default function PatientProfilePage() {
           )}
         </div>
       )}
+
+      {/* Edit Invoice Modal */}
+      <Modal open={!!editInvoice} onClose={() => setEditInvoice(null)} title="Edit Invoice" size="sm">
+        {editInvoice && (
+          <div className="space-y-4 mb-5">
+            <div>
+              <label className="form-label">Description</label>
+              <input value={editInvForm.description} onChange={e => setEditInvForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Consultation Fee" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Amount</label>
+              <input type="number" min="0" value={editInvForm.amount} onChange={e => setEditInvForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Payment Method</label>
+              <select value={editInvForm.method} onChange={e => setEditInvForm(f => ({ ...f, method: e.target.value }))} className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <select value={editInvForm.collectedBy} onChange={e => setEditInvForm(f => ({ ...f, collectedBy: e.target.value }))} className="input-field">
+                <option value="">— Select —</option>
+                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Status</label>
+              <select value={editInvForm.status} onChange={e => setEditInvForm(f => ({ ...f, status: e.target.value }))} className="input-field">
+                {billingStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
+              <button onClick={() => setEditInvoice(null)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleInvEdit} disabled={editInvSaving}
+                className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+                {editInvSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Patient Modal */}
       <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">
