@@ -179,10 +179,14 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const followUpDone   = linkedFollowUp?.status === 'done'
   const hasVitals = visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean)
 
+  const isHtml = v => typeof v === 'string' && v.trimStart().startsWith('<')
   const Field = ({ label, value }) => value ? (
     <div>
       <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
-      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{value}</p>
+      {isHtml(value)
+        ? <div className="rich-text-view" dangerouslySetInnerHTML={{ __html: value }}/>
+        : <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{value}</p>
+      }
     </div>
   ) : null
 

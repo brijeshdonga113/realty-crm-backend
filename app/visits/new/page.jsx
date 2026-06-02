@@ -14,6 +14,7 @@ import { buildWAUrl } from '@/lib/whatsapp'
 import { createLineItem } from '@/models/Invoice'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 import { useInventory } from '@/hooks/useInventory'
 import { useAppointments } from '@/hooks/useAppointments'
@@ -512,9 +513,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">History of Present Illness</label>
-            <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
-              placeholder="Detailed history, existing conditions, onset, duration…"
-              className="input-field resize"/>
+            <RichTextEditor value={form.history} onChange={html => set('history', html)}
+              placeholder="Detailed history, existing conditions, onset, duration…"/>
           </div>
 
           {/* Vitals */}
@@ -540,8 +540,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Clinical Findings</label>
-            <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
-              placeholder="Physical examination findings…" className="input-field resize"/>
+            <RichTextEditor value={form.findings} onChange={html => set('findings', html)}
+              placeholder="Physical examination findings…"/>
           </div>
 
           {/* Diagnosis */}
@@ -578,8 +578,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Treatment Plan</label>
-            <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
-              placeholder="Treatment approach…" className="input-field resize"/>
+            <RichTextEditor value={form.treatment} onChange={html => set('treatment', html)}
+              placeholder="Treatment approach…"/>
           </div>
 
           {/* Prescriptions */}
@@ -674,8 +674,8 @@ function VisitEntryForm() {
 
           <div>
             <label className="form-label">Notes</label>
-            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Additional notes…" className="input-field resize"/>
+            <RichTextEditor value={form.notes} onChange={html => set('notes', html)}
+              placeholder="Additional notes…"/>
           </div>
         </div>
 
@@ -1260,21 +1260,27 @@ function VisitEntryForm() {
                         {v.history && (
                           <div>
                             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">History</p>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.history}</p>
+                            {v.history.trimStart().startsWith('<')
+                              ? <div className="rich-text-view text-xs leading-snug" dangerouslySetInnerHTML={{ __html: v.history }}/>
+                              : <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.history}</p>}
                           </div>
                         )}
 
                         {v.examination?.findings && (
                           <div>
                             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Findings</p>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.examination.findings}</p>
+                            {v.examination.findings.trimStart().startsWith('<')
+                              ? <div className="rich-text-view text-xs leading-snug" dangerouslySetInnerHTML={{ __html: v.examination.findings }}/>
+                              : <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.examination.findings}</p>}
                           </div>
                         )}
 
                         {v.treatment && (
                           <div>
                             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Treatment</p>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.treatment}</p>
+                            {v.treatment.trimStart().startsWith('<')
+                              ? <div className="rich-text-view text-xs leading-snug" dangerouslySetInnerHTML={{ __html: v.treatment }}/>
+                              : <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.treatment}</p>}
                           </div>
                         )}
 
