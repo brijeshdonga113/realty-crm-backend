@@ -14,7 +14,6 @@ export function GlobalSearch() {
   const [loading, setLoading]     = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef  = useRef(null)
-  const loadedRef = useRef(false)
 
   const openSearch = useCallback(() => {
     setOpen(true)
@@ -27,18 +26,25 @@ export function GlobalSearch() {
     setQuery('')
   }, [])
 
-  // Load data once on first open
+  // Subscribe to live data while the modal is open
   useEffect(() => {
-    if (!open || loadedRef.current || !doctor) return
+    if (!open || !doctor) return
     setLoading(true)
-    Promise.all([
-      dataStore.getAll('patients'),
-      dataStore.getAll('inventory'),
-    ]).then(([p, inv]) => {
-      setPatients(p)
-      setInventory(inv)
-      loadedRef.current = true
-    }).catch(() => {}).finally(() => setLoading(false))
+    let pReady = false
+    let iReady = false
+    const markReady = () => { if (pReady && iReady) setLoading(false) }
+
+    const unsubP = dataStore.subscribe('patients', (data) => {
+      setPatients(data)
+      pReady = true
+      markReady()
+    })
+    const unsubI = dataStore.subscribe('inventory', (data) => {
+      setInventory(data)
+      iReady = true
+      markReady()
+    })
+    return () => { unsubP(); unsubI() }
   }, [open, doctor])
 
   // ⌘K / Ctrl+K global shortcut
