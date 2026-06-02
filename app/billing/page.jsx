@@ -412,11 +412,11 @@ function BillingPageInner() {
           </div>
         </div>
         <div className="flex gap-3 justify-end">
-          <button onClick={() => setPayModal(null)}
+          <button type="button" onClick={() => setPayModal(null)}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button onClick={async () => { await markPaid(payModal, payMethod, payCollectedBy); setPayModal(null) }}
+          <button type="button" onClick={async () => { await markPaid(payModal, payMethod, payCollectedBy); setPayModal(null) }}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
             Confirm Payment
           </button>
@@ -458,11 +458,11 @@ function BillingPageInner() {
           </div>
         )}
         <div className="flex gap-3 justify-end">
-          <button onClick={() => setEditInvoice(null)}
+          <button type="button" onClick={() => setEditInvoice(null)}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button onClick={handleEdit} disabled={editSaving}
+          <button type="button" onClick={handleEdit} disabled={editSaving}
             className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
             {editSaving ? 'Saving…' : 'Save Changes'}
           </button>

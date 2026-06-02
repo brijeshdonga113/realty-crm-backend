@@ -37,7 +37,7 @@ function ClinicalField({ field, value, onChange, editing }) {
     if (type === 'scale') display = value != null ? `${value} / 10` : null
     return (
       <div className={type === 'textarea' ? 'sm:col-span-2' : ''}>
-        <p className="form-label text-xs">{label}</p>
+        <p className="form-label">{label}</p>
         <p className={`text-sm mt-0.5 ${display ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
           {display || '—'}
         </p>
@@ -126,7 +126,7 @@ function InfoRow({ label, value }) {
   if (!value) return null
   return (
     <div>
-      <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">{label}</p>
       <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{value}</p>
     </div>
   )
@@ -483,11 +483,11 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
               </div>
             )}
             <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
-              <button onClick={() => setEditing(false)}
+              <button type="button" onClick={() => setEditing(false)}
                 className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleUpdate} disabled={saving || !editForm.chiefComplaint.trim()}
+              <button type="button" onClick={handleUpdate} disabled={saving || !editForm.chiefComplaint.trim()}
                 className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
@@ -965,7 +965,7 @@ export default function PatientProfilePage() {
             <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {hoFields.map(f => (
                 <div key={f.key} className="px-6 py-4">
-                  <p className="form-label text-xs mb-1">{f.label}</p>
+                  <p className="form-label mb-1">{f.label}</p>
                   <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
                 </div>
               ))}
@@ -1060,25 +1060,25 @@ export default function PatientProfilePage() {
           <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="form-label text-xs">Observation</p>
+                <p className="form-label">Observation</p>
                 <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                   {patient.observation || '—'}
                 </p>
               </div>
               <div>
-                <p className="form-label text-xs">Past History</p>
+                <p className="form-label">Past History</p>
                 <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                   {patient.pastHistory || '—'}
                 </p>
               </div>
               <div>
-                <p className="form-label text-xs">Family History</p>
+                <p className="form-label">Family History</p>
                 <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.familyHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                   {patient.familyHistory || '—'}
                 </p>
               </div>
               <div>
-                <p className="form-label text-xs">Notes</p>
+                <p className="form-label">Notes</p>
                 <p className={`text-sm mt-0.5 whitespace-pre-wrap ${patient.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
                   {patient.notes || '—'}
                 </p>
@@ -1109,7 +1109,7 @@ export default function PatientProfilePage() {
                   if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) return null
                   return (
                     <div key={field.key} className={field.type === 'textarea' || field.type === 'chips' || field.type === 'scale' ? 'sm:col-span-2' : ''}>
-                      <p className="form-label text-xs">{field.label}</p>
+                      <p className="form-label">{field.label}</p>
                       {field.type === 'scale' ? (
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -1627,11 +1627,11 @@ export default function PatientProfilePage() {
               </select>
             </div>
             <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
-              <button onClick={() => setEditInvoice(null)}
+              <button type="button" onClick={() => setEditInvoice(null)}
                 className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleInvEdit} disabled={editInvSaving}
+              <button type="button" onClick={handleInvEdit} disabled={editInvSaving}
                 className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
                 {editInvSaving ? 'Saving…' : 'Save Changes'}
               </button>
@@ -1647,11 +1647,11 @@ export default function PatientProfilePage() {
         </p>
         <p className="text-xs text-red-600 dark:text-red-400 mb-6">All visits, appointments, and billing records will be removed. This cannot be undone.</p>
         <div className="flex gap-3 justify-end">
-          <button onClick={() => setShowDeleteModal(false)}
+          <button type="button" onClick={() => setShowDeleteModal(false)}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button disabled={deleting} onClick={async () => {
+          <button type="button" disabled={deleting} onClick={async () => {
             setDeleting(true)
             try { await patientService.remove(id); router.push('/patients') } catch { setDeleting(false) }
           }}
