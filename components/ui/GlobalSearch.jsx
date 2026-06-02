@@ -69,13 +69,17 @@ export function GlobalSearch() {
 
   const q = query.toLowerCase().trim()
 
-  const matchedPatients = patients.filter(p =>
-    !q
-      ? false
-      : `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes(q) ||
-        (p.phone && p.phone.replace(/\D/g, '').includes(q.replace(/\D/g, ''))) ||
-        (p.patientNumber && String(p.patientNumber).includes(q))
-  ).slice(0, 6)
+  const qDigits = q.replace(/\D/g, '')
+
+  const matchedPatients = patients.filter(p => {
+    if (!q) return false
+    const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase()
+    if (fullName.includes(q)) return true
+    if (p.email && p.email.toLowerCase().includes(q)) return true
+    if (qDigits && p.phone && p.phone.replace(/\D/g, '').includes(qDigits)) return true
+    if (p.patientNumber && String(p.patientNumber).includes(q)) return true
+    return false
+  }).slice(0, 6)
 
   const matchedInventory = inventory.filter(i =>
     !q
@@ -148,7 +152,7 @@ export function GlobalSearch() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search patients, medicines…"
+                placeholder="Search by name, phone, email, medicine…"
                 className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-base outline-none"
               />
               {query && (
