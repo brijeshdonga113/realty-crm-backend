@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
@@ -10,7 +10,7 @@ import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/
 import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import ServiceSuggest from '@/components/ui/ServiceSuggest'
+import { getBillingItems } from '@/lib/specialtyPresets'
 
 function StockBadge({ invItem, qty }) {
   if (!invItem) return null
@@ -31,6 +31,10 @@ function NewInvoiceForm() {
   const { add }                    = useBilling()
   const { patients }               = usePatients()
   const { doctor, isReceptionist } = useAuth()
+
+  useEffect(() => {
+    if (doctor?.viewOnly) router.replace('/billing')
+  }, [doctor?.viewOnly])
   const { items: inventory }              = useInventory()
   const { formatCurrency }         = usePreferences()
 
@@ -63,16 +67,6 @@ function NewInvoiceForm() {
       if (item.id !== id) return item
       const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...item, [field]: value }
-      const lineTotal  = updated.quantity * updated.unitPrice
-      const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
-      return { ...updated, total: lineTotal - discAmount }
-    }))
-  }
-
-  const selectServiceItem = (id, name, price) => {
-    setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item
-      const updated = { ...item, description: name, unitPrice: Number(price) || 0 }
       const lineTotal  = updated.quantity * updated.unitPrice
       const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
       return { ...updated, total: lineTotal - discAmount }
@@ -220,6 +214,39 @@ function NewInvoiceForm() {
               </div>
             </div>
 
+            <div>
+              <label className="form-label">Payment Method</label>
+              <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className="input-field">
+                <option value="">Not specified</option>
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+
+            {form.paymentMethod && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Payment Status</label>
+                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                    <button type="button" onClick={() => set('status', 'paid')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                      Paid
+                    </button>
+                    <button type="button" onClick={() => set('status', 'draft')}
+                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      Due
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Collected By</label>
+                  <select value={form.collectedBy} onChange={e => set('collectedBy', e.target.value)} className="input-field">
+                    {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Line Items ── */}
@@ -246,15 +273,14 @@ function NewInvoiceForm() {
               </div>
             </div>
 
-            {/* Quick-add from doctor's saved service charges */}
-            {(doctor?.serviceCharges ?? []).length > 0 && (
+            {/* Quick-add service presets */}
+            {getBillingItems(doctor?.specialization).length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
                 <span className="text-xs font-medium text-gray-400 dark:text-gray-500 self-center mr-1">Quick add:</span>
-                {(doctor?.serviceCharges ?? []).map(sc => (
-                  <button key={sc.id} type="button"
-                    onClick={() => addService({ description: sc.name, unitPrice: sc.price || 0 })}
+                {getBillingItems(doctor?.specialization).map(item => (
+                  <button key={item.description} type="button" onClick={() => addService(item)}
                     className="text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 border border-gray-200 dark:border-gray-600 hover:border-blue-300 rounded-lg font-medium transition-colors">
-                    + {sc.name}{sc.price > 0 ? ` (₹${Number(sc.price).toLocaleString('en-IN')})` : ''}
+                    + {item.description}
                   </button>
                 ))}
               </div>
@@ -333,27 +359,12 @@ function NewInvoiceForm() {
                             }
                           </select>
                           <StockBadge invItem={linkedInv} qty={item.quantity}/>
-                          {linkedInv && (linkedInv.mrp || linkedInv.billingPrice) && (
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                              {linkedInv.mrp && (
-                                <span className="text-xs text-gray-400 dark:text-gray-500">
-                                  Purchase: <span className="font-semibold text-gray-600 dark:text-gray-300">₹{linkedInv.mrp}</span>
-                                </span>
-                              )}
-                              {linkedInv.billingPrice && (
-                                <span className="text-xs text-teal-600 dark:text-teal-400">
-                                  Billing: <span className="font-semibold">₹{linkedInv.billingPrice}</span>
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </>
                       ) : (
-                        <ServiceSuggest
+                        <input
                           value={item.description}
-                          onChange={desc => updateItem(item.id, 'description', desc)}
-                          onSelect={(name, price) => selectServiceItem(item.id, name, price)}
-                          services={doctor?.serviceCharges ?? []}
+                          onChange={e => updateItem(item.id, 'description', e.target.value)}
+                          placeholder="Service description"
                           className="input-field text-sm py-2 w-full"
                         />
                       )}
@@ -488,60 +499,6 @@ function NewInvoiceForm() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* ── Payment ── */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Payment</h3>
-
-            <div>
-              <label className="form-label">Payment Method</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {PAYMENT_METHODS.map(m => (
-                  <button type="button" key={m.value}
-                    onClick={() => set('paymentMethod', form.paymentMethod === m.value ? '' : m.value)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      form.paymentMethod === m.value
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-                    }`}>{m.label}</button>
-                ))}
-              </div>
-            </div>
-
-            {form.paymentMethod && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Payment Status</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    <button type="button" onClick={() => set('status', 'paid')}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'paid' ? 'bg-green-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-                      Paid
-                    </button>
-                    <button type="button" onClick={() => set('status', 'draft')}
-                      className={`flex-1 py-2 transition-colors flex items-center justify-center gap-1.5 ${form.status === 'draft' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      Due
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label">Collected By</label>
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
-                    {COLLECTED_BY_OPTIONS.map(o => (
-                      <button type="button" key={o.value}
-                        onClick={() => set('collectedBy', o.value)}
-                        className={`flex-1 py-2 transition-colors text-center ${
-                          form.collectedBy === o.value
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}>{o.label}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ── Notes ── */}

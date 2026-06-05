@@ -48,9 +48,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Already logged in — redirect to dashboard
+  // Already logged in — redirect appropriately
   useEffect(() => {
-    if (!authLoading && doctor) router.replace('/dashboard')
+    if (!authLoading && doctor) router.replace(doctor.isAdmin ? '/admin' : '/dashboard')
   }, [authLoading, doctor, router])
 
   const handleChange = (e) => {
@@ -66,8 +66,8 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      await login(form.email, form.password)
-      router.push('/dashboard')
+      const profile = await login(form.email, form.password)
+      router.push(profile?.isAdmin ? '/admin' : '/dashboard')
     } catch (err) {
       setError(friendlyAuthError(err))
     } finally {
