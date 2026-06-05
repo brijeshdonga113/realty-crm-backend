@@ -579,8 +579,9 @@ export default function DashboardPage() {
             </svg>
             Customize
           </button>
-          <button onClick={() => router.push('/patients/new')}
-            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+          <button
+            onClick={() => doctor?.viewOnly ? alert('Adding patients is restricted on your current plan. Contact your administrator to upgrade.') : router.push('/patients/new')}
+            className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${doctor?.viewOnly ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
             </svg>

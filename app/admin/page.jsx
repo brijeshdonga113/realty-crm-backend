@@ -815,18 +815,6 @@ export default function AdminPage() {
                               </svg>
                               Staff
                             </button>
-                          {!isMe && (
-                            <button
-                              disabled={!!toggling[`${d.uid}-isAdmin`]}
-                              onClick={() => handleToggle(d.uid, 'isAdmin', d.isAdmin)}
-                              className={`text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors disabled:opacity-50 ${
-                                d.isAdmin
-                                  ? 'border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                              }`}>
-                              {d.isAdmin ? 'Revoke Admin' : 'Make Admin'}
-                            </button>
-                          )}
                           </div>
                         </td>
                       </tr>

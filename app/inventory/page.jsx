@@ -406,8 +406,9 @@ export default function InventoryPage() {
               Export
             </button>
           )}
-          <button onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+          <button
+            onClick={() => doctor?.viewOnly ? alert('Adding inventory is restricted on your current plan. Contact your administrator to upgrade.') : setAddOpen(true)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${doctor?.viewOnly ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             Add Item
           </button>
@@ -515,8 +516,9 @@ export default function InventoryPage() {
             <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">No Inventory Yet</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Add items manually or import from a CSV file.</p>
             <div className="flex items-center gap-3 justify-center">
-              <button onClick={() => setAddOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button
+                onClick={() => doctor?.viewOnly ? alert('Adding inventory is restricted on your current plan. Contact your administrator to upgrade.') : setAddOpen(true)}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors ${doctor?.viewOnly ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                 Add Item
               </button>
