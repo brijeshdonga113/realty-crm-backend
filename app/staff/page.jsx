@@ -1,9 +1,11 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useStaff } from '@/hooks/useStaff'
+import { useAuth } from '@/context/AuthContext'
+import { auth } from '@/lib/firebase'
 import { STAFF_ROLES, STAFF_STATUSES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
@@ -29,6 +31,8 @@ const emptyForm = {
   status: 'active', joinDate: new Date().toISOString().slice(0, 10), notes: '',
   schedule: { workDays: ['Monday','Tuesday','Wednesday','Thursday','Friday'], startTime: '09:00', endTime: '17:00' },
 }
+
+const emptyLoginForm = { name: '', email: '', password: '' }
 
 function getRoleColor(role) {
   const idx = STAFF_ROLES.findIndex(r => r.value === role)
@@ -157,12 +161,218 @@ function StaffForm({ initial, onSave, onCancel }) {
   )
 }
 
+// ── Login Accounts (receptionists with Firebase Auth) ─────────────────────────
+
+function useReceptionists() {
+  const { loading: authLoading } = useAuth()
+  const [receptionists, setReceptionists] = useState([])
+  const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState('')
+
+  const getToken = async () => auth.currentUser?.getIdToken() ?? null
+
+  const apiFetch = useCallback(async (path, opts = {}) => {
+    const token = await getToken()
+    return fetch(path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers ?? {}) },
+    })
+  }, [])
+
+  const load = useCallback(async () => {
+    if (authLoading || !auth.currentUser) return
+    setLoading(true)
+    setError('')
+    try {
+      const res  = await apiFetch('/api/staff/receptionists')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setReceptionists(data.receptionists ?? [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [apiFetch, authLoading])
+
+  useEffect(() => { load() }, [load])
+
+  const create = useCallback(async (form) => {
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'POST', body: JSON.stringify(form) })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error)
+    load()
+    return data
+  }, [apiFetch, load])
+
+  const remove = useCallback(async (uid) => {
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'DELETE', body: JSON.stringify({ uid }) })
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+    setReceptionists(prev => prev.filter(r => r.uid !== uid))
+  }, [apiFetch])
+
+  return { receptionists, loading, error, create, remove, reload: load }
+}
+
+function LoginAccountsSection() {
+  const { receptionists, loading, error, create, remove } = useReceptionists()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm]         = useState(emptyLoginForm)
+  const [formErr, setFormErr]   = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [done, setDone]         = useState(null)
+  const [deleting, setDeleting] = useState({})
+
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setFormErr('') }
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setSaving(true); setFormErr('')
+    try {
+      await create(form)
+      setDone({ email: form.email, password: form.password })
+      setForm(emptyLoginForm)
+      setShowForm(false)
+    } catch (err) {
+      setFormErr(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (uid) => {
+    if (!window.confirm('Remove this receptionist? They will no longer be able to log in.')) return
+    setDeleting(d => ({ ...d, [uid]: true }))
+    try { await remove(uid) }
+    catch (err) { alert(err.message) }
+    finally { setDeleting(d => { const n = { ...d }; delete n[uid]; return n }) }
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Login Accounts</h3>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Receptionists with app login access</p>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Login Account
+          </button>
+        )}
+      </div>
+
+      <div className="p-5 space-y-4">
+
+        {/* Success banner */}
+        {done && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-bold text-green-800 dark:text-green-300">Receptionist account created</p>
+            <div className="text-xs space-y-1">
+              <p className="text-green-700 dark:text-green-400">Email: <span className="font-mono font-semibold">{done.email}</span></p>
+              <p className="text-green-700 dark:text-green-400">Password: <span className="font-mono font-semibold select-all">{done.password}</span></p>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Share these credentials. Ask them to change the password after first login.</p>
+            <button onClick={() => setDone(null)} className="text-xs text-green-600 dark:text-green-400 hover:underline">Dismiss</button>
+          </div>
+        )}
+
+        {/* Add form */}
+        {showForm && (
+          <form onSubmit={handleCreate} className="border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">New Receptionist Account</p>
+            <div>
+              <label className="form-label">Full Name *</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="Jane Doe" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Email *</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required placeholder="jane@clinic.com" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Temporary Password *</label>
+              <input type="text" value={form.password} onChange={e => set('password', e.target.value)}
+                required minLength={6} placeholder="Min 6 characters" className="input-field font-mono"/>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">They should change this after first login.</p>
+            </div>
+            {formErr && <p className="text-sm text-red-600 dark:text-red-400">{formErr}</p>}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => { setShowForm(false); setForm(emptyLoginForm); setFormErr('') }}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                {saving && <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                {saving ? 'Creating…' : 'Create Account'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* List */}
+        {loading ? (
+          <div className="flex items-center gap-2 py-4 text-gray-400 text-sm">
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            Loading…
+          </div>
+        ) : error ? (
+          <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+        ) : receptionists.length === 0 && !showForm ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500 py-2">No login accounts yet. Add one above.</p>
+        ) : (
+          <div className="space-y-2">
+            {receptionists.map(r => (
+              <div key={r.uid} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-purple-700 dark:text-purple-300">
+                    {r.name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{r.name}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.email}</p>
+                  </div>
+                </div>
+                <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                  Receptionist
+                </span>
+                <button onClick={() => handleDelete(r.uid)} disabled={deleting[r.uid]}
+                  className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 flex-shrink-0 disabled:opacity-50">
+                  {deleting[r.uid] ? (
+                    <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
-  const [showAdd,   setShowAdd]   = useState(false)
-  const [editItem,  setEditItem]  = useState(null)
-  const [deleteId,  setDeleteId]  = useState(null)
-  const [search,   setSearch]   = useState('')
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [editItem,   setEditItem]   = useState(null)
+  const [deleteId,   setDeleteId]   = useState(null)
+  const [search,     setSearch]     = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
 
   const stats = useMemo(() => ({
@@ -195,141 +405,145 @@ export default function StaffPage() {
         </button>
       }
     >
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
-          <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          Loading…
-        </div>
-      ) : staff.length === 0 ? (
-        <EmptyState
-          title="No staff members yet"
-          description="Add your clinic staff to manage their roles and schedules."
-          action={() => setShowAdd(true)}
-          actionLabel="Add Staff Member"
-        />
-      ) : (
-        <div className="space-y-5">
+      <div className="space-y-6">
 
-          {/* ── Stats ─────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Staff', value: stats.total,      color: 'text-gray-700 dark:text-gray-200',  bg: 'bg-white dark:bg-gray-800' },
-              { label: 'Active',      value: stats.active,     color: 'text-green-600 dark:text-green-400', bg: 'bg-white dark:bg-gray-800' },
-              { label: 'On Leave',    value: stats.onLeave,    color: 'text-amber-600 dark:text-amber-400', bg: 'bg-white dark:bg-gray-800' },
-              { label: 'Terminated',  value: stats.terminated, color: 'text-red-500 dark:text-red-400',     bg: 'bg-white dark:bg-gray-800' },
-            ].map(s => (
-              <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm px-5 py-4`}>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{s.label}</p>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
+        {/* ── Login Accounts section ──────────────────────────────────── */}
+        <LoginAccountsSection />
+
+        {/* ── Internal Staff Records ─────────────────────────────────── */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
+            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            Loading…
           </div>
+        ) : staff.length === 0 ? (
+          <EmptyState
+            title="No staff records yet"
+            description="Add staff records to manage roles, schedules and contact info."
+            action={() => setShowAdd(true)}
+            actionLabel="Add Staff Member"
+          />
+        ) : (
+          <div className="space-y-5">
 
-          {/* ── Search + Filter ───────────────────────────────────────── */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, email or phone…"
-                className="input-field pl-9 w-full"/>
-            </div>
-            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-              className="input-field sm:w-52">
-              <option value="all">All Roles</option>
-              {STAFF_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-          </div>
-
-          {/* ── Cards ─────────────────────────────────────────────────── */}
-          {filtered.length === 0 ? (
-            <div className="text-center py-16 text-sm text-gray-400">No staff match your search.</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map(member => (
-                <div key={member.id}
-                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
-
-                  {/* Card header */}
-                  <div className="flex items-start gap-3 p-5 pb-4">
-                    <Avatar member={member}/>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">
-                        {getStaffFullName(member)}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {getStaffRoleLabel(member.role)}
-                      </p>
-                      <div className="mt-2">
-                        <StatusPill status={member.status}/>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Info rows */}
-                  <div className="px-5 pb-4 space-y-2 border-t border-gray-50 dark:border-gray-700/50 pt-3">
-                    {member.phone && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                        </svg>
-                        {member.phone}
-                      </div>
-                    )}
-                    {member.email && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
-                        <span className="truncate">{member.email}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                      </svg>
-                      <span>{member.schedule?.workDays?.map(d => d.slice(0,3)).join(', ')}</span>
-                      <span className="text-gray-300 dark:text-gray-600">·</span>
-                      <span>{member.schedule?.startTime} – {member.schedule?.endTime}</span>
-                    </div>
-                    {member.joinDate && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                        </svg>
-                        Joined {new Date(member.joinDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex border-t border-gray-100 dark:border-gray-700">
-                    <button onClick={() => setEditItem(member)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors rounded-bl-xl">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                      </svg>
-                      Edit
-                    </button>
-                    <div className="w-px bg-gray-100 dark:bg-gray-700"/>
-                    <button onClick={() => setDeleteId(member.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-br-xl">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                      Remove
-                    </button>
-                  </div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Staff', value: stats.total,      color: 'text-gray-700 dark:text-gray-200',  bg: 'bg-white dark:bg-gray-800' },
+                { label: 'Active',      value: stats.active,     color: 'text-green-600 dark:text-green-400', bg: 'bg-white dark:bg-gray-800' },
+                { label: 'On Leave',    value: stats.onLeave,    color: 'text-amber-600 dark:text-amber-400', bg: 'bg-white dark:bg-gray-800' },
+                { label: 'Terminated',  value: stats.terminated, color: 'text-red-500 dark:text-red-400',     bg: 'bg-white dark:bg-gray-800' },
+              ].map(s => (
+                <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm px-5 py-4`}>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{s.label}</p>
+                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Search + Filter */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by name, email or phone…"
+                  className="input-field pl-9 w-full"/>
+              </div>
+              <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                className="input-field sm:w-52">
+                <option value="all">All Roles</option>
+                {STAFF_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+
+            {/* Cards */}
+            {filtered.length === 0 ? (
+              <div className="text-center py-16 text-sm text-gray-400">No staff match your search.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map(member => (
+                  <div key={member.id}
+                    className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+
+                    <div className="flex items-start gap-3 p-5 pb-4">
+                      <Avatar member={member}/>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight truncate">
+                          {getStaffFullName(member)}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {getStaffRoleLabel(member.role)}
+                        </p>
+                        <div className="mt-2">
+                          <StatusPill status={member.status}/>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="px-5 pb-4 space-y-2 border-t border-gray-50 dark:border-gray-700/50 pt-3">
+                      {member.phone && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                          </svg>
+                          {member.phone}
+                        </div>
+                      )}
+                      {member.email && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                          </svg>
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span>{member.schedule?.workDays?.map(d => d.slice(0,3)).join(', ')}</span>
+                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                        <span>{member.schedule?.startTime} – {member.schedule?.endTime}</span>
+                      </div>
+                      {member.joinDate && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                          </svg>
+                          Joined {new Date(member.joinDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex border-t border-gray-100 dark:border-gray-700">
+                      <button onClick={() => setEditItem(member)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors rounded-bl-xl">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        Edit
+                      </button>
+                      <div className="w-px bg-gray-100 dark:bg-gray-700"/>
+                      <button onClick={() => setDeleteId(member.id)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-br-xl">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Add modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Staff Member" size="md">
