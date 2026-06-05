@@ -9,7 +9,7 @@ import { formatCurrency as fmtCurrencyLib } from '@/lib/preferences'
 function useTodayRevenue(doctor) {
   const [revenue, setRevenue] = useState(null)
   useEffect(() => {
-    if (!doctor || doctor.isAdmin) return
+    if (!doctor) return
     const today = new Date().toISOString().slice(0, 10)
     const unsub = dataStore.subscribe('invoices', (invoices) => {
       const total = invoices
@@ -183,8 +183,6 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
             const visibleItems = section.items.filter(item => {
               if (item.adminOnly && !doctor?.isAdmin) return false
               if (item.doctorOnly && isReceptionist) return false
-              // Super admins only see Admin Panel + Settings
-              if (doctor?.isAdmin && !item.adminOnly && item.href !== '/settings') return false
               return true
             })
             if (visibleItems.length === 0) return null

@@ -510,7 +510,7 @@ function CreateAccountModal({ open, onClose, onCreated, doctors = [] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const { doctor } = useAuth()
+  const { doctor, loading: authLoading } = useAuth()
   const router     = useRouter()
 
   const [enriched,  setEnriched]    = useState([])
@@ -536,9 +536,9 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (!doctor?.isAdmin) return
+    if (authLoading || !doctor?.isAdmin) return
     fetchDoctors()
-  }, [doctor])
+  }, [doctor, authLoading])
 
   const handleToggle = async (uid, field, currentVal) => {
     setToggling(t => ({ ...t, [`${uid}-${field}`]: true }))
