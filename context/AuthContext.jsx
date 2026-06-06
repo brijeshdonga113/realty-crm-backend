@@ -44,8 +44,10 @@ function buildDoctorProfile(uid, data) {
     waTemplates:   data.waTemplates   ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
-    isAdmin:       data.isAdmin       ?? false,
-    viewOnly:      data.viewOnly      ?? false,
+    isAdmin:        data.isAdmin        ?? false,
+    viewOnly:       data.viewOnly       ?? false,
+    organizationId: data.organizationId ?? null,
+    branchName:     data.branchName     ?? '',
   }
 }
 
