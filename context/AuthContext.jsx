@@ -1,9 +1,10 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 import { initTrial } from '@/lib/subscription'
+import { setActiveBranchUid } from '@/lib/dataStore'
 
 const AuthContext = createContext(null)
 
@@ -117,8 +118,12 @@ async function loadReceptionistSession(uid, userEmail) {
 export function AuthProvider({ children }) {
   // Hydrate from localStorage immediately so the app renders without a login flash.
   // Firebase onAuthStateChanged then validates and refreshes the session in the background.
-  const [doctor, setDoctor]   = useState(() => typeof window !== 'undefined' ? getLocalSession() : null)
-  const [loading, setLoading] = useState(true)
+  const [doctor,         setDoctor]         = useState(() => typeof window !== 'undefined' ? getLocalSession() : null)
+  const [loading,        setLoading]        = useState(true)
+  // Multi-branch org state
+  const [baseDoctor,     setBaseDoctor]     = useState(null) // always the logged-in user's profile
+  const [activeBranch,   setActiveBranchState] = useState(null) // { uid, branchName }
+  const [org,            setOrg]            = useState(null) // { id, name, branches: [{uid, branchName}] }
 
   useEffect(() => {
     let unsubscribe
@@ -137,6 +142,8 @@ export function AuthProvider({ children }) {
               restoreGoogleCalendarConnection(profile.googleCalendarConnected)
               saveSessionLocally(profile)
               setDoctor(profile)
+              setBaseDoctor(profile)
+              loadOrg(profile)
             } else {
               // No doctor profile — check if this is a receptionist account
               const recSession = await loadReceptionistSession(user.uid, user.email)
@@ -248,6 +255,8 @@ export function AuthProvider({ children }) {
     if (profile) {
       saveSessionLocally(profile)
       setDoctor(profile)
+      setBaseDoctor(profile)
+      loadOrg(profile)
       return profile
     }
 
@@ -311,17 +320,51 @@ export function AuthProvider({ children }) {
     return updated
   }
 
+  // Load org when a doctor profile with organizationId is available
+  const loadOrg = useCallback(async (profile) => {
+    if (!profile?.organizationId) { setOrg(null); return }
+    try {
+      const { doc, getDoc } = await import('firebase/firestore')
+      const snap = await getDoc(doc(db, 'organizations', profile.organizationId))
+      if (snap.exists()) setOrg({ id: snap.id, ...snap.data() })
+      else setOrg(null)
+    } catch { setOrg(null) }
+  }, [])
+
+  // Switch active branch — loads that branch's profile and redirects dataStore
+  const switchBranch = useCallback(async (branch) => {
+    if (!branch) {
+      // Reset to own branch
+      setActiveBranchUid(null)
+      setActiveBranchState(null)
+      setDoctor(baseDoctor)
+      return
+    }
+    setActiveBranchUid(branch.uid)
+    setActiveBranchState(branch)
+    // Load the selected branch's doctor profile for UI display
+    const branchProfile = await loadFirebaseProfile(branch.uid)
+    if (branchProfile) {
+      // Preserve org info from our own session
+      setDoctor({ ...branchProfile, _activeBranch: branch, _baseDoctor: baseDoctor, organizationId: baseDoctor?.organizationId })
+    }
+  }, [baseDoctor])
+
   const logout = async () => {
     const { signOut } = await import('firebase/auth')
     await signOut(auth)
     clearSessionLocally()
+    setActiveBranchUid(null)
+    setActiveBranchState(null)
+    setBaseDoctor(null)
+    setOrg(null)
     setDoctor(null)
   }
 
   const isReceptionist = doctor?._role === 'receptionist'
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor }}>
       {children}
     </AuthContext.Provider>
   )

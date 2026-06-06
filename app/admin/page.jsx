@@ -599,7 +599,15 @@ export default function AdminPage() {
   const [search,        setSearch]       = useState('')
   const [sort,          setSort]         = useState({ key: 'createdAt', dir: -1 })
   const [showCreate,    setShowCreate]   = useState(false)
-  const [selectedClinic, setSelectedClinic] = useState(null) // uid of clicked clinic
+  const [selectedClinic, setSelectedClinic] = useState(null)
+  // Organizations state
+  const [orgs,          setOrgs]         = useState([])
+  const [orgsLoading,   setOrgsLoading]  = useState(false)
+  const [showOrgForm,   setShowOrgForm]  = useState(false)
+  const [orgForm,       setOrgForm]      = useState({ name: '', branches: [] })
+  const [orgSaving,     setOrgSaving]    = useState(false)
+  const [orgErr,        setOrgErr]       = useState('')
+  const [editOrg,       setEditOrg]      = useState(null) // org being edited
 
   // Profile tab state
   const [profileForm,    setProfileForm]    = useState({ firstName: '', lastName: '', email: '' })
@@ -624,9 +632,21 @@ export default function AdminPage() {
     }
   }
 
+  const fetchOrgs = async () => {
+    setOrgsLoading(true)
+    try {
+      const res  = await adminFetch('/api/admin/organizations')
+      const data = await res.json()
+      setOrgs(data.orgs ?? [])
+    } finally {
+      setOrgsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (authLoading || !doctor?.isAdmin) return
     fetchDoctors()
+    fetchOrgs()
     setProfileForm({ firstName: doctor.firstName ?? '', lastName: doctor.lastName ?? '', email: doctor.email ?? '' })
   }, [doctor, authLoading])
 
@@ -825,6 +845,136 @@ export default function AdminPage() {
             <StatCard label="Trial"               value={stats.trial}      color="blue"    />
             <StatCard label="Expired"             value={stats.expired}    color="red"     />
             <StatCard label="Logged In Today"     value={stats.todayLogin} color="yellow"  />
+          </div>
+
+          {/* ── Organizations ── */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Organizations</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Group clinics into multi-branch organizations</p>
+              </div>
+              <button onClick={() => { setOrgForm({ name: '', branches: [] }); setOrgErr(''); setEditOrg(null); setShowOrgForm(true) }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                New Organization
+              </button>
+            </div>
+
+            {/* Org form */}
+            {showOrgForm && (
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 space-y-3">
+                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
+                  {editOrg ? 'Edit Organization' : 'New Organization'}
+                </p>
+                <div>
+                  <label className="form-label">Organization Name *</label>
+                  <input value={orgForm.name} onChange={e => setOrgForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Apollo Clinic Group" className="input-field"/>
+                </div>
+                <div>
+                  <label className="form-label">Branch Clinics</label>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Select the clinic accounts that form the branches of this organization.</p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {enriched.map(d => {
+                      const isSelected = orgForm.branches.some(b => b.uid === d.uid)
+                      const branch = orgForm.branches.find(b => b.uid === d.uid)
+                      return (
+                        <div key={d.uid} className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors ${isSelected ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'}`}>
+                          <input type="checkbox" checked={isSelected}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setOrgForm(f => ({ ...f, branches: [...f.branches, { uid: d.uid, branchName: d.clinicName || `Dr. ${d.firstName} ${d.lastName}` }] }))
+                              } else {
+                                setOrgForm(f => ({ ...f, branches: f.branches.filter(b => b.uid !== d.uid) }))
+                              }
+                            }}
+                            className="rounded text-primary-500"/>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                              {d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{d.email}</p>
+                          </div>
+                          {isSelected && (
+                            <input value={branch.branchName}
+                              onChange={e => setOrgForm(f => ({ ...f, branches: f.branches.map(b => b.uid === d.uid ? { ...b, branchName: e.target.value } : b) }))}
+                              placeholder="Branch name"
+                              className="text-xs border border-primary-300 dark:border-primary-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-36 focus:outline-none focus:ring-1 focus:ring-primary-400"
+                              onClick={e => e.stopPropagation()}/>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                {orgErr && <p className="text-xs text-red-600 dark:text-red-400">{orgErr}</p>}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => { setShowOrgForm(false); setEditOrg(null) }}
+                    className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Cancel
+                  </button>
+                  <button disabled={orgSaving} onClick={async () => {
+                    if (!orgForm.name.trim()) { setOrgErr('Name is required.'); return }
+                    if (orgForm.branches.length < 1) { setOrgErr('Select at least one branch.'); return }
+                    setOrgSaving(true); setOrgErr('')
+                    try {
+                      if (editOrg) {
+                        await adminFetch('/api/admin/organizations', { method: 'PATCH', body: JSON.stringify({ id: editOrg.id, ...orgForm }) })
+                      } else {
+                        await adminFetch('/api/admin/organizations', { method: 'POST', body: JSON.stringify(orgForm) })
+                      }
+                      setShowOrgForm(false); setEditOrg(null)
+                      fetchOrgs()
+                    } catch (err) { setOrgErr(err.message) }
+                    finally { setOrgSaving(false) }
+                  }}
+                    className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors">
+                    {orgSaving ? 'Saving…' : editOrg ? 'Save Changes' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Org list */}
+            {orgsLoading ? (
+              <div className="py-8 text-center text-sm text-gray-400">Loading…</div>
+            ) : orgs.length === 0 && !showOrgForm ? (
+              <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">No organizations yet. Create one to link clinic branches.</div>
+            ) : (
+              <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {orgs.map(org => (
+                  <div key={org.id} className="px-5 py-4 flex items-start gap-4">
+                    <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{org.name}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {(org.branches ?? []).map(b => (
+                          <span key={b.uid} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                            {b.branchName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => { setOrgForm({ name: org.name, branches: org.branches ?? [] }); setEditOrg(org); setShowOrgForm(true); setOrgErr('') }}
+                        className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Edit</button>
+                      <button onClick={async () => {
+                        if (!window.confirm('Delete this organization? Branch clinics will be unlinked but their data stays intact.')) return
+                        await adminFetch('/api/admin/organizations', { method: 'DELETE', body: JSON.stringify({ id: org.id }) })
+                        fetchOrgs(); fetchDoctors()
+                      }} className="text-xs font-medium text-red-500 dark:text-red-400 hover:underline">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Client list */}

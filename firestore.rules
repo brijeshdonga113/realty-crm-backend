@@ -14,20 +14,38 @@ service cloud.firestore {
         && (request.auth.uid == userId || isLinkedReceptionist(userId));
     }
 
+    // Returns true when the caller and target user share the same non-null organizationId
+    // Used for multi-branch org switching — any member of an org can read other branches
+    function isSameOrg(targetUserId) {
+      let callerProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/doctor).data;
+      let targetProfile = get(/databases/$(database)/documents/users/$(targetUserId)/profile/doctor).data;
+      return request.auth != null
+        && callerProfile.get('organizationId', null) != null
+        && callerProfile.get('organizationId', null) == targetProfile.get('organizationId', null);
+    }
+
     // ── All clinic data lives under users/{userId}/... ──────────────────────
-    // Covers patients, invoices, followups, notifications, blockedSlots, meta,
-    // and all nested subcollections (e.g. patients/{id}/visits/{id}).
     match /users/{userId} {
       allow read, write: if isOwnerOrLinkedReceptionist(userId);
+      allow read: if isSameOrg(userId);
     }
 
     match /users/{userId}/{document=**} {
       allow read, write: if isOwnerOrLinkedReceptionist(userId);
+      allow read: if isSameOrg(userId);
+    }
+
+    // ── Organizations ────────────────────────────────────────────────────────
+    // Doctors can read their own org doc (to load branches in the sidebar).
+    // All writes go through the Admin SDK (server-side only).
+    match /organizations/{orgId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/doctor)
+             .data.get('organizationId', null) == orgId;
+      allow write: if false;
     }
 
     // ── Invite codes ─────────────────────────────────────────────────────────
-    // Publicly readable so receptionists can validate the code before signup.
-    // Only the owning doctor can create/update their own code.
     match /inviteCodes/{code} {
       allow read: if true;
       allow write: if request.auth != null
@@ -35,9 +53,6 @@ service cloud.firestore {
     }
 
     // ── Receptionist records ─────────────────────────────────────────────────
-    // Each receptionist can read/write their own document.
-    // Doctors can read receptionist documents linked to them and delete them
-    // to revoke access (e.g. remove a receptionist from Settings).
     match /receptionists/{uid} {
       allow read: if request.auth != null
                   && (request.auth.uid == uid
@@ -51,8 +66,6 @@ service cloud.firestore {
     }
 
     // ── Booking slugs ────────────────────────────────────────────────────────
-    // Publicly readable so the booking page can resolve slugs without auth.
-    // Only the matching doctor can create/update their slug.
     match /bookingSlugs/{slug} {
       allow read: if true;
       allow write: if request.auth != null
@@ -60,19 +73,16 @@ service cloud.firestore {
     }
 
     // ── collectionGroup("visits") ────────────────────────────────────────────
-    // Needed for cross-patient dashboard queries (getDashboardStats, getAll).
-    // Split create vs update/delete because request.resource is null on deletes.
     match /{path=**}/visits/{visitId} {
       allow read: if request.auth != null
         && (resource.data.doctorId == request.auth.uid
-            || isLinkedReceptionist(resource.data.doctorId));
+            || isLinkedReceptionist(resource.data.doctorId)
+            || isSameOrg(resource.data.doctorId));
 
-      // create: new document — check data being written
       allow create: if request.auth != null
         && (request.resource.data.doctorId == request.auth.uid
             || isLinkedReceptionist(request.resource.data.doctorId));
 
-      // update / delete: existing document — check existing data
       allow update, delete: if request.auth != null
         && (resource.data.doctorId == request.auth.uid
             || isLinkedReceptionist(resource.data.doctorId));
