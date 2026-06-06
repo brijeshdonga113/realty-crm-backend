@@ -7,6 +7,8 @@ import { useStaff } from '@/hooks/useStaff'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
 import { STAFF_ROLES, STAFF_STATUSES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
+
+const LOGIN_ROLES = STAFF_ROLES
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const STATUS_CONFIG = {
@@ -32,7 +34,7 @@ const emptyForm = {
   schedule: { workDays: ['Monday','Tuesday','Wednesday','Thursday','Friday'], startTime: '09:00', endTime: '17:00' },
 }
 
-const emptyLoginForm = { name: '', email: '', password: '' }
+const emptyLoginForm = { name: '', email: '', password: '', role: 'receptionist' }
 
 function getRoleColor(role) {
   const idx = STAFF_ROLES.findIndex(r => r.value === role)
@@ -299,10 +301,16 @@ function LoginAccountsSection() {
         {/* Add form */}
         {showForm && (
           <form onSubmit={handleCreate} className="border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">New Receptionist Account</p>
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">New Staff Login Account</p>
             <div>
               <label className="form-label">Full Name *</label>
               <input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="Jane Doe" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Role *</label>
+              <select value={form.role} onChange={e => set('role', e.target.value)} className="input-field">
+                {LOGIN_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
             </div>
             <div>
               <label className="form-label">Email *</label>
@@ -355,6 +363,10 @@ function LoginAccountsSection() {
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.email}</p>
                   </div>
                 </div>
+
+                <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                  {getStaffRoleLabel(r.role ?? 'receptionist')}
+                </span>
 
                 {/* View Only toggle */}
                 {!doctor?.viewOnly && (

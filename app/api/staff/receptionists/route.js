@@ -27,6 +27,7 @@ export async function GET(request) {
       uid:       doc.id,
       name:      d.name,
       email:     d.email,
+      role:      d.role ?? 'receptionist',
       viewOnly:  d.viewOnly ?? false,
       createdAt: d.createdAt ?? null,
     })
@@ -40,7 +41,7 @@ export async function POST(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { name, email, password } = await request.json()
+  const { name, email, password, role } = await request.json()
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
     return Response.json({ error: 'name, email and password are required.' }, { status: 400 })
   }
@@ -62,7 +63,7 @@ export async function POST(request) {
       name:      name.trim(),
       email:     email.trim(),
       doctorId:  caller.uid,
-      role:      'receptionist',
+      role:      role ?? 'receptionist',
       viewOnly:  false,
       createdAt: new Date().toISOString(),
     })
