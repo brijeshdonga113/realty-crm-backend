@@ -83,18 +83,168 @@ function StatCard({ label, value, color }) {
   )
 }
 
+// ── Create Clinic Modal ───────────────────────────────────────────────────────
+
+const SPECIALIZATIONS = [
+  { value: '',              label: 'Select specialization…' },
+  { value: 'general',       label: 'General Practitioner' },
+  { value: 'cardiology',    label: 'Cardiology' },
+  { value: 'dermatology',   label: 'Dermatology' },
+  { value: 'neurology',     label: 'Neurology' },
+  { value: 'orthopedics',   label: 'Orthopedics' },
+  { value: 'pediatrics',    label: 'Pediatrics' },
+  { value: 'psychiatry',    label: 'Psychiatry' },
+  { value: 'gynecology',    label: 'Gynecology & Obstetrics' },
+  { value: 'ophthalmology', label: 'Ophthalmology' },
+  { value: 'ent',           label: 'ENT' },
+  { value: 'dentistry',     label: 'Dentistry' },
+  { value: 'homeopathy',    label: 'Homeopathy' },
+  { value: 'ayurveda',      label: 'Ayurveda' },
+  { value: 'other',         label: 'Other' },
+]
+
+const BLANK = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '' }
+
+function CreateClinicModal({ open, onClose, onCreated }) {
+  const [form,    setForm]    = useState(BLANK)
+  const [error,   setError]   = useState('')
+  const [loading, setLoading] = useState(false)
+  const [done,    setDone]    = useState(null)
+
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setError('') }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      const res  = await adminFetch('/api/admin/create-doctor', { method: 'POST', body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDone({ email: form.email, password: form.password })
+      onCreated?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClose = () => {
+    setForm(BLANK); setError(''); setDone(null)
+    onClose()
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white">Add New Clinic</h2>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {done ? (
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4">
+              <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+              </svg>
+              <div>
+                <p className="text-sm font-bold text-green-800 dark:text-green-300">Clinic account created</p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-1">Share these login credentials with the doctor.</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-2">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Email</p>
+                <p className="text-sm font-mono text-gray-800 dark:text-gray-200 mt-0.5">{done.email}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Temporary Password</p>
+                <p className="text-sm font-mono text-gray-800 dark:text-gray-200 mt-0.5 select-all">{done.password}</p>
+              </div>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Ask them to change their password after first login from Settings.</p>
+            <button onClick={handleClose}
+              className="w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors">
+              Done
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">First Name *</label>
+                <input value={form.firstName} onChange={e => set('firstName', e.target.value)} required className="input-field"/>
+              </div>
+              <div>
+                <label className="form-label">Last Name *</label>
+                <input value={form.lastName} onChange={e => set('lastName', e.target.value)} required className="input-field"/>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Email *</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Clinic Name</label>
+              <input value={form.clinicName} onChange={e => set('clinicName', e.target.value)} className="input-field"/>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Specialization</label>
+                <select value={form.specialization} onChange={e => set('specialization', e.target.value)} className="input-field">
+                  {SPECIALIZATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Phone</label>
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} className="input-field"/>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Temporary Password *</label>
+              <input type="text" value={form.password} onChange={e => set('password', e.target.value)}
+                required minLength={6} placeholder="Min 6 characters" className="input-field font-mono"/>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">The doctor should change this after first login.</p>
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={handleClose}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                {loading && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                {loading ? 'Creating…' : 'Create Clinic'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const { doctor, updateProfile, loading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [tab,     setTab]     = useState('dashboard')
-  const [enriched, setEnriched] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [apiError, setApiError] = useState('')
-  const [search,   setSearch]   = useState('')
-  const [sort,     setSort]     = useState({ key: 'createdAt', dir: -1 })
+  const [tab,        setTab]       = useState('dashboard')
+  const [enriched,   setEnriched]  = useState([])
+  const [loading,    setLoading]   = useState(true)
+  const [apiError,   setApiError]  = useState('')
+  const [search,     setSearch]    = useState('')
+  const [sort,       setSort]      = useState({ key: 'createdAt', dir: -1 })
+  const [showCreate, setShowCreate] = useState(false)
 
   // Profile tab state
   const [profileForm,    setProfileForm]    = useState({ firstName: '', lastName: '', email: '' })
@@ -307,6 +457,12 @@ export default function AdminPage() {
       {tab === 'dashboard' && (
         <div className="space-y-6">
 
+          <CreateClinicModal
+            open={showCreate}
+            onClose={() => setShowCreate(false)}
+            onCreated={() => { setShowCreate(false); fetchDoctors() }}
+          />
+
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <StatCard label="Registered Clinics" value={stats.total}      color="primary" />
@@ -339,6 +495,13 @@ export default function AdminPage() {
                   </button>
                 )}
               </div>
+              <button onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Clinic
+              </button>
             </div>
 
             {loading ? (
