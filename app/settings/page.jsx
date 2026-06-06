@@ -344,7 +344,7 @@ function BookingSettings({ doctor, updateProfile }) {
 }
 
 export default function SettingsPage() {
-  const { doctor, updateProfile, generateReceptionistCode, isReceptionist } = useAuth()
+  const { doctor, updateProfile, isReceptionist } = useAuth()
   const { dark, toggle, colorTheme, setTheme } = useTheme()
 
   const [gcalConnected, setGcalConnected] = useState(false)
@@ -595,55 +595,11 @@ export default function SettingsPage() {
     }
   }
 
-  const [codeGenerating, setCodeGenerating] = useState(false)
-  const [codeCopied, setCodeCopied]         = useState(false)
-
-  // ── Linked receptionists ─────────────────────────────────────────────────────
-  const [linkedRecs,    setLinkedRecs]    = useState([])
-  const [recsLoading,   setRecsLoading]   = useState(false)
-  const [removingRecId, setRemovingRecId] = useState(null)
-
-  useEffect(() => {
-    if (!doctor?.id || isReceptionist) return
-    setRecsLoading(true)
-    import('firebase/firestore').then(({ collection, query, where, onSnapshot }) => {
-      const q = query(collection(db, 'receptionists'), where('doctorId', '==', doctor.id))
-      const unsub = onSnapshot(q, snap => {
-        setLinkedRecs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '')))
-        setRecsLoading(false)
-      }, () => setRecsLoading(false))
-      return unsub
-    })
-  }, [doctor?.id, isReceptionist])
-
-  const handleRemoveReceptionist = async (uid) => {
-    if (!window.confirm('Remove this receptionist? They will lose access to your clinic immediately on their next page load.')) return
-    setRemovingRecId(uid)
-    try {
-      const { doc, deleteDoc } = await import('firebase/firestore')
-      await deleteDoc(doc(db, 'receptionists', uid))
-    } finally {
-      setRemovingRecId(null)
-    }
-  }
-
   // ── Data export ─────────────────────────────────────────────────────────────
   const [exportPassword, setExportPassword] = useState('')
   const [exporting,      setExporting]      = useState(false)
   const [exportError,    setExportError]    = useState('')
   const [exportDone,     setExportDone]     = useState(false)
-
-  const handleGenerateCode = async () => {
-    setCodeGenerating(true)
-    try { await generateReceptionistCode() } finally { setCodeGenerating(false) }
-  }
-
-  const handleCopyCode = () => {
-    if (!doctor?.inviteCode) return
-    navigator.clipboard.writeText(doctor.inviteCode).catch(() => {})
-    setCodeCopied(true)
-    setTimeout(() => setCodeCopied(false), 2000)
-  }
 
   const handleExportData = async (e) => {
     e.preventDefault()
@@ -1377,106 +1333,6 @@ export default function SettingsPage() {
 
         </>} {/* end !isReceptionist */}
 
-        {!isReceptionist && <>
-        {/* ── Receptionist Access ──────────────────────────────────────────── */}
-        <CollapsibleSection title="Receptionist Access" description="Share your invite code with receptionists so they can create accounts linked to your clinic. You can add as many receptionists as needed." defaultOpen={false}>
-          <div className="p-6 space-y-5">
-
-            {/* Invite code */}
-            {doctor?.inviteCode ? (
-              <>
-                <div>
-                  <label className="form-label">Invite Code</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="flex-1 font-mono text-lg tracking-widest text-center bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white select-all">
-                      {doctor.inviteCode}
-                    </div>
-                    <button onClick={handleCopyCode}
-                      className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium rounded-lg border transition-colors flex-shrink-0
-                        ${codeCopied
-                          ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
-                          : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
-                      {codeCopied ? (
-                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>Copied!</>
-                      ) : (
-                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>Copy</>
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <svg className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
-                  </svg>
-                  <span>Share this code with each receptionist — multiple receptionists can use the same code. Generating a new code prevents future signups with the old one but does not remove existing receptionists.</span>
-                </div>
-                <button onClick={handleGenerateCode} disabled={codeGenerating}
-                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline underline-offset-2 transition-colors disabled:opacity-50">
-                  {codeGenerating ? 'Generating…' : 'Generate new code'}
-                </button>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  No invite code yet. Generate one to allow receptionists to join your clinic.
-                </p>
-                <button onClick={handleGenerateCode} disabled={codeGenerating} className="btn-primary w-auto px-6">
-                  {codeGenerating ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                      Generating…
-                    </span>
-                  ) : 'Generate Invite Code'}
-                </button>
-              </div>
-            )}
-
-            {/* Linked receptionists list */}
-            <div>
-              <p className="form-label mb-2">
-                Linked Receptionists
-                {linkedRecs.length > 0 && <span className="ml-2 text-xs font-semibold bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">{linkedRecs.length}</span>}
-              </p>
-              {recsLoading ? (
-                <p className="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
-              ) : linkedRecs.length === 0 ? (
-                <p className="text-sm text-gray-400 dark:text-gray-500 italic">No receptionists linked yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {linkedRecs.map(rec => (
-                    <div key={rec.id} className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700">
-                      <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-bold text-primary-700 dark:text-primary-300">
-                          {(rec.name ?? '?')[0].toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{rec.name ?? '—'}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{rec.email ?? '—'}</p>
-                      </div>
-                      {rec.createdAt && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 hidden sm:block">
-                          Joined {new Date(rec.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveReceptionist(rec.id)}
-                        disabled={removingRecId === rec.id}
-                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
-                        {removingRecId === rec.id ? 'Removing…' : 'Remove'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </CollapsibleSection>
 
         {/* ── Data Export ──────────────────────────────────────────────────── */}
         <CollapsibleSection title="Data Export" description="Export all your clinic data as CSV files. Password required for security." defaultOpen={false}

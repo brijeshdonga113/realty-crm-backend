@@ -211,17 +211,25 @@ function useReceptionists() {
     setReceptionists(prev => prev.filter(r => r.uid !== uid))
   }, [apiFetch])
 
-  return { receptionists, loading, error, create, remove, reload: load }
+  const toggleViewOnly = useCallback(async (uid, current) => {
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'PATCH', body: JSON.stringify({ uid, viewOnly: !current }) })
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+    setReceptionists(prev => prev.map(r => r.uid === uid ? { ...r, viewOnly: !current } : r))
+  }, [apiFetch])
+
+  return { receptionists, loading, error, create, remove, toggleViewOnly, reload: load }
 }
 
 function LoginAccountsSection() {
-  const { receptionists, loading, error, create, remove } = useReceptionists()
+  const { receptionists, loading, error, create, remove, toggleViewOnly } = useReceptionists()
+  const { doctor } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm]         = useState(emptyLoginForm)
   const [formErr, setFormErr]   = useState('')
   const [saving, setSaving]     = useState(false)
   const [done, setDone]         = useState(null)
   const [deleting, setDeleting] = useState({})
+  const [toggling, setToggling] = useState({})
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setFormErr('') }
 
@@ -248,6 +256,13 @@ function LoginAccountsSection() {
     finally { setDeleting(d => { const n = { ...d }; delete n[uid]; return n }) }
   }
 
+  const handleToggleViewOnly = async (uid, current) => {
+    setToggling(t => ({ ...t, [uid]: true }))
+    try { await toggleViewOnly(uid, current) }
+    catch (err) { alert(err.message) }
+    finally { setToggling(t => { const n = { ...t }; delete n[uid]; return n }) }
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -255,7 +270,7 @@ function LoginAccountsSection() {
           <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Login Accounts</h3>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Receptionists with app login access</p>
         </div>
-        {!showForm && (
+        {!showForm && !doctor?.viewOnly && (
           <button onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold rounded-lg transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,8 +345,8 @@ function LoginAccountsSection() {
         ) : (
           <div className="space-y-2">
             {receptionists.map(r => (
-              <div key={r.uid} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
+              <div key={r.uid} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-purple-700 dark:text-purple-300">
                     {r.name?.[0]?.toUpperCase() ?? '?'}
                   </div>
@@ -340,22 +355,52 @@ function LoginAccountsSection() {
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.email}</p>
                   </div>
                 </div>
-                <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                  Receptionist
-                </span>
-                <button onClick={() => handleDelete(r.uid)} disabled={deleting[r.uid]}
-                  className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 flex-shrink-0 disabled:opacity-50">
-                  {deleting[r.uid] ? (
-                    <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  )}
-                </button>
+
+                {/* View Only toggle */}
+                {!doctor?.viewOnly && (
+                  <button
+                    onClick={() => handleToggleViewOnly(r.uid, r.viewOnly)}
+                    disabled={toggling[r.uid]}
+                    title={r.viewOnly ? 'Click to give full access' : 'Click to restrict to view only'}
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all disabled:opacity-50 flex-shrink-0 ${
+                      r.viewOnly
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
+                        : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+                    }`}>
+                    {toggling[r.uid] ? (
+                      <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    ) : r.viewOnly ? (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                    )}
+                    {r.viewOnly ? 'View Only' : 'Full Access'}
+                  </button>
+                )}
+
+                {/* Delete */}
+                {!doctor?.viewOnly && (
+                  <button onClick={() => handleDelete(r.uid)} disabled={deleting[r.uid]}
+                    className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 flex-shrink-0 disabled:opacity-50">
+                    {deleting[r.uid] ? (
+                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -369,6 +414,7 @@ function LoginAccountsSection() {
 
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
+  const { doctor } = useAuth()
   const [showAdd,    setShowAdd]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
@@ -507,23 +553,25 @@ export default function StaffPage() {
                       )}
                     </div>
 
-                    <div className="flex border-t border-gray-100 dark:border-gray-700">
-                      <button onClick={() => setEditItem(member)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors rounded-bl-xl">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                        Edit
-                      </button>
-                      <div className="w-px bg-gray-100 dark:bg-gray-700"/>
-                      <button onClick={() => setDeleteId(member.id)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-br-xl">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                        Remove
-                      </button>
-                    </div>
+                    {!doctor?.viewOnly && (
+                      <div className="flex border-t border-gray-100 dark:border-gray-700">
+                        <button onClick={() => setEditItem(member)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors rounded-bl-xl">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                          Edit
+                        </button>
+                        <div className="w-px bg-gray-100 dark:bg-gray-700"/>
+                        <button onClick={() => setDeleteId(member.id)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-br-xl">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

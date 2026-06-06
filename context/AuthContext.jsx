@@ -92,7 +92,7 @@ async function loadReceptionistSession(uid, userEmail) {
   const { doc, getDoc } = await import('firebase/firestore')
   const recSnap = await getDoc(doc(db, 'receptionists', uid))
   if (!recSnap.exists()) return null
-  const { name, email, doctorId, ...recData } = recSnap.data()
+  const { name, email, doctorId, viewOnly: recViewOnly, ...recData } = recSnap.data()
   const doctorProfile = await loadFirebaseProfile(doctorId)
   if (!doctorProfile) return null
 
@@ -105,6 +105,8 @@ async function loadReceptionistSession(uid, userEmail) {
   return {
     ...doctorProfile,
     ...ownPrefs,
+    // Per-receptionist viewOnly overrides the clinic-level flag
+    viewOnly: recViewOnly ?? doctorProfile.viewOnly ?? false,
     _role: 'receptionist',
     _receptionistUid: uid,
     _receptionistName: name,

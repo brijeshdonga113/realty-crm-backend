@@ -12,7 +12,7 @@ async function verifyDoctor(request) {
   return { uid: decoded.uid, profile: snap.data() }
 }
 
-// GET /api/staff/receptionists — list receptionists for the current doctor
+// GET — list receptionists for the current doctor
 export async function GET(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -23,13 +23,19 @@ export async function GET(request) {
   const receptionists = []
   snap.forEach(doc => {
     const d = doc.data()
-    receptionists.push({ uid: doc.id, name: d.name, email: d.email, createdAt: d.createdAt ?? null })
+    receptionists.push({
+      uid:       doc.id,
+      name:      d.name,
+      email:     d.email,
+      viewOnly:  d.viewOnly ?? false,
+      createdAt: d.createdAt ?? null,
+    })
   })
   receptionists.sort((a, b) => (a.createdAt ?? '') > (b.createdAt ?? '') ? -1 : 1)
   return Response.json({ receptionists })
 }
 
-// POST /api/staff/receptionists — create a receptionist account for the current doctor
+// POST — create a receptionist account
 export async function POST(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -57,6 +63,7 @@ export async function POST(request) {
       email:     email.trim(),
       doctorId:  caller.uid,
       role:      'receptionist',
+      viewOnly:  false,
       createdAt: new Date().toISOString(),
     })
 
@@ -69,7 +76,25 @@ export async function POST(request) {
   }
 }
 
-// DELETE /api/staff/receptionists — remove a receptionist (only if they belong to this doctor)
+// PATCH — toggle viewOnly for a receptionist
+export async function PATCH(request) {
+  const caller = await verifyDoctor(request)
+  if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { uid, viewOnly } = await request.json()
+  if (!uid || viewOnly === undefined) return Response.json({ error: 'uid and viewOnly required' }, { status: 400 })
+
+  const db   = getAdminDb()
+  const snap = await db.collection('receptionists').doc(uid).get()
+  if (!snap.exists || snap.data()?.doctorId !== caller.uid) {
+    return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  await db.collection('receptionists').doc(uid).update({ viewOnly: !!viewOnly })
+  return Response.json({ ok: true })
+}
+
+// DELETE — remove a receptionist
 export async function DELETE(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
