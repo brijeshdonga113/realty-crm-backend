@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -14,7 +14,7 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
@@ -22,15 +22,92 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
+import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 
-function getWADateFormat(fallback) {
-  if (typeof window === 'undefined') return fallback
-  try {
-    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-    return s.dateFormat || fallback
-  } catch { return fallback }
+const ACCENT_COLORS = ['border-l-blue-500','border-l-teal-500','border-l-green-500','border-l-purple-500','border-l-orange-500']
+
+// Renders one specialty field in view or edit mode
+function ClinicalField({ field, value, onChange, editing }) {
+  const { label, type, options = [] } = field
+  const isHtml = v => typeof v === 'string' && /<[a-z][\s\S]*>/i.test(v)
+  if (!editing) {
+    let display = value
+    if (type === 'chips' && Array.isArray(value)) display = value.join(', ')
+    if (type === 'scale') display = value != null ? `${value} / 10` : null
+    return (
+      <div className={type === 'textarea' ? 'sm:col-span-2' : ''}>
+        <p className="form-label">{label}</p>
+        {display
+          ? (type === 'textarea' && isHtml(display)
+              ? <div className="rich-text-view text-sm mt-0.5 text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: display }}/>
+              : <p className={`text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300`}>{display}</p>)
+          : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
+        }
+      </div>
+    )
+  }
+  if (type === 'textarea') return (
+    <div className="sm:col-span-2">
+      <label className="form-label">{label}</label>
+      <RichTextEditor value={value || ''} onChange={onChange} placeholder=""/>
+    </div>
+  )
+  if (type === 'number') return (
+    <div>
+      <label className="form-label">{label}</label>
+      <input type="number" min="0" value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
+    </div>
+  )
+  if (type === 'scale') return (
+    <div className="sm:col-span-2">
+      <label className="form-label">{label}</label>
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-xs text-gray-400 w-4">0</span>
+        <input type="range" min="0" max="10" step="1" value={value ?? 0}
+          onChange={e => onChange(Number(e.target.value))} className="flex-1 accent-primary-500"/>
+        <span className="text-xs text-gray-400 w-4">10</span>
+        <span className={`ml-2 text-sm font-bold w-6 text-center ${(value??0)>=8?'text-red-500':(value??0)>=5?'text-amber-500':'text-green-500'}`}>{value ?? 0}</span>
+      </div>
+    </div>
+  )
+  if (type === 'chips' && options.length > 0) {
+    const sel = Array.isArray(value) ? value : (value ? [value] : [])
+    const toggle = opt => onChange(sel.includes(opt) ? sel.filter(s => s !== opt) : [...sel, opt])
+    return (
+      <div className="sm:col-span-2">
+        <label className="form-label">{label}</label>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {options.map(opt => (
+            <button key={opt} type="button" onClick={() => toggle(opt)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                sel.includes(opt) ? 'bg-primary-500 text-white border-primary-500'
+                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+              }`}>{opt}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (type === 'select' && options.length > 0) return (
+    <div>
+      <label className="form-label">{label}</label>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} className="input-field">
+        <option value="">Select…</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+  return (
+    <div>
+      <label className="form-label">{label}</label>
+      <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
+    </div>
+  )
 }
+
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -43,258 +120,6 @@ function daysBetween(dateStr) {
   return Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000)
 }
 
-/* ─────────────── TagInput (used in EditPatientModal) ─────────────── */
-function TagInput({ label, items, onChange, suggestions = [] }) {
-  const [input, setInput] = useState('')
-  const add = (val) => {
-    const trimmed = val.trim()
-    if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
-    setInput('')
-  }
-  return (
-    <div>
-      <label className="form-label">{label}</label>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {items.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs rounded-full font-medium">
-            {item}
-            <button type="button" onClick={() => onChange(items.filter(i => i !== item))} className="hover:text-primary-900">×</button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
-          placeholder="Type and press Enter"
-          className="input-field flex-1"
-          list={`tag-${label}`}
-        />
-        {suggestions.length > 0 && (
-          <datalist id={`tag-${label}`}>{suggestions.map(s => <option key={s} value={s}/>)}</datalist>
-        )}
-        <button type="button" onClick={() => add(input)}
-          className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
-          Add
-        </button>
-      </div>
-    </div>
-  )
-}
-
-const CONDITION_SUGGESTIONS = ['Hypertension', 'Diabetes Type 1', 'Diabetes Type 2', 'Asthma', 'COPD', 'Arthritis', 'Heart Disease', 'Thyroid Disorder', 'Cancer', 'Epilepsy', 'Depression', 'Anxiety']
-const ALLERGY_SUGGESTIONS   = ['Penicillin', 'Aspirin', 'Ibuprofen', 'Sulfa drugs', 'Latex', 'Pollen', 'Dust mites', 'Pet dander', 'Peanuts', 'Shellfish', 'Eggs', 'Milk']
-
-const EDIT_TABS = ['Basic Info', 'Medical', 'Insurance', 'Emergency']
-
-/* ─────────────── EditPatientModal ─────────────── */
-function EditPatientModal({ open, onClose, patient, onSave }) {
-  const referralSources = useReferralSources()
-  const toast = useToast()
-  const [form, setForm]   = useState(null)
-  const [tab, setTab]     = useState(0)
-  const [saving, setSaving] = useState(false)
-
-  if (open && !form) { setForm({ ...patient, emergencyContact: { ...patient.emergencyContact } }); setTab(0) }
-  if (!open && form) setForm(null)
-  if (!open || !form) return null
-
-  const set    = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const setEc  = (k, v) => setForm(p => ({ ...p, emergencyContact: { ...p.emergencyContact, [k]: v } }))
-  const age    = form.dateOfBirth ? getPatientAge(form) : null
-
-  const handleSave = async () => {
-    setSaving(true)
-    try { await onSave(form) } catch { toast.error('Failed to save patient. Please try again.') } finally { setSaving(false) }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit Patient" size="xl">
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-100 dark:border-gray-700 mb-4 -mt-1">
-        {EDIT_TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === i
-                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-
-        {/* ── Basic Info ── */}
-        {tab === 0 && <>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">First Name *</label>
-              <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Last Name *</label>
-              <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field"/>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Date of Birth</label>
-              <input type="date" value={form.dateOfBirth || ''} onChange={e => set('dateOfBirth', e.target.value)} className="input-field"/>
-              {age !== null && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Age: {age} yrs</p>}
-            </div>
-            <div>
-              <label className="form-label">Age (if no DOB)</label>
-              <input type="number" min="0" max="150"
-                value={form.dateOfBirth ? (age ?? '') : (form.ageManual ?? '')}
-                disabled={!!form.dateOfBirth}
-                onChange={e => set('ageManual', e.target.value)}
-                placeholder={form.dateOfBirth ? 'Calculated' : 'Enter age'}
-                className="input-field disabled:opacity-50"/>
-            </div>
-            <div>
-              <label className="form-label">Gender</label>
-              <select value={form.gender} onChange={e => set('gender', e.target.value)} className="input-field">
-                {GENDERS.map(g => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Blood Type</label>
-              <select value={form.bloodType || ''} onChange={e => set('bloodType', e.target.value)} className="input-field">
-                <option value="">Select…</option>
-                {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">National ID</label>
-              <input value={form.nationalId || ''} onChange={e => set('nationalId', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Patient ID #</label>
-              <input type="number" value={form.patientNumber || ''} onChange={e => set('patientNumber', Number(e.target.value))} placeholder="e.g. 2001" className="input-field font-mono font-semibold"/>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Registration Date</label>
-              <input type="date" value={form.registrationDate || ''} onChange={e => set('registrationDate', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className="input-field">
-                {['active','inactive','deceased'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Phone *</label>
-              <input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Alternate Phone</label>
-              <input value={form.alternatePhone || ''} onChange={e => set('alternatePhone', e.target.value)} className="input-field"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Email</label>
-            <input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className="input-field"/>
-          </div>
-          <div>
-            <label className="form-label">Address</label>
-            <AutoTextarea value={form.address || ''} onChange={e => set('address', e.target.value)} className="input-field resize"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Referral Source</label>
-              <select value={form.referralSource || ''} onChange={e => set('referralSource', e.target.value)} className="input-field">
-                <option value="">Select source…</option>
-                {referralSources.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Referral Details</label>
-              <input value={form.referralNotes || ''} onChange={e => set('referralNotes', e.target.value)} placeholder="e.g. referred by Dr. Sharma…" className="input-field"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Notes</label>
-            <AutoTextarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={!!form.consentFormSigned} onChange={e => set('consentFormSigned', e.target.checked)} className="rounded border-gray-300"/>
-            <span className="text-sm text-gray-700 dark:text-gray-300">Consent form signed</span>
-          </label>
-        </>}
-
-        {/* ── Medical ── */}
-        {tab === 1 && <>
-          <TagInput label="Chronic Conditions" items={form.chronicConditions ?? []} onChange={v => set('chronicConditions', v)} suggestions={CONDITION_SUGGESTIONS}/>
-          <TagInput label="Allergies" items={form.allergies ?? []} onChange={v => set('allergies', v)} suggestions={ALLERGY_SUGGESTIONS}/>
-          <TagInput label="Current Medications" items={form.currentMedications ?? []} onChange={v => set('currentMedications', v)}/>
-          <div>
-            <label className="form-label">Family History</label>
-            <AutoTextarea value={form.familyHistory || ''} onChange={e => set('familyHistory', e.target.value)} className="input-field resize" placeholder="Relevant family medical history…"/>
-          </div>
-        </>}
-
-        {/* ── Insurance ── */}
-        {tab === 2 && <>
-          <div>
-            <label className="form-label">Insurance Provider</label>
-            <input value={form.insuranceProvider || ''} onChange={e => set('insuranceProvider', e.target.value)} className="input-field"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Policy Number</label>
-              <input value={form.insurancePolicyNumber || ''} onChange={e => set('insurancePolicyNumber', e.target.value)} className="input-field font-mono"/>
-            </div>
-            <div>
-              <label className="form-label">Group Number</label>
-              <input value={form.insuranceGroupNumber || ''} onChange={e => set('insuranceGroupNumber', e.target.value)} className="input-field font-mono"/>
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Expiry Date</label>
-            <input type="date" value={form.insuranceExpiry || ''} onChange={e => set('insuranceExpiry', e.target.value)} className="input-field"/>
-          </div>
-        </>}
-
-        {/* ── Emergency Contact ── */}
-        {tab === 3 && <>
-          <div>
-            <label className="form-label">Contact Name</label>
-            <input value={form.emergencyContact?.name || ''} onChange={e => setEc('name', e.target.value)} className="input-field"/>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Contact Phone</label>
-              <input value={form.emergencyContact?.phone || ''} onChange={e => setEc('phone', e.target.value)} className="input-field"/>
-            </div>
-            <div>
-              <label className="form-label">Relationship</label>
-              <input value={form.emergencyContact?.relationship || ''} onChange={e => setEc('relationship', e.target.value)} placeholder="e.g. Spouse, Parent…" className="input-field"/>
-            </div>
-          </div>
-        </>}
-
-      </div>
-
-      <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700 mt-4">
-        <button onClick={onClose}
-          className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-          Cancel
-        </button>
-        <button onClick={handleSave} disabled={saving || !form.firstName?.trim() || !form.lastName?.trim()}
-          className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
-      </div>
-    </Modal>
-  )
-}
 
 const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
@@ -306,7 +131,7 @@ function InfoRow({ label, value }) {
   if (!value) return null
   return (
     <div>
-      <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">{label}</p>
       <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{value}</p>
     </div>
   )
@@ -317,6 +142,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const { doctor } = useAuth()
   const toast = useToast()
+  const router = useRouter()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -324,19 +150,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const [diagInput, setDiagInput] = useState('')
 
   const openEdit = () => {
-    setEditForm({
-      chiefComplaint: visit.chiefComplaint || '',
-      history:        visit.history || '',
-      findings:       visit.examination?.findings || '',
-      diagnosis:      [...(visit.diagnosis || [])],
-      treatment:      visit.treatment || '',
-      notes:          visit.notes || '',
-      followUpDate:   visit.followUpDate || '',
-      paymentAmount:  linkedInvoice ? String(linkedInvoice.total ?? '') : '',
-      paymentMethod:  linkedInvoice?.paymentMethod || 'cash',
-      paymentStatus:  linkedInvoice?.status || 'paid',
-    })
-    setEditing(true)
+    router.push(`/visits/new?patientId=${patientId}&editVisitId=${visit.id}`)
   }
 
   const handleUpdate = async () => {
@@ -371,10 +185,14 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
   const followUpDone   = linkedFollowUp?.status === 'done'
   const hasVitals = visit.examination?.vitalSigns && Object.values(visit.examination.vitalSigns).some(Boolean)
 
+  const isHtml = v => typeof v === 'string' && v.trimStart().startsWith('<')
   const Field = ({ label, value }) => value ? (
     <div>
       <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
-      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{value}</p>
+      {isHtml(value)
+        ? <div className="rich-text-view" dangerouslySetInnerHTML={{ __html: value }}/>
+        : <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{value}</p>
+      }
     </div>
   ) : null
 
@@ -579,13 +397,13 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">History</label>
-              <AutoTextarea value={editForm.history} onChange={e => setEditForm(f => ({...f, history: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.history || ''} onChange={v => setEditForm(f => ({...f, history: v}))}
+                placeholder="Detailed history, existing conditions, onset, duration…"/>
             </div>
             <div>
               <label className="form-label">Clinical Findings</label>
-              <AutoTextarea value={editForm.findings} onChange={e => setEditForm(f => ({...f, findings: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.findings || ''} onChange={v => setEditForm(f => ({...f, findings: v}))}
+                placeholder="Examination findings…"/>
             </div>
             <div>
               <label className="form-label">Diagnosis</label>
@@ -607,8 +425,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Treatment Plan</label>
-              <AutoTextarea value={editForm.treatment} onChange={e => setEditForm(f => ({...f, treatment: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.treatment || ''} onChange={v => setEditForm(f => ({...f, treatment: v}))}
+                placeholder="Treatment plan, medication, advice…"/>
             </div>
             <div>
               <label className="form-label">Follow-up Date</label>
@@ -633,8 +451,8 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             </div>
             <div>
               <label className="form-label">Notes</label>
-              <AutoTextarea value={editForm.notes} onChange={e => setEditForm(f => ({...f, notes: e.target.value}))}
-                className="input-field resize"/>
+              <RichTextEditor value={editForm.notes || ''} onChange={v => setEditForm(f => ({...f, notes: v}))}
+                placeholder="Additional notes…"/>
             </div>
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
@@ -677,11 +495,11 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
               </div>
             )}
             <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
-              <button onClick={() => setEditing(false)}
+              <button type="button" onClick={() => setEditing(false)}
                 className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleUpdate} disabled={saving || !editForm.chiefComplaint.trim()}
+              <button type="button" onClick={handleUpdate} disabled={saving || !editForm.chiefComplaint.trim()}
                 className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
@@ -708,8 +526,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   else              { badge = `in ${diff}d`;                 badgeBg = 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' }
 
   const sendWhatsApp = () => {
-    let templates = {}
-    try { templates = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}') } catch {}
+    const templates = doctor?.waTemplates ?? {}
     const defaults = {
       followup: 'Hello {name},\n\nThis is a reminder that your follow-up at {clinic} is scheduled on *{date}*.\n\nPlease let us know if you need to reschedule.\n\nThank you!',
       missed:   'Hello {name},\n\nWe noticed your follow-up scheduled on *{date}* was {days} day(s) ago. Please visit us at {clinic} soon.\n\nThank you!',
@@ -718,7 +535,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
     }
     const tmpl = templates[waKey]?.template || defaults[waKey]
     const clinicName = doctor?.clinicName || 'our clinic'
-    const formattedDate = fmtDateLib(entry.dueDate, getWADateFormat(dateFormat))
+    const formattedDate = fmtDateLib(entry.dueDate, templates.dateFormat || dateFormat)
     const msg = tmpl
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
@@ -762,11 +579,222 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   )
 }
 
+/* ─────────────── Collapsible Section wrapper ─────────────── */
+function Section({ title, subtitle, action, accentClass, className = '', children }) {
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden ${className}`}>
+      <div className={`flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+          {subtitle && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 hidden sm:inline">{subtitle}</span>}
+        </div>
+        {action && <div className="flex-shrink-0 ml-3">{action}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
 /* ─────────────── Main Page ─────────────── */
+function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency }) {
+  const spec = doctor?.specialization ?? ''
+  const isHom = isHomeopathy(spec)
+  const age = patient.dateOfBirth
+    ? `${Math.floor((Date.now() - new Date(patient.dateOfBirth)) / 31557600000)} yrs`
+    : null
+
+  const RichVal = ({ val }) => val
+    ? (/<[a-z][\s\S]*>/i.test(val)
+        ? <div dangerouslySetInnerHTML={{ __html: val }} style={{ fontSize: 12, lineHeight: 1.6 }}/>
+        : <span style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{val}</span>)
+    : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 12 }}>—</span>
+
+  const Field = ({ label, value }) => (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 2 }}>{label}</div>
+      <RichVal val={value}/>
+    </div>
+  )
+
+  const SectionHeader = ({ title }) => (
+    <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: 4, marginBottom: 12, marginTop: 20 }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{title}</span>
+    </div>
+  )
+
+  const sortedVisits = [...(visits ?? [])].filter(v => v.status !== 'draft').sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? '')).slice(0, 15)
+
+  return (
+    <div id="patient-print" style={{ display: 'none', fontFamily: 'Arial, sans-serif', color: '#111827', padding: '32px 40px', maxWidth: 800, margin: '0 auto', fontSize: 13 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #111827' }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#111827' }}>{doctor?.clinicName || `Dr. ${doctor?.firstName} ${doctor?.lastName}`}</div>
+          {doctor?.clinicName && <div style={{ fontSize: 13, color: '#6b7280' }}>Dr. {doctor?.firstName} {doctor?.lastName}</div>}
+          {doctor?.phone && <div style={{ fontSize: 12, color: '#6b7280' }}>{doctor.phone}</div>}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: '#6b7280' }}>Generated: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Patient Record</div>
+        </div>
+      </div>
+
+      {/* Patient name + UHID */}
+      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 4 }}>
+          {patient.firstName} {patient.lastName}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: 12, color: '#374151' }}>
+          {patient.patientNumber && <span><b>UHID:</b> {patient.patientNumber}</span>}
+          {patient.dateOfBirth && <span><b>DOB:</b> {formatDate(patient.dateOfBirth)}{age ? ` (${age})` : ''}</span>}
+          {patient.gender && <span><b>Gender:</b> {patient.gender}</span>}
+          {patient.bloodType && <span><b>Blood Type:</b> {patient.bloodType}</span>}
+          {patient.phone && <span><b>Phone:</b> {patient.phone}</span>}
+          {patient.email && <span><b>Email:</b> {patient.email}</span>}
+        </div>
+        {patient.address && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}><b>Address:</b> {patient.address}</div>}
+      </div>
+
+      {/* Medical Background */}
+      {(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length) ? (
+        <>
+          <SectionHeader title="Medical Background"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
+            {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
+            {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Emergency Contact */}
+      {(patient.emergencyName || patient.emergencyPhone) ? (
+        <>
+          <SectionHeader title="Emergency Contact"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            {patient.emergencyName && <Field label="Name" value={patient.emergencyName}/>}
+            {patient.emergencyPhone && <Field label="Phone" value={patient.emergencyPhone}/>}
+            {patient.emergencyRelation && <Field label="Relationship" value={patient.emergencyRelation}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Homeopathy: History */}
+      {isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan) ? (
+        <>
+          <SectionHeader title="History (H/o)"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+            {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
+            {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Non-homeopathy: Other Medical History */}
+      {!isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes) ? (
+        <>
+          <SectionHeader title="Other Medical History"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+          </div>
+        </>
+      ) : null}
+
+      {/* Homeopathy: Chief Complaints */}
+      {isHom && patient.chiefComplaints?.some(c => c.complaint) ? (
+        <>
+          <SectionHeader title="Chief Complaints (C/o)"/>
+          {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
+            <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
+                {row.location    && <span><b>Location:</b> {row.location}</span>}
+                {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
+                {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
+                {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
+              </div>
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {/* Homeopathy: Prescription Details */}
+      {isHom && patient.prescriptionDetails ? (
+        <>
+          <SectionHeader title="Prescription Details"/>
+          <RichVal val={patient.prescriptionDetails}/>
+        </>
+      ) : null}
+
+      {/* Non-homeopathy: Specialty Preset Sections */}
+      {!isHom && (() => {
+        const sections = getIntakeSections(spec)
+        const hasData = sections.some(sec => sec.fields.some(f => patient.specialtyData?.[f.key]))
+        if (!hasData) return null
+        return sections.map(sec => {
+          const fields = sec.fields.filter(f => patient.specialtyData?.[f.key] != null && patient.specialtyData?.[f.key] !== '')
+          if (!fields.length) return null
+          return (
+            <div key={sec.title}>
+              <SectionHeader title={sec.title}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.key} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
+                    ? patient.specialtyData[f.key].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.key]} / 10`
+                      : String(patient.specialtyData[f.key] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        })
+      })()}
+
+      {/* Visit History */}
+      {sortedVisits.length > 0 ? (
+        <>
+          <SectionHeader title={`Visit History (${sortedVisits.length} shown)`}/>
+          {sortedVisits.map((v, i) => (
+            <div key={v.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < sortedVisits.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{v.visitDate ? formatDate(v.visitDate) : '—'}</span>
+                {v.followUpDate && <span style={{ fontSize: 11, color: '#6b7280' }}>Follow-up: {formatDate(v.followUpDate)}</span>}
+              </div>
+              {v.chiefComplaint && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Chief Complaint:</b> {v.chiefComplaint}</div>}
+              {v.diagnosis?.length > 0 && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Diagnosis:</b> {v.diagnosis.join(', ')}</div>}
+              {v.treatment && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Treatment:</b> <RichVal val={v.treatment}/></div>}
+              {v.prescriptions?.length > 0 && (
+                <div style={{ fontSize: 12, marginBottom: 3 }}>
+                  <b>Prescriptions:</b> {v.prescriptions.map(rx => `${rx.medication} ${rx.dosage} ${rx.frequency}`).join('; ')}
+                </div>
+              )}
+              {v.payment?.amount > 0 && <div style={{ fontSize: 12, color: '#059669' }}><b>Payment:</b> {formatCurrency(v.payment.amount)} ({v.payment.status})</div>}
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {/* Footer */}
+      <div style={{ marginTop: 32, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 10, color: '#9ca3af', textAlign: 'center' }}>
+        This document is confidential and intended solely for the patient and authorised medical personnel.
+      </div>
+    </div>
+  )
+}
+
 export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
   const { doctor } = useAuth()
+  const specialization = doctor?.specialization ?? ''
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
   const referralSources  = useReferralSources()
@@ -779,13 +807,49 @@ export default function PatientProfilePage() {
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
   const [tab, setTab]            = useState(0)
-  const [showEditModal, setShowEditModal]     = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
-  const [editingOverview, setEditingOverview] = useState(false)
-  const [overviewForm, setOverviewForm]       = useState({})
-  const [overviewSaving, setOverviewSaving]   = useState(false)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [editInvoice,   setEditInvoice]   = useState(null)
+  const [editInvForm,   setEditInvForm]   = useState({ description: '', amount: '', method: 'cash', status: 'draft', collectedBy: '' })
+  const [editInvSaving, setEditInvSaving] = useState(false)
+  const [payModal,      setPayModal]      = useState(null) // invoice to mark paid
+  const [payMethod,     setPayMethod]     = useState('cash')
+  const [payCollectedBy, setPayCollectedBy] = useState('doctor')
+  const [payMarking,    setPayMarking]    = useState(false)
+
+  const sectionDefs = useMemo(() => {
+    const base = [
+      { id: 'personal',          label: 'Personal Details',   icon: '👤' },
+      { id: 'medical_summary',   label: 'Medical Summary',    icon: '🏥' },
+      { id: 'insurance',         label: 'Insurance',          icon: '🛡️' },
+      { id: 'emergency_contact', label: 'Emergency Contact',  icon: '🚨' },
+    ]
+    if (isHomeopathy(specialization)) {
+      return [
+        ...base,
+        { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
+        { id: 'generals',             label: 'Generals',               icon: '🔬' },
+        { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
+        { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
+      ]
+    }
+    const presetSecs = getIntakeSections(specialization)
+      .map(s => ({ id: `preset__${s.title}`, label: s.title, icon: '📋' }))
+    const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
+      .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
+    return [
+      ...base,
+      { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
+      ...presetSecs,
+      ...customSecs,
+    ]
+  }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [sectionLayout,      setSectionLayout]      = useState([])
+  const [draftSectionLayout, setDraftSectionLayout] = useState([])
+  const [customizingProfile, setCustomizingProfile] = useState(false)
+  const [savingLayout,       setSavingLayout]       = useState(false)
+  const dragSectionId = useRef(null)
 
   // Index follow-ups by visitId so VisitCard can reflect the done status in real time
   const followupByVisitId = useMemo(() => {
@@ -840,6 +904,27 @@ export default function PatientProfilePage() {
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
   }, [visits, followups, id, patientName])
 
+  useEffect(() => {
+    if (!doctor?.id || !sectionDefs.length) return
+    dataStore.getMeta('patientProfileLayout').then(saved => {
+      const defaultLayout = sectionDefs.map(d => ({ id: d.id, visible: true }))
+      if (!saved?.sections?.length) {
+        setSectionLayout(defaultLayout)
+        setDraftSectionLayout(defaultLayout)
+        return
+      }
+      const savedIds = saved.sections.map(s => s.id)
+      const merged = [
+        ...saved.sections.filter(s => sectionDefs.some(d => d.id === s.id)),
+        ...sectionDefs.filter(d => !savedIds.includes(d.id)).map(d => ({ id: d.id, visible: true })),
+      ]
+      setSectionLayout(merged)
+      setDraftSectionLayout(merged)
+    }).catch(() => {
+      setSectionLayout(sectionDefs.map(d => ({ id: d.id, visible: true })))
+    })
+  }, [doctor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) return (
     <AppLayout title="Patient Profile">
       <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
@@ -862,60 +947,442 @@ export default function PatientProfilePage() {
   const today    = new Date().toISOString().slice(0, 10)
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
 
-  const startOverviewEdit = () => {
-    setOverviewForm({
-      phone:          patient.phone          || '',
-      alternatePhone: patient.alternatePhone || '',
-      email:          patient.email          || '',
-      address:        patient.address        || '',
-      education:      patient.education      || '',
-      occupation:     patient.occupation     || '',
-      maritalStatus:  patient.maritalStatus  || '',
-      observation:    patient.observation    || '',
-      pastHistory:    patient.pastHistory    || '',
-      historyOf:      patient.historyOf      || '',
-      lifeSpan:       patient.lifeSpan       || '',
-      chiefComplaints: patient.chiefComplaints?.length
-        ? patient.chiefComplaints.map(c => ({ ...c }))
-        : [{ complaint: '', location: '', sensation: '', modality: '', concomitant: '' }],
-      prescriptionDetails: patient.prescriptionDetails || '',
-      generals: {
-        appetite:     patient.generals?.appetite     || '',
-        taste:        patient.generals?.taste        || '',
-        thirst:       patient.generals?.thirst       || '',
-        urine:        patient.generals?.urine        || '',
-        stool:        patient.generals?.stool        || '',
-        thermal:      patient.generals?.thermal      || '',
-        perspiration: patient.generals?.perspiration || '',
-        speed:        patient.generals?.speed        || '',
-        fastidious:   patient.generals?.fastidious   || '',
-        sleep:        patient.generals?.sleep        || '',
-        dreams:       patient.generals?.dreams       || '',
-      },
-      customGenerals: patient.customGenerals ? [...patient.customGenerals.map(g => ({ ...g }))] : [],
-      customFields:   patient.customFields   ? [...patient.customFields]                        : [],
-    })
-    setEditingOverview(true)
-  }
-
-  const saveOverview = async () => {
-    setOverviewSaving(true)
-    try {
-      await update(overviewForm)   // uses usePatient's update which calls setPatient(updated)
-      setEditingOverview(false)
-    } catch (err) {
-      toast.error('Failed to save. Please try again.')
-    } finally {
-      setOverviewSaving(false)
-    }
-  }
-
   const overdueFollowUps  = patientFollowUps.filter(e => e.dueDate < today)
   const todayFollowUps    = patientFollowUps.filter(e => e.dueDate === today)
   const tomorrowFollowUps = patientFollowUps.filter(e => e.dueDate === tomorrow)
   const upcomingFollowUps = patientFollowUps.filter(e => e.dueDate > tomorrow)
 
   const followUpDueCount = overdueFollowUps.length + todayFollowUps.length
+
+  // ─── Profile layout drag-and-drop ────────────────────────────────────────
+
+  function handleSectionDragStart(e, id) {
+    dragSectionId.current = id
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleSectionDragOver(e, targetId) {
+    e.preventDefault()
+    if (!dragSectionId.current || dragSectionId.current === targetId) return
+    setDraftSectionLayout(prev => {
+      const fromIdx = prev.findIndex(s => s.id === dragSectionId.current)
+      const toIdx   = prev.findIndex(s => s.id === targetId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      const next = [...prev]
+      const [item] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, item)
+      return next
+    })
+  }
+
+  function handleSectionDrop(e) {
+    e.preventDefault()
+    dragSectionId.current = null
+  }
+
+  function toggleSectionVisible(id) {
+    setDraftSectionLayout(prev => prev.map(s => s.id === id ? { ...s, visible: !s.visible } : s))
+  }
+
+  async function saveProfileLayout() {
+    setSavingLayout(true)
+    try {
+      await dataStore.setMeta('patientProfileLayout', { sections: draftSectionLayout })
+      setSectionLayout(draftSectionLayout)
+      setCustomizingProfile(false)
+    } finally {
+      setSavingLayout(false)
+    }
+  }
+
+  function cancelCustomizeProfile() {
+    setDraftSectionLayout(sectionLayout)
+    setCustomizingProfile(false)
+  }
+
+  // ─── Invoice edit handlers ────────────────────────────────────────────────
+
+  function openInvEdit(inv) {
+    setEditInvoice(inv)
+    setEditInvForm({
+      description: inv.lineItems?.[0]?.description || '',
+      amount:      String(inv.total ?? ''),
+      method:      inv.paymentMethod || 'cash',
+      status:      inv.status || 'draft',
+      collectedBy: inv.collectedBy || '',
+    })
+  }
+
+  async function handleInvEdit() {
+    if (!editInvoice) return
+    setEditInvSaving(true)
+    try {
+      const newTotal = Number(editInvForm.amount)
+      await billingService.update(editInvoice.id, {
+        lineItems: editInvoice.lineItems?.length
+          ? [{ ...editInvoice.lineItems[0], description: editInvForm.description, unitPrice: newTotal, quantity: 1, total: newTotal }]
+          : editInvoice.lineItems,
+        total:         newTotal,
+        subtotal:      newTotal,
+        status:        editInvForm.status,
+        paymentMethod: editInvForm.method,
+        collectedBy:   editInvForm.collectedBy,
+        paymentDate:   editInvForm.status === 'paid' ? (editInvoice.paymentDate || editInvoice.issueDate) : null,
+      })
+      setEditInvoice(null)
+    } catch {
+      toast.error('Failed to update invoice. Please try again.')
+    } finally {
+      setEditInvSaving(false)
+    }
+  }
+
+  async function handleMarkPaid() {
+    if (!payModal) return
+    setPayMarking(true)
+    try {
+      await billingService.update(payModal.id, {
+        status:        'paid',
+        paymentMethod: payMethod,
+        collectedBy:   payCollectedBy,
+        paymentDate:   new Date().toISOString().slice(0, 10),
+      })
+      setPayModal(null)
+    } catch {
+      toast.error('Failed to mark as paid. Please try again.')
+    } finally {
+      setPayMarking(false)
+    }
+  }
+
+  // ─── Section renderer (Overview tab) ─────────────────────────────────────
+
+  const renderSection = (sectionId) => {
+    switch (sectionId) {
+
+      case 'personal':
+        return (
+          <Section key="personal" title="Personal Details"><div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
+              <InfoRow label="National ID" value={patient.nationalId} />
+              <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
+              {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
+            </div>
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <InfoRow label="Phone" value={patient.phone} />
+              <InfoRow label="Alt Phone" value={patient.alternatePhone} />
+              <InfoRow label="Email" value={patient.email} />
+              <InfoRow label="Address" value={patient.address} />
+            </div>
+            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
+            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
+            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
+            {patient.referralSource && (
+              <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
+            )}
+            {patient.referralNotes && <InfoRow label="Referral Details" value={patient.referralNotes} />}
+            {!patient.dateOfBirth && patient.ageManual && (
+              <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
+            )}
+            {patient.consentFormSigned && <InfoRow label="Consent" value="Form signed" />}
+          </div></Section>
+        )
+
+      case 'medical_summary':
+        return (
+          <Section key="medical_summary" title="Medical Summary"><div className="p-6">
+            {patient.allergies?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.allergies.map(a => <Badge key={a} label={a} color="red"/>)}
+                </div>
+              </div>
+            )}
+            {patient.chronicConditions?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Chronic Conditions</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.chronicConditions.map(c => <Badge key={c} label={c} color="orange"/>)}
+                </div>
+              </div>
+            )}
+            {patient.currentMedications?.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Current Medications</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.currentMedications.map(m => <Badge key={m} label={m} color="blue"/>)}
+                </div>
+              </div>
+            )}
+            {visits.length > 0 && (() => {
+              const allDiagnoses = [...new Set(visits.flatMap(v => v.diagnosis || []).filter(Boolean))]
+              const allLabOrders = [...new Set(visits.flatMap(v => v.labOrders  || []).filter(Boolean))]
+              const recentRx     = visits.slice(0, 3).flatMap(v => (v.prescriptions || []).map(p => p.medication).filter(Boolean))
+              const uniqueRx     = [...new Set(recentRx)]
+              if (!allDiagnoses.length && !allLabOrders.length && !uniqueRx.length) return null
+              return (
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">From Visit History</p>
+                  {allDiagnoses.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Diagnoses</p>
+                      <div className="flex flex-wrap gap-1.5">{allDiagnoses.map(d => <Badge key={d} label={d} color="purple"/>)}</div>
+                    </div>
+                  )}
+                  {uniqueRx.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Recent Prescriptions</p>
+                      <div className="flex flex-wrap gap-1.5">{uniqueRx.map(m => <Badge key={m} label={m} color="teal"/>)}</div>
+                    </div>
+                  )}
+                  {allLabOrders.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Lab Orders</p>
+                      <div className="flex flex-wrap gap-1.5">{allLabOrders.map(l => <Badge key={l} label={l} color="gray"/>)}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
+              <p className="text-sm text-gray-400">No medical history recorded.</p>
+            )}
+          </div></Section>
+        )
+
+      case 'insurance':
+        return (
+          <Section key="insurance" title="Insurance"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Provider" value={patient.insuranceProvider} />
+              <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
+              <InfoRow label="Group #" value={patient.insuranceGroupNumber} />
+              <InfoRow label="Expiry" value={patient.insuranceExpiry} />
+            </div>
+            {!patient.insuranceProvider && <p className="text-sm text-gray-400">No insurance details on file.</p>}
+          </div></Section>
+        )
+
+      case 'emergency_contact':
+        if (!patient.emergencyContact?.name) return null
+        return (
+          <Section key="emergency_contact" title="Emergency Contact"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              <InfoRow label="Name" value={patient.emergencyContact.name} />
+              <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
+              <InfoRow label="Phone" value={patient.emergencyContact.phone} />
+            </div>
+          </div></Section>
+        )
+
+      case 'history_ho': {
+        if (!isHomeopathy(specialization)) return null
+        const hoFields = [
+          { key: 'observation',   label: 'Observation',       value: patient.observation   },
+          { key: 'pastHistory',   label: 'Past History',      value: patient.pastHistory   },
+          { key: 'familyHistory', label: 'Family History',    value: patient.familyHistory },
+          { key: 'notes',         label: 'Notes',             value: patient.notes         },
+          { key: 'historyOf',     label: 'Female / Male H/o', value: patient.historyOf     },
+          { key: 'lifeSpan',      label: 'Life Span',         value: patient.lifeSpan      },
+        ].filter(f => f.value)
+        if (!hoFields.length) return null
+        return (
+          <Section key="history_ho" title="History (H/o)">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {hoFields.map(f => (
+                <div key={f.key} className="px-6 py-4">
+                  <p className="form-label mb-1">{f.label}</p>
+                  {/<[a-z][\s\S]*>/i.test(f.value)
+                    ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: f.value }}/>
+                    : <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{f.value}</p>
+                  }
+                </div>
+              ))}
+            </div>
+          </Section>
+        )
+      }
+
+      case 'generals':
+        if (!isHomeopathy(specialization)) return null
+        return (
+          <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
+            <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {[
+                    ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
+                    ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
+                    ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
+                  ].map(([key, label], i) => (
+                    <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {patient.generals?.[key] || '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {(patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
+                    <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
+                          {field.value || '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div></Section>
+        )
+
+      case 'chief_complaints':
+        if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
+        return (
+          <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {(patient.chiefComplaints ?? []).filter(c => c.complaint).map((row, i) => (
+                <div key={i} className="px-5 py-4">
+                  {/* Complaint heading */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">{row.complaint}</p>
+                  </div>
+                  {/* Sub-fields — only render if they have content */}
+                  {(row.location || row.sensation || row.modality || row.concomitant) && (
+                    <div className="ml-9 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                      {[['Location','location'],['Sensation','sensation'],['Modality','modality'],['Concomitant','concomitant']].map(([label, key]) =>
+                        row[key] ? (
+                          <div key={key}>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">{label}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{row[key]}</p>
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )
+
+      case 'prescription_details':
+        if (!isHomeopathy(specialization) || !patient.prescriptionDetails) return null
+        return (
+          <Section key="prescription_details" title="Prescription Details" accentClass="border-l-teal-500">
+            <div className="p-6">
+              {/<[a-z][\s\S]*>/i.test(patient.prescriptionDetails)
+                ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: patient.prescriptionDetails }}/>
+                : <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
+              }
+            </div>
+          </Section>
+        )
+
+      case 'other_medical_history': {
+        if (isHomeopathy(specialization)) return null
+        const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
+        if (!hasMedHistory) return null
+        return (
+          <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { label: 'Observation',    value: patient.observation   },
+                { label: 'Past History',   value: patient.pastHistory   },
+                { label: 'Family History', value: patient.familyHistory },
+                { label: 'Notes',          value: patient.notes         },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="form-label">{label}</p>
+                  {value
+                    ? (/<[a-z][\s\S]*>/i.test(value)
+                        ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300 mt-0.5" dangerouslySetInnerHTML={{ __html: value }}/>
+                        : <p className="text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{value}</p>)
+                    : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
+                  }
+                </div>
+              ))}
+            </div>
+          </Section>
+        )
+      }
+
+      default: {
+        // ── Preset specialty section ─────────────────────────────────────────
+        if (sectionId.startsWith('preset__')) {
+          const secTitle = sectionId.slice('preset__'.length)
+          const allPreset = getIntakeSections(specialization)
+          const sec = allPreset.find(s => s.title === secTitle)
+          if (!sec) return null
+          const hasData = sec.fields.some(f => {
+            const v = (patient.specialtyData ?? {})[f.key]
+            return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+          })
+          if (!hasData) return null
+          const presetIdx = allPreset.indexOf(sec)
+          return (
+            <Section key={sectionId} title={sec.title} accentClass={ACCENT_COLORS[presetIdx % ACCENT_COLORS.length]}>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sec.fields.map(field => {
+                  const val = (patient.specialtyData ?? {})[field.key]
+                  if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) return null
+                  return (
+                    <div key={field.key} className={field.type === 'textarea' || field.type === 'chips' || field.type === 'scale' ? 'sm:col-span-2' : ''}>
+                      <p className="form-label">{field.label}</p>
+                      {field.type === 'scale' ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${val >= 8 ? 'bg-red-500' : val >= 5 ? 'bg-amber-400' : 'bg-green-500'}`}
+                              style={{ width: `${val * 10}%` }}/>
+                          </div>
+                          <span className={`text-sm font-bold w-6 text-center ${val >= 8 ? 'text-red-500' : val >= 5 ? 'text-amber-500' : 'text-green-500'}`}>{val}</span>
+                        </div>
+                      ) : field.type === 'textarea' && typeof val === 'string' && /<[a-z][\s\S]*>/i.test(val) ? (
+                        <div className="rich-text-view text-sm mt-0.5 text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: val }}/>
+                      ) : (
+                        <p className={`text-sm mt-0.5 whitespace-pre-wrap ${val ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
+                          {Array.isArray(val) ? val.join(', ') : (val || '—')}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Section>
+          )
+        }
+
+        // ── Custom doctor-added field section ────────────────────────────────
+        if (!sectionId.startsWith('section__')) return null
+        const secName = sectionId.slice('section__'.length)
+        const fields  = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Additional Info') === secName)
+        if (!fields.length) return null
+        const allSecNames = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
+        const si = allSecNames.indexOf(secName)
+        return (
+          <Section key={sectionId} title={secName} accentClass={ACCENT_COLORS[si % ACCENT_COLORS.length]}>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {fields.map(field => (
+                  <ClinicalField key={field.id} field={field} editing={false}
+                    value={(patient.specialtyData ?? {})[field.id]} onChange={() => {}} />
+                ))}
+              </div>
+            </div>
+          </Section>
+        )
+      }
+    }
+  }
+
+  const effectiveLayout = sectionLayout.length ? sectionLayout : sectionDefs.map(d => ({ id: d.id, visible: true }))
 
   return (
     <AppLayout
@@ -935,6 +1402,13 @@ export default function PatientProfilePage() {
               Edit
             </button>
           )}
+          <button onClick={() => window.print()}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export PDF
+          </button>
           {!doctor?.viewOnly && (
             <button onClick={() => setShowDeleteModal(true)}
               className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
@@ -1020,520 +1494,86 @@ export default function PatientProfilePage() {
 
       {/* Tab 0: Overview */}
       {tab === 0 && (
-        <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Personal Details — inline editable */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Personal Details</h3>
-              {!editingOverview ? (
-                <button onClick={startOverviewEdit}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                  </svg>
-                  Edit
-                </button>
-              ) : (
+        <div className="space-y-5">
+
+          {/* ── Customize panel ── */}
+          {customizingProfile && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-primary-200 dark:border-primary-700 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Customize Profile Layout</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Drag to reorder · Toggle eye to show / hide sections</p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setEditingOverview(false)}
-                    className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                  <button onClick={saveOverview} disabled={overviewSaving}
-                    className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                    {overviewSaving ? 'Saving…' : 'Save'}
+                  <button onClick={cancelCustomizeProfile}
+                    className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-lg transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={saveProfileLayout} disabled={savingLayout}
+                    className="px-4 py-1.5 text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                    {savingLayout && (
+                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    )}
+                    Save Layout
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Read-only fixed fields */}
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
-              <InfoRow label="National ID" value={patient.nationalId} />
-              <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
-              {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
-            </div>
-
-            {/* Editable fields */}
-            {editingOverview ? (
-              <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="form-label text-xs">Phone</label>
-                    <input value={overviewForm.phone} onChange={e => setOverviewForm(f => ({ ...f, phone: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="Phone number"/>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Alt Phone</label>
-                    <input value={overviewForm.alternatePhone} onChange={e => setOverviewForm(f => ({ ...f, alternatePhone: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="Alternate phone"/>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Email</label>
-                  <input type="email" value={overviewForm.email} onChange={e => setOverviewForm(f => ({ ...f, email: e.target.value }))}
-                    className="input-field py-2 text-sm" placeholder="Email address"/>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Address</label>
-                  <AutoTextarea value={overviewForm.address} onChange={e => setOverviewForm(f => ({ ...f, address: e.target.value }))}
-                    className="input-field py-2 text-sm resize" placeholder="Address"/>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="form-label text-xs">Education</label>
-                    <input value={overviewForm.education || ''} onChange={e => setOverviewForm(f => ({ ...f, education: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="e.g. Graduate"/>
-                  </div>
-                  <div>
-                    <label className="form-label text-xs">Occupation</label>
-                    <input value={overviewForm.occupation || ''} onChange={e => setOverviewForm(f => ({ ...f, occupation: e.target.value }))}
-                      className="input-field py-2 text-sm" placeholder="e.g. Engineer"/>
-                  </div>
-                </div>
-                <div>
-                  <label className="form-label text-xs">Marital Status</label>
-                  <div className="flex gap-2 flex-wrap mt-1">
-                    {['Single','Married','Divorced','Widowed'].map(s => (
-                      <button key={s} type="button"
-                        onClick={() => setOverviewForm(f => ({ ...f, maritalStatus: f.maritalStatus === s.toLowerCase() ? '' : s.toLowerCase() }))}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                          overviewForm.maritalStatus === s.toLowerCase()
-                            ? 'bg-primary-500 text-white border-primary-500'
-                            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+              </div>
+              <div className="space-y-2">
+                {draftSectionLayout.map(item => {
+                  const def = sectionDefs.find(d => d.id === item.id)
+                  if (!def) return null
+                  return (
+                    <div key={item.id}
+                      draggable
+                      onDragStart={e => handleSectionDragStart(e, item.id)}
+                      onDragOver={e => handleSectionDragOver(e, item.id)}
+                      onDrop={handleSectionDrop}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 cursor-move select-none hover:border-gray-200 dark:hover:border-gray-600 transition-colors">
+                      <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+                      </svg>
+                      <span className="text-base">{def.icon}</span>
+                      <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{def.label}</span>
+                      <button type="button" onClick={() => toggleSectionVisible(item.id)}
+                        title={item.visible ? 'Hide section' : 'Show section'}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          item.visible
+                            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40'
+                            : 'text-gray-300 dark:text-gray-600 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500'
                         }`}>
-                        {s}
+                        {item.visible
+                          ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                        }
                       </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <InfoRow label="Phone" value={patient.phone} />
-                <InfoRow label="Alt Phone" value={patient.alternatePhone} />
-                <InfoRow label="Email" value={patient.email} />
-                <InfoRow label="Address" value={patient.address} />
-              </div>
-            )}
-
-            {patient.education     && <InfoRow label="Education"     value={patient.education} />}
-            {patient.occupation    && <InfoRow label="Occupation"    value={patient.occupation} />}
-            {patient.maritalStatus && <InfoRow label="Marital Status" value={patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1)} />}
-            {patient.referralSource && (
-              <InfoRow label="Referral Source" value={referralSources.find(r => r.value === patient.referralSource)?.label || patient.referralSource} />
-            )}
-            {patient.referralNotes && (
-              <InfoRow label="Referral Details" value={patient.referralNotes} />
-            )}
-            {!patient.dateOfBirth && patient.ageManual && (
-              <InfoRow label="Age" value={`${patient.ageManual} years (approx)`} />
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Medical Summary</h3>
-
-              {/* From patient record */}
-              {patient.allergies?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Allergies</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.allergies.map(a => <Badge key={a} label={a} color="red"/>)}
-                  </div>
-                </div>
-              )}
-              {patient.chronicConditions?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Chronic Conditions</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.chronicConditions.map(c => <Badge key={c} label={c} color="orange"/>)}
-                  </div>
-                </div>
-              )}
-              {patient.currentMedications?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Current Medications</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {patient.currentMedications.map(m => <Badge key={m} label={m} color="blue"/>)}
-                  </div>
-                </div>
-              )}
-
-              {/* Aggregated from visits */}
-              {visits.length > 0 && (() => {
-                const allDiagnoses   = [...new Set(visits.flatMap(v => v.diagnosis || []).filter(Boolean))]
-                const allLabOrders   = [...new Set(visits.flatMap(v => v.labOrders  || []).filter(Boolean))]
-                const recentRx = visits
-                  .slice(0, 3)
-                  .flatMap(v => (v.prescriptions || []).map(p => p.medication).filter(Boolean))
-                const uniqueRx = [...new Set(recentRx)]
-                if (!allDiagnoses.length && !allLabOrders.length && !uniqueRx.length) return null
-                return (
-                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">From Visit History</p>
-                    {allDiagnoses.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Diagnoses</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allDiagnoses.map(d => <Badge key={d} label={d} color="purple"/>)}
-                        </div>
-                      </div>
-                    )}
-                    {uniqueRx.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Recent Prescriptions</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {uniqueRx.map(m => <Badge key={m} label={m} color="teal"/>)}
-                        </div>
-                      </div>
-                    )}
-                    {allLabOrders.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Lab Orders</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {allLabOrders.map(l => <Badge key={l} label={l} color="gray"/>)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {!patient.allergies?.length && !patient.chronicConditions?.length && !patient.currentMedications?.length && !visits.length && (
-                <p className="text-sm text-gray-400">No medical history recorded.</p>
-              )}
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Insurance</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Provider" value={patient.insuranceProvider} />
-                <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
-                <InfoRow label="Group #" value={patient.insuranceGroupNumber} />
-                <InfoRow label="Expiry" value={patient.insuranceExpiry} />
-              </div>
-              {!patient.insuranceProvider && <p className="text-sm text-gray-400">No insurance details on file.</p>}
-            </div>
-
-            {patient.emergencyContact?.name && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Emergency Contact</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <InfoRow label="Name" value={patient.emergencyContact.name} />
-                  <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
-                  <InfoRow label="Phone" value={patient.emergencyContact.phone} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>{/* end 2-col grid */}
-
-        {/* ── History & Life Span ── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white">History (H/o)</h3>
-            {!editingOverview ? (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingOverview(false)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                <button onClick={saveOverview} disabled={overviewSaving}
-                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                  {overviewSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            )}
-          </div>
-          {/* Observation + Past History */}
-          {(patient.observation || patient.pastHistory || editingOverview) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
-              <div>
-                <label className="form-label text-xs">Observation</label>
-                {editingOverview ? (
-                  <AutoTextarea value={overviewForm.observation || ''} onChange={e => setOverviewForm(f => ({ ...f, observation: e.target.value }))}
-                    className="input-field text-sm resize w-full" placeholder="Doctor's initial observations…"/>
-                ) : (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.observation ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                    {patient.observation || 'Not recorded'}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="form-label text-xs">Past History</label>
-                {editingOverview ? (
-                  <AutoTextarea value={overviewForm.pastHistory || ''} onChange={e => setOverviewForm(f => ({ ...f, pastHistory: e.target.value }))}
-                    className="input-field text-sm resize w-full" placeholder="Past medical history, surgeries…"/>
-                ) : (
-                  <p className={`text-sm mt-1 whitespace-pre-wrap ${patient.pastHistory ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                    {patient.pastHistory || 'Not recorded'}
-                  </p>
-                )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div className="lg:col-span-3">
-              <div className="flex items-center justify-between mb-1">
-                <label className="form-label text-xs mb-0">Female / Male H/o</label>
-                {!editingOverview && patient.historyOf && (
-                  <button type="button" onClick={() => setHistoryExpanded(e => !e)}
-                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                    {historyExpanded ? 'Collapse' : 'Expand'}
-                    <svg className={`w-3 h-3 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-              {editingOverview ? (
-                <AutoTextarea value={overviewForm.historyOf}
-                  onChange={e => setOverviewForm(f => ({ ...f, historyOf: e.target.value }))}
-                  className="input-field text-sm resize w-full" placeholder="History of present illness, past medical history…"/>
-              ) : patient.historyOf ? (
-                <p className={`text-sm mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300 ${historyExpanded ? '' : 'line-clamp-3'}`}>
-                  {patient.historyOf}
-                </p>
-              ) : (
-                <p className="text-sm mt-1 text-gray-400 dark:text-gray-500 italic">Not recorded</p>
-              )}
-            </div>
-            <div>
-              <label className="form-label text-xs">Life Span</label>
-              {editingOverview ? (
-                <input value={overviewForm.lifeSpan}
-                  onChange={e => setOverviewForm(f => ({ ...f, lifeSpan: e.target.value }))}
-                  className="input-field text-sm" placeholder="e.g. 45 years"/>
-              ) : (
-                <p className={`text-sm mt-1 ${patient.lifeSpan ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                  {patient.lifeSpan || '—'}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Generals + Custom Rows ── */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Generals</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Constitutional symptoms · custom rows can be added below</p>
-            </div>
-            {!editingOverview ? (
-              <button onClick={startOverviewEdit}
-                className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+          {/* ── Customize button ── */}
+          {!customizingProfile && (
+            <div className="flex justify-end">
+              <button onClick={() => { setDraftSectionLayout(sectionLayout.length ? sectionLayout : effectiveLayout); setCustomizingProfile(true) }}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
                 </svg>
-                Edit
+                Customize Layout
               </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingOverview(false)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline">Cancel</button>
-                <button onClick={saveOverview} disabled={overviewSaving}
-                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-60 px-3 py-1 rounded-lg transition-colors">
-                  {overviewSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-
-                {/* ── Fixed generals rows ── */}
-                {[
-                  ['appetite',     'Appetite'],
-                  ['taste',        'Taste'],
-                  ['thirst',       'Thirst'],
-                  ['urine',        'Urine'],
-                  ['stool',        'Stool'],
-                  ['thermal',      'Thermal'],
-                  ['perspiration', 'Perspiration'],
-                  ['speed',        'Speed'],
-                  ['fastidious',   'Fastidious'],
-                  ['sleep',        'Sleep'],
-                  ['dreams',       'Dreams'],
-                ].map(([key, label], i) => (
-                  <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                    <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</td>
-                    <td className="px-4 py-2">
-                      {editingOverview ? (
-                        <AutoTextarea
-                          value={overviewForm.generals?.[key] ?? ''}
-                          onChange={e => setOverviewForm(f => ({ ...f, generals: { ...f.generals, [key]: e.target.value } }))}
-                          className="input-field text-sm py-1.5 w-full resize"
-                          placeholder={`Describe ${label.toLowerCase()}…`}
-                        />
-                      ) : (
-                        <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                          {patient.generals?.[key] || '—'}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-
-                {/* ── Custom generals rows ── */}
-                {editingOverview
-                  ? (overviewForm.customGenerals ?? []).map((field, i) => (
-                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                        <td className="px-4 py-2 w-40">
-                          <input
-                            value={field.label}
-                            onChange={e => setOverviewForm(f => ({
-                              ...f,
-                              customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, label: e.target.value } : g),
-                            }))}
-                            className="input-field text-sm py-1.5 w-full font-semibold"
-                            placeholder="Parameter name"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <AutoTextarea
-                              value={field.value}
-                              onChange={e => setOverviewForm(f => ({
-                                ...f,
-                                customGenerals: f.customGenerals.map((g, j) => j === i ? { ...g, value: e.target.value } : g),
-                              }))}
-                              className="input-field text-sm py-1.5 flex-1 resize"
-                              placeholder="Value"
-                            />
-                            <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, customGenerals: f.customGenerals.filter((_, j) => j !== i) }))}
-                              className="text-gray-400 hover:text-red-500 transition-colors text-xl leading-none flex-shrink-0">×</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  : (patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
-                      <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                        <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
-                            {field.value || '—'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                }
-
-                {/* ── Add row button (edit mode only) ── */}
-                {editingOverview && (
-                  <tr>
-                    <td colSpan={2} className="px-4 py-2">
-                      <button type="button"
-                        onClick={() => setOverviewForm(f => ({
-                          ...f,
-                          customGenerals: [...(f.customGenerals ?? []), { id: `${Date.now()}`, label: '', value: '' }],
-                        }))}
-                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Add Parameter
-                      </button>
-                    </td>
-                  </tr>
-                )}
-
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ── Chief Complaints ── */}
-        {(editingOverview || (patient.chiefComplaints ?? []).some(c => c.complaint)) && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-blue-500">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Chief Complaints (C/o)</h3>
-              {editingOverview && (
-                <button type="button"
-                  onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: [...(f.chiefComplaints ?? []), { complaint: '', location: '', sensation: '', modality: '', concomitant: '' }] }))}
-                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                  Add Row
-                </button>
-              )}
             </div>
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full min-w-[640px]">
-                <thead>
-                  <tr className="border-b-2 border-gray-100 dark:border-gray-700">
-                    {['Complaint (C/O)','Location (LO)','Sensation (S)','Modality (M)','Concomitant (C)'].map(h => (
-                      <th key={h} className="px-2 pb-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">{h}</th>
-                    ))}
-                    {editingOverview && <th className="w-8"/>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {(editingOverview ? (overviewForm.chiefComplaints ?? []) : (patient.chiefComplaints ?? []).filter(c => c.complaint)).map((row, i) => (
-                    <tr key={i}>
-                      {['complaint','location','sensation','modality','concomitant'].map(field => (
-                        <td key={field} className="px-1.5 py-2">
-                          {editingOverview ? (
-                            <input value={row[field] ?? ''} onChange={e => setOverviewForm(f => {
-                              const list = [...(f.chiefComplaints ?? [])]
-                              list[i] = { ...list[i], [field]: e.target.value }
-                              return { ...f, chiefComplaints: list }
-                            })} placeholder="—" className="input-field text-sm py-2 w-full"/>
-                          ) : (
-                            <span className="text-sm text-gray-700 dark:text-gray-300 px-2">{row[field] || '—'}</span>
-                          )}
-                        </td>
-                      ))}
-                      {editingOverview && (
-                        <td className="px-1.5 py-2 text-center">
-                          {(overviewForm.chiefComplaints ?? []).length > 1 && (
-                            <button type="button"
-                              onClick={() => setOverviewForm(f => ({ ...f, chiefComplaints: f.chiefComplaints.filter((_, j) => j !== i) }))}
-                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 text-xl leading-none transition-colors">×</button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Prescription Details ── */}
-        {(editingOverview || patient.prescriptionDetails) && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 border-l-4 border-l-teal-500">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Prescription Details</h3>
-              {!editingOverview && (
-                <button onClick={startOverviewEdit}
-                  className="flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  Edit
-                </button>
-              )}
-            </div>
-            <div className="p-6">
-              {editingOverview ? (
-                <AutoTextarea value={overviewForm.prescriptionDetails || ''} onChange={e => setOverviewForm(f => ({ ...f, prescriptionDetails: e.target.value }))}
-                  className="input-field text-sm resize w-full min-h-[80px]" placeholder="Remedy, potency, dosage, repetition, diet…"/>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">{patient.prescriptionDetails}</p>
-              )}
-            </div>
-          </div>
-        )}
+          {/* ── Ordered sections ── */}
+          {effectiveLayout.map(item => {
+            if (!item.visible) return null
+            return renderSection(item.id)
+          })}
 
         </div>
       )}
@@ -1746,15 +1786,14 @@ export default function PatientProfilePage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                    {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status'].map(h => (
+                    {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                   {invoices.map(inv => (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/billing?invoice=${inv.id}`)}>
+                    <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">
@@ -1765,6 +1804,26 @@ export default function PatientProfilePage() {
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                       <td className="px-4 py-3">
                         <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={INV_COLORS[inv.status] ?? 'gray'}/>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {!doctor?.viewOnly && inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                            <button onClick={() => { setPayModal(inv); setPayMethod('cash'); setPayCollectedBy(isReceptionist ? 'receptionist' : 'doctor') }}
+                              className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors">
+                              Mark Paid
+                            </button>
+                          )}
+                          {!doctor?.viewOnly && (
+                            <button onClick={() => openInvEdit(inv)}
+                              className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:underline transition-colors">
+                              Edit
+                            </button>
+                          )}
+                          <button onClick={() => router.push(`/billing?invoice=${inv.id}`)}
+                            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors">
+                            View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1783,15 +1842,101 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      <EditPatientModal
-        open={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        patient={patient}
-        onSave={async (data) => {
-          await update(data)
-          setShowEditModal(false)
-        }}
-      />
+      {/* Edit Invoice Modal */}
+      <Modal open={!!editInvoice} onClose={() => setEditInvoice(null)} title="Edit Invoice" size="sm">
+        {editInvoice && (
+          <div className="space-y-4 mb-5">
+            <div>
+              <label className="form-label">Description</label>
+              <input value={editInvForm.description} onChange={e => setEditInvForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Consultation Fee" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Amount</label>
+              <input type="number" min="0" value={editInvForm.amount} onChange={e => setEditInvForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0" className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Payment Method</label>
+              <select value={editInvForm.method} onChange={e => setEditInvForm(f => ({ ...f, method: e.target.value }))} className="input-field">
+                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <select value={editInvForm.collectedBy} onChange={e => setEditInvForm(f => ({ ...f, collectedBy: e.target.value }))} className="input-field">
+                <option value="">— Select —</option>
+                {COLLECTED_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Status</label>
+              <select value={editInvForm.status} onChange={e => setEditInvForm(f => ({ ...f, status: e.target.value }))} className="input-field">
+                {billingStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3 justify-end pt-2 border-t dark:border-gray-700">
+              <button type="button" onClick={() => setEditInvoice(null)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleInvEdit} disabled={editInvSaving}
+                className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+                {editInvSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Mark Paid Modal */}
+      <Modal open={!!payModal} onClose={() => setPayModal(null)} title="Mark as Paid" size="sm">
+        {payModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Invoice <span className="font-semibold text-gray-900 dark:text-white">{payModal.invoiceNumber}</span> — {formatCurrency(payModal.total)}
+            </p>
+            <div>
+              <label className="form-label">Payment Method</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m.value} type="button"
+                    onClick={() => setPayMethod(m.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      payMethod === m.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                    }`}>{m.label}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                {COLLECTED_BY_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => setPayCollectedBy(o.value)}
+                    className={`flex-1 py-2 transition-colors ${
+                      payCollectedBy === o.value
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}>{o.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setPayModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleMarkPaid} disabled={payMarking}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+                {payMarking ? 'Saving…' : 'Confirm Paid'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Delete Patient Modal */}
       <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">
@@ -1800,11 +1945,11 @@ export default function PatientProfilePage() {
         </p>
         <p className="text-xs text-red-600 dark:text-red-400 mb-6">All visits, appointments, and billing records will be removed. This cannot be undone.</p>
         <div className="flex gap-3 justify-end">
-          <button onClick={() => setShowDeleteModal(false)}
+          <button type="button" onClick={() => setShowDeleteModal(false)}
             className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
-          <button disabled={deleting} onClick={async () => {
+          <button type="button" disabled={deleting} onClick={async () => {
             setDeleting(true)
             try { await patientService.remove(id); router.push('/patients') } catch { setDeleting(false) }
           }}
@@ -1813,6 +1958,14 @@ export default function PatientProfilePage() {
           </button>
         </div>
       </Modal>
+
+      <PatientPrintView
+        patient={patient}
+        visits={visits}
+        doctor={doctor}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
     </AppLayout>
   )
 }
