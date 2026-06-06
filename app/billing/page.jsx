@@ -196,15 +196,13 @@ function BillingPageInner() {
     <AppLayout
       title="Billing & Invoices"
       action={
-        !doctor?.viewOnly && (
-          <button onClick={() => router.push('/billing/new')}
-            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
-            New Invoice
-          </button>
-        )
+        <button onClick={() => router.push('/billing/new')}
+          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+          </svg>
+          New Invoice
+        </button>
       }
     >
       {/* Receptionist notice */}
@@ -347,18 +345,16 @@ function BillingPageInner() {
                   )}
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
-                      {!doctor?.viewOnly && inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                      {inv.status !== 'paid' && inv.status !== 'cancelled' && (
                         <button onClick={() => { setPayModal(inv.id); setPayMethod('cash'); setPayCollectedBy(isReceptionist ? 'receptionist' : 'doctor') }}
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium">
                           Mark Paid
                         </button>
                       )}
-                      {!doctor?.viewOnly && (
-                        <button onClick={() => openEdit(inv)}
-                          className="text-xs text-gray-600 dark:text-gray-400 hover:underline font-medium">
-                          Edit
-                        </button>
-                      )}
+                      <button onClick={() => openEdit(inv)}
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:underline font-medium">
+                        Edit
+                      </button>
                       <button onClick={() => setPrintInvoice(inv)}
                         className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
                         Print

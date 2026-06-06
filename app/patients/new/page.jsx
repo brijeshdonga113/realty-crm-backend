@@ -7,7 +7,6 @@ import { BLOOD_TYPES } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { useAuth } from '@/context/AuthContext'
 
 const GENERALS_CONFIG = [
   { key: 'appetite',     label: 'Appetite'     },
@@ -59,13 +58,8 @@ function Spinner() {
 function NewCaseForm() {
   const router         = useRouter()
   const searchParams   = useSearchParams()
-  const { doctor }        = useAuth()
   const { add, patients } = usePatients()
   const referralSources   = useReferralSources()
-
-  useEffect(() => {
-    if (doctor?.viewOnly) router.replace('/patients')
-  }, [doctor?.viewOnly])
 
   const [loading,      setLoading]      = useState(false)
   const [errors,       setErrors]       = useState({})
