@@ -29,6 +29,10 @@ function VisitEntryForm() {
   const { formatDateFull } = usePreferences()
   const { blockedSlots } = useBlockedSlots()
 
+  useEffect(() => {
+    if (doctor?.viewOnly) router.replace('/dashboard')
+  }, [doctor?.viewOnly])
+
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''
   const reasonParam   = searchParams.get('reason') ?? ''

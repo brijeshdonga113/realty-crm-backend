@@ -393,18 +393,7 @@ export default function StaffPage() {
   }, [staff, search, roleFilter])
 
   return (
-    <AppLayout
-      title="Staff"
-      action={
-        <button onClick={() => setShowAdd(true)}
-          className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-          </svg>
-          Add Staff
-        </button>
-      }
-    >
+    <AppLayout title="Staff">
       <div className="space-y-6">
 
         {/* ── Login Accounts section ──────────────────────────────────── */}
@@ -423,8 +412,6 @@ export default function StaffPage() {
           <EmptyState
             title="No staff records yet"
             description="Add staff records to manage roles, schedules and contact info."
-            action={() => setShowAdd(true)}
-            actionLabel="Add Staff Member"
           />
         ) : (
           <div className="space-y-5">
