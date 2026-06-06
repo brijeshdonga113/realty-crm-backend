@@ -232,19 +232,374 @@ function CreateClinicModal({ open, onClose, onCreated }) {
   )
 }
 
+// ── Clinic Profile Drawer ─────────────────────────────────────────────────────
+
+const PLAN_STATUSES = [
+  { value: 'trial',   label: 'Trial',   color: 'blue'  },
+  { value: 'active',  label: 'Active',  color: 'green' },
+  { value: 'expired', label: 'Expired', color: 'red'   },
+]
+
+function fmt(n) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n) }
+
+function ClinicDrawer({ uid, onClose, onUpdated }) {
+  const [data,    setData]    = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [err,     setErr]     = useState('')
+  const [tab,     setTab]     = useState('overview')
+
+  // Plan edit
+  const [editPlan,    setEditPlan]    = useState(false)
+  const [planStatus,  setPlanStatus]  = useState('')
+  const [planExpiry,  setPlanExpiry]  = useState('')
+  const [planSaving,  setPlanSaving]  = useState(false)
+
+  useEffect(() => {
+    if (!uid) return
+    setLoading(true); setErr('')
+    adminFetch(`/api/admin/clinic?uid=${uid}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) throw new Error(d.error)
+        setData(d)
+        setPlanStatus(d.profile.subscription?.status ?? 'trial')
+        setPlanExpiry(d.profile.subscription?.expiresAt?.slice(0, 10) ?? d.profile.subscription?.trialEndsAt?.slice(0, 10) ?? '')
+      })
+      .catch(e => setErr(e.message))
+      .finally(() => setLoading(false))
+  }, [uid])
+
+  const handlePlanSave = async () => {
+    setPlanSaving(true)
+    try {
+      const subscription = {
+        ...(data.profile.subscription ?? {}),
+        status: planStatus,
+        ...(planExpiry ? { expiresAt: planExpiry, trialEndsAt: planExpiry } : {}),
+      }
+      await adminFetch('/api/admin/clinic', {
+        method: 'PATCH',
+        body: JSON.stringify({ uid, subscription }),
+      })
+      setData(prev => ({ ...prev, profile: { ...prev.profile, subscription } }))
+      setEditPlan(false)
+      onUpdated?.()
+    } finally {
+      setPlanSaving(false)
+    }
+  }
+
+  const handleAccessToggle = async () => {
+    const next = !data.profile.viewOnly
+    await adminFetch('/api/admin/clinic', { method: 'PATCH', body: JSON.stringify({ uid, viewOnly: next }) })
+    setData(prev => ({ ...prev, profile: { ...prev.profile, viewOnly: next } }))
+    onUpdated?.()
+  }
+
+  if (!uid) return null
+
+  const sub = data?.profile?.subscription
+  const subColor = sub?.status === 'active' ? 'green' : sub?.status === 'trial' ? 'blue' : 'red'
+  const subLabel = PLAN_STATUSES.find(p => p.value === sub?.status)?.label ?? sub?.status ?? '—'
+  const expiryDate = sub?.expiresAt || sub?.trialEndsAt
+  const isExpired  = expiryDate && new Date(expiryDate) < new Date()
+  const daysLeft   = expiryDate ? Math.ceil((new Date(expiryDate) - new Date()) / 86400000) : null
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}/>
+
+      {/* Drawer */}
+      <div className="relative w-full max-w-2xl bg-white dark:bg-gray-900 h-full flex flex-col shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        {loading ? (
+          <div className="flex items-center justify-center flex-1 text-gray-400 gap-3 text-sm">
+            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            Loading clinic data…
+          </div>
+        ) : err ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm text-red-500 dark:text-red-400">{err}</p>
+          </div>
+        ) : data && (
+          <>
+            {/* Top bar */}
+            <div className="flex items-start gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-lg font-bold text-primary-700 dark:text-primary-300">
+                {(data.profile.firstName?.[0] ?? '').toUpperCase()}{(data.profile.lastName?.[0] ?? '').toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                  {data.profile.clinicName || `Dr. ${data.profile.firstName} ${data.profile.lastName}`}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Dr. {data.profile.firstName} {data.profile.lastName} · {data.profile.specialization?.replace(/_/g,' ') || 'General'}
+                </p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    subColor === 'green' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                    : subColor === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  }`}>{subLabel}</span>
+                  {data.profile.viewOnly && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">View Only</span>
+                  )}
+                  {data.auth.emailVerified && (
+                    <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                      Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1.5 rounded-lg transition-colors flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex gap-1 px-6 pt-4 pb-0 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+              {['overview', 'financials', 'patients'].map(t => (
+                <button key={t} onClick={() => setTab(t)}
+                  className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 transition-colors -mb-px ${
+                    tab === t
+                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+              {/* ── Overview ── */}
+              {tab === 'overview' && (
+                <>
+                  {/* Plan card */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Subscription Plan</h4>
+                      {!editPlan && (
+                        <button onClick={() => setEditPlan(true)}
+                          className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                          Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {editPlan ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="form-label">Status</label>
+                          <div className="flex gap-2 mt-1">
+                            {PLAN_STATUSES.map(p => (
+                              <button key={p.value} type="button" onClick={() => setPlanStatus(p.value)}
+                                className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                                  planStatus === p.value
+                                    ? 'bg-primary-500 text-white border-primary-500'
+                                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                                }`}>{p.label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="form-label">Expiry / Trial End Date</label>
+                          <input type="date" value={planExpiry} onChange={e => setPlanExpiry(e.target.value)} className="input-field"/>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => setEditPlan(false)}
+                            className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            Cancel
+                          </button>
+                          <button onClick={handlePlanSave} disabled={planSaving}
+                            className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+                            {planSaving ? 'Saving…' : 'Save Plan'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold mb-1">Status</p>
+                          <span className={`text-sm font-bold capitalize ${
+                            subColor === 'green' ? 'text-green-600 dark:text-green-400'
+                            : subColor === 'blue' ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-red-600 dark:text-red-400'
+                          }`}>{subLabel}</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold mb-1">
+                            {sub?.status === 'trial' ? 'Trial Ends' : 'Expires'}
+                          </p>
+                          {expiryDate ? (
+                            <div>
+                              <p className={`text-sm font-semibold ${isExpired ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                                {fmtDate(expiryDate)}
+                              </p>
+                              <p className={`text-xs ${isExpired ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                                {isExpired ? 'Expired' : `${daysLeft}d remaining`}
+                              </p>
+                            </div>
+                          ) : <p className="text-sm text-gray-400">—</p>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Access control */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Access Control</h4>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          {data.profile.viewOnly ? 'This clinic is currently in view-only mode — no create/edit actions.' : 'This clinic has full access to all features.'}
+                        </p>
+                      </div>
+                      <button onClick={handleAccessToggle}
+                        className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                          data.profile.viewOnly
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 hover:bg-green-100'
+                            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-100'
+                        }`}>
+                        {data.profile.viewOnly ? 'Restore Full Access' : 'Restrict to View Only'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clinic info */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Clinic Details</h4>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                      {[
+                        { label: 'Email',        value: data.profile.email },
+                        { label: 'Phone',        value: data.profile.phone || '—' },
+                        { label: 'Joined',       value: fmtDate(data.profile.createdAt) },
+                        { label: 'Last Login',   value: data.auth.lastSignInTime ? `${timeAgo(data.auth.lastSignInTime)} (${fmtDate(data.auth.lastSignInTime)})` : 'Never' },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold">{label}</p>
+                          <p className="text-gray-800 dark:text-gray-200 mt-0.5 truncate">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── Financials ── */}
+              {tab === 'financials' && (
+                <>
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Total Revenue', value: fmt(data.stats.totalRevenue), color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' },
+                      { label: 'Pending',       value: fmt(data.stats.pendingAmount), color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800' },
+                      { label: 'Total Invoices', value: data.stats.totalInvoices, color: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-800' },
+                    ].map(c => (
+                      <div key={c.label} className={`rounded-xl border p-4 ${c.color}`}>
+                        <p className="text-lg font-bold">{c.value}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Monthly revenue chart (bar) */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Monthly Revenue (Last 6 Months)</h4>
+                    {data.stats.revenueChart.every(m => m.revenue === 0) ? (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-6">No revenue recorded yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(() => {
+                          const max = Math.max(...data.stats.revenueChart.map(m => m.revenue), 1)
+                          return data.stats.revenueChart.map(m => {
+                            const pct = Math.round((m.revenue / max) * 100)
+                            const [y, mo] = m.month.split('-')
+                            const label = new Date(Number(y), Number(mo) - 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+                            return (
+                              <div key={m.month} className="flex items-center gap-3">
+                                <p className="text-xs text-gray-400 w-14 flex-shrink-0">{label}</p>
+                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                  <div className="bg-primary-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }}/>
+                                </div>
+                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 text-right">{fmt(m.revenue)}</p>
+                              </div>
+                            )
+                          })
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ── Patients ── */}
+              {tab === 'patients' && (
+                <>
+                  <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-xl p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-3xl font-bold text-primary-700 dark:text-primary-300">{data.stats.patientCount}</p>
+                      <p className="text-sm text-primary-600 dark:text-primary-400">Total Registered Patients</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Recently Added Patients</h4>
+                    {data.stats.recentPatients.length === 0 ? (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No patients yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {data.stats.recentPatients.map(p => (
+                          <div key={p.id} className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary-700 dark:text-primary-300">
+                              {(p.firstName?.[0] ?? '').toUpperCase()}{(p.lastName?.[0] ?? '').toUpperCase()}
+                            </div>
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex-1">{p.firstName} {p.lastName}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">{fmtDate(p.createdAt)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const { doctor, updateProfile, loading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [tab,        setTab]       = useState('dashboard')
-  const [enriched,   setEnriched]  = useState([])
-  const [loading,    setLoading]   = useState(true)
-  const [apiError,   setApiError]  = useState('')
-  const [search,     setSearch]    = useState('')
-  const [sort,       setSort]      = useState({ key: 'createdAt', dir: -1 })
-  const [showCreate, setShowCreate] = useState(false)
+  const [tab,           setTab]          = useState('dashboard')
+  const [enriched,      setEnriched]     = useState([])
+  const [loading,       setLoading]      = useState(true)
+  const [apiError,      setApiError]     = useState('')
+  const [search,        setSearch]       = useState('')
+  const [sort,          setSort]         = useState({ key: 'createdAt', dir: -1 })
+  const [showCreate,    setShowCreate]   = useState(false)
+  const [selectedClinic, setSelectedClinic] = useState(null) // uid of clicked clinic
 
   // Profile tab state
   const [profileForm,    setProfileForm]    = useState({ firstName: '', lastName: '', email: '' })
@@ -544,7 +899,8 @@ export default function AdminPage() {
                     {filtered.map(d => {
                       const initials = `${d.firstName?.[0] ?? ''}${d.lastName?.[0] ?? ''}`.toUpperCase() || '?'
                       return (
-                        <tr key={d.uid} className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors">
+                        <tr key={d.uid} onClick={() => setSelectedClinic(d.uid)}
+                          className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors cursor-pointer">
 
                           {/* Clinic */}
                           <td className="px-4 py-3.5 pl-5">
@@ -608,6 +964,14 @@ export default function AdminPage() {
           </div>
 
         </div>
+      )}
+
+      {selectedClinic && (
+        <ClinicDrawer
+          uid={selectedClinic}
+          onClose={() => setSelectedClinic(null)}
+          onUpdated={() => fetchDoctors()}
+        />
       )}
 
     </AppLayout>
