@@ -35,7 +35,7 @@ export default function PatientsPage() {
   const [filterOpen, setFilterOpen]     = useState(false)
   const [visibleCols, setVisibleCols]   = useState({
     uhid: true, ageGender: true, source: true, phone: true,
-    invoice: true, visits: true, whatsapp: true, followup: true,
+    invoice: true, visits: true, duebills: true, whatsapp: true, followup: true,
   })
   const [activeFilters, setActiveFilters] = useState({ gender: [], source: [], ageRange: '' })
 
@@ -201,6 +201,16 @@ Now here is the patient data to convert:
     return map
   }, [invoices])
 
+  const dueBillsByPatient = useMemo(() => {
+    const map = {}
+    invoices.forEach(inv => {
+      if (inv.patientId && inv.status !== 'paid') {
+        map[inv.patientId] = (map[inv.patientId] ?? 0) + 1
+      }
+    })
+    return map
+  }, [invoices])
+
   const handleSearch = (q) => { setQuery(q); search(q) }
 
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
@@ -361,6 +371,7 @@ Now here is the patient data to convert:
                   { col: 'phone',    label: 'Phone' },
                   { col: 'invoice',  label: 'Invoice' },
                   { col: 'visits',   label: 'Visits' },
+                  { col: 'duebills', label: 'Due Bills' },
                   { col: 'whatsapp', label: 'WhatsApp' },
                   { col: 'followup', label: 'Follow Up' },
                 ].map(({ col, label }) => (
@@ -484,6 +495,7 @@ Now here is the patient data to convert:
                     { label: 'Phone',        key: null,     cls: '',     col: 'phone' },
                     { label: 'Invoice',      key: null,     cls: '',     col: 'invoice' },
                     { label: 'Visits',       key: 'visits', cls: '',     col: 'visits' },
+                    { label: 'Due Bills',    key: null,     cls: '',     col: 'duebills' },
                     { label: '',             key: null,     cls: '',     col: 'whatsapp' },
                     { label: '',             key: null,     cls: '',     col: 'followup' },
                     { label: '',             key: null,     cls: 'pr-4', col: null },
@@ -575,6 +587,23 @@ Now here is the patient data to convert:
                           )}
                         </td>
                       )}
+                      {visibleCols.duebills && (() => {
+                        const due = dueBillsByPatient[patient.id] ?? 0
+                        return (
+                          <td className="px-4 py-3.5 text-center">
+                            {due > 0 ? (
+                              <span className="inline-flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold px-2.5 py-1 rounded-full">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {due} due
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
+                            )}
+                          </td>
+                        )
+                      })()}
                       {visibleCols.whatsapp && (
                         <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
                           {waPhone ? (
