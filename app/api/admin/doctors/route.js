@@ -61,6 +61,7 @@ export async function GET(request) {
         specialization: d.specialization ?? '',
         phone:          d.phone          ?? '',
         isAdmin:        d.isAdmin        ?? false,
+        viewOnly:       d.viewOnly       ?? false,
         subscription:   d.subscription   ?? null,
         createdAt:      d.createdAt      ?? au.creationTime ?? null,
         lastSignInTime: au.lastSignInTime ?? null,

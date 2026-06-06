@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -510,17 +510,28 @@ function CreateAccountModal({ open, onClose, onCreated, doctors = [] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const { doctor, loading: authLoading } = useAuth()
+  const { doctor, updateProfile, loading: authLoading } = useAuth()
   const router     = useRouter()
 
+  const [tab,       setTab]         = useState('dashboard') // 'dashboard' | 'profile'
   const [enriched,  setEnriched]    = useState([])
   const [loading,   setLoading]     = useState(true)
   const [apiError,  setApiError]    = useState('')
   const [search,    setSearch]      = useState('')
   const [sort,      setSort]        = useState({ key: 'createdAt', dir: -1 })
   const [showCreate, setShowCreate] = useState(false)
-  const [staffModal, setStaffModal] = useState(null) // { uid, clinicName, firstName, lastName }
-  const [toggling,   setToggling]   = useState({}) // uid → 'viewOnly'|'isAdmin'
+  const [staffModal, setStaffModal] = useState(null)
+  const [toggling,   setToggling]   = useState({})
+
+  // Profile tab state
+  const [profileForm, setProfileForm] = useState({ firstName: '', lastName: '', email: '' })
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved,  setProfileSaved]  = useState(false)
+  const [profileErr,    setProfileErr]    = useState('')
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwErr,    setPwErr]    = useState('')
+  const [pwDone,   setPwDone]   = useState(false)
 
   const fetchDoctors = async () => {
     try {
@@ -538,7 +549,45 @@ export default function AdminPage() {
   useEffect(() => {
     if (authLoading || !doctor?.isAdmin) return
     fetchDoctors()
+    setProfileForm({ firstName: doctor.firstName ?? '', lastName: doctor.lastName ?? '', email: doctor.email ?? '' })
   }, [doctor, authLoading])
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault()
+    setProfileSaving(true); setProfileErr(''); setProfileSaved(false)
+    try {
+      await updateProfile({ firstName: profileForm.firstName.trim(), lastName: profileForm.lastName.trim() })
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 3000)
+    } catch (err) {
+      setProfileErr(err.message)
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    if (pwForm.next.length < 8) { setPwErr('Password must be at least 8 characters.'); return }
+    if (pwForm.next !== pwForm.confirm) { setPwErr('Passwords do not match.'); return }
+    setPwSaving(true); setPwErr(''); setPwDone(false)
+    try {
+      const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = await import('firebase/auth')
+      const user = auth.currentUser
+      const cred = EmailAuthProvider.credential(user.email, pwForm.current)
+      await reauthenticateWithCredential(user, cred)
+      await updatePassword(user, pwForm.next)
+      setPwDone(true)
+      setPwForm({ current: '', next: '', confirm: '' })
+      setTimeout(() => setPwDone(false), 4000)
+    } catch (err) {
+      const code = err.code
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setPwErr('Current password is incorrect.')
+      else setPwErr(err.message)
+    } finally {
+      setPwSaving(false)
+    }
+  }
 
   const handleToggle = async (uid, field, currentVal) => {
     setToggling(t => ({ ...t, [`${uid}-${field}`]: true }))
@@ -609,6 +658,97 @@ export default function AdminPage() {
 
   return (
     <AppLayout title="Admin Panel">
+
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-700/60 rounded-xl mb-6 w-fit">
+        {[
+          { key: 'dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+          { key: 'profile',   label: 'Profile',   icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              tab === t.key
+                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon}/>
+            </svg>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Profile tab */}
+      {tab === 'profile' && (
+        <div className="max-w-lg space-y-6">
+
+          {/* Personal info */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-5">Admin Profile</h3>
+            <form onSubmit={handleProfileSave} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">First Name</label>
+                  <input value={profileForm.firstName} onChange={e => setProfileForm(f => ({ ...f, firstName: e.target.value }))}
+                    className="input-field" required/>
+                </div>
+                <div>
+                  <label className="form-label">Last Name</label>
+                  <input value={profileForm.lastName} onChange={e => setProfileForm(f => ({ ...f, lastName: e.target.value }))}
+                    className="input-field" required/>
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Email</label>
+                <input value={profileForm.email} disabled className="input-field opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-700"/>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Email cannot be changed.</p>
+              </div>
+              {profileErr && <p className="text-sm text-red-600 dark:text-red-400">{profileErr}</p>}
+              <button type="submit" disabled={profileSaving}
+                className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 ${
+                  profileSaved
+                    ? 'bg-green-500 text-white'
+                    : 'bg-primary-500 hover:bg-primary-600 text-white'
+                }`}>
+                {profileSaving ? 'Saving…' : profileSaved ? '✓ Saved' : 'Save Changes'}
+              </button>
+            </form>
+          </div>
+
+          {/* Change password */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-5">Change Password</h3>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="form-label">Current Password</label>
+                <input type="password" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                  required className="input-field" autoComplete="current-password"/>
+              </div>
+              <div>
+                <label className="form-label">New Password</label>
+                <input type="password" value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+                  required minLength={8} placeholder="Min. 8 characters" className="input-field" autoComplete="new-password"/>
+              </div>
+              <div>
+                <label className="form-label">Confirm New Password</label>
+                <input type="password" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+                  required className="input-field" autoComplete="new-password"/>
+              </div>
+              {pwErr  && <p className="text-sm text-red-600 dark:text-red-400">{pwErr}</p>}
+              {pwDone && <p className="text-sm text-green-600 dark:text-green-400">Password updated successfully.</p>}
+              <button type="submit" disabled={pwSaving}
+                className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+                {pwSaving ? 'Updating…' : 'Update Password'}
+              </button>
+            </form>
+          </div>
+
+        </div>
+      )}
+
+      {/* Dashboard tab */}
+      {tab === 'dashboard' && <>
       <CreateAccountModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
@@ -827,6 +967,8 @@ export default function AdminPage() {
         </div>
 
       </div>
+      </>}
+
     </AppLayout>
   )
 }
