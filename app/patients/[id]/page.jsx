@@ -315,7 +315,6 @@ function InfoRow({ label, value }) {
 /* ─────────────── VisitCard with edit + delete ─────────────── */
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp, defaultExpanded = false }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
-  const { doctor: currentUser } = useAuth()
   const toast = useToast()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [editing, setEditing] = useState(false)
@@ -449,14 +448,12 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
 
         {/* Actions — stop propagation so they don't toggle expand */}
         <div className="flex-shrink-0 flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-          {!currentUser?.viewOnly && (
-            <button onClick={openEdit} title="Edit visit"
-              className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-            </button>
-          )}
+          <button onClick={openEdit} title="Edit visit"
+            className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
           {onDelete && (
             <button title="Delete visit"
               onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) onDelete(visit.id) }}
@@ -926,33 +923,27 @@ export default function PatientProfilePage() {
             className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1.5 transition-colors">
             ← Back
           </button>
-          {!doctor?.viewOnly && (
-            <button onClick={() => router.push(`/patients/${id}/edit`)}
-              className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-              Edit
-            </button>
-          )}
-          {!doctor?.viewOnly && (
-            <button onClick={() => setShowDeleteModal(true)}
-              className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>
-              Delete
-            </button>
-          )}
-          {!doctor?.viewOnly && (
-            <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
-              className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-              </svg>
-              Record Visit
-            </button>
-          )}
+          <button onClick={() => router.push(`/patients/${id}/edit`)}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Edit
+          </button>
+          <button onClick={() => setShowDeleteModal(true)}
+            className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Delete
+          </button>
+          <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
+            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Record Visit
+          </button>
         </div>
       }
     >
@@ -1641,12 +1632,10 @@ export default function PatientProfilePage() {
                   Last saved {formatDate(draft.updatedAt?.slice(0, 10) || draft.visitDate?.slice(0, 10))}
                 </p>
               </div>
-              {!doctor?.viewOnly && (
-                <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
-                  className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
-                  Continue →
-                </button>
-              )}
+              <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
+                className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                Continue →
+              </button>
             </div>
           ))}
 
@@ -1657,7 +1646,7 @@ export default function PatientProfilePage() {
             if (completedVisits.length === 0 && draftCount === 0) {
               return (
                 <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
-                  action={!doctor?.viewOnly ? () => router.push(`/visits/new?patientId=${id}`) : null} actionLabel="Record Visit"/>
+                  action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
               )
             }
             if (completedVisits.length === 0) {
@@ -1687,7 +1676,7 @@ export default function PatientProfilePage() {
                         <VisitCard
                           visit={visit}
                           onUpdate={updateVisit}
-                          onDelete={doctor?.viewOnly ? null : removeVisit}
+                          onDelete={removeVisit}
                           patientId={id}
                           patientName={`${patient.firstName} ${patient.lastName}`}
                           linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
@@ -1742,7 +1731,7 @@ export default function PatientProfilePage() {
         <div>
           {invoices.length === 0 ? (
             <EmptyState title="No invoices" description="No billing history for this patient."
-              action={!doctor?.viewOnly ? () => router.push(`/billing/new?patientId=${id}`) : null} actionLabel="Create Invoice"/>
+              action={() => router.push(`/billing/new?patientId=${id}`)} actionLabel="Create Invoice"/>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full">
