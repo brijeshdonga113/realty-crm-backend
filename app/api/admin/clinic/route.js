@@ -33,6 +33,13 @@ export async function GET(request) {
 
     const profile = profileSnap.data()
 
+    // Fetch org if this clinic belongs to one
+    let orgData = null
+    if (profile.organizationId) {
+      const orgSnap = await db.collection('organizations').doc(profile.organizationId).get()
+      if (orgSnap.exists) orgData = { id: orgSnap.id, ...orgSnap.data() }
+    }
+
     // Firebase Auth metadata
     let authMeta = {}
     try {
@@ -87,12 +94,16 @@ export async function GET(request) {
         clinicName:     profile.clinicName     ?? '',
         specialization: profile.specialization ?? '',
         phone:          profile.phone          ?? '',
+        licenseNumber:  profile.licenseNumber  ?? '',
         subscription:   profile.subscription   ?? null,
         viewOnly:       profile.viewOnly       ?? false,
         createdAt:      profile.createdAt      ?? null,
         inviteCode:     profile.inviteCode     ?? '',
+        organizationId: profile.organizationId ?? null,
+        branchName:     profile.branchName     ?? '',
       },
       auth: authMeta,
+      org: orgData,
       stats: {
         patientCount,
         totalInvoices,

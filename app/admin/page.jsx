@@ -475,19 +475,48 @@ function ClinicDrawer({ uid, onClose, onUpdated }) {
                     </div>
                   </div>
 
+                  {/* Organization / Group info */}
+                  {data.org && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                        <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{data.org.name}</h4>
+                        <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium">
+                          {data.profile.branchName || 'Branch'}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold mb-2">All Branches</p>
+                        {(data.org.branches ?? []).map(b => (
+                          <div key={b.uid} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg ${b.uid === uid ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800' : 'bg-gray-50 dark:bg-gray-700/40'}`}>
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${b.uid === uid ? 'bg-primary-500' : 'bg-gray-400 dark:bg-gray-500'}`}/>
+                            <p className={`text-xs font-semibold flex-1 ${b.uid === uid ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {b.branchName}
+                            </p>
+                            {b.uid === uid && <span className="text-xs text-primary-500 dark:text-primary-400">This clinic</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Clinic info */}
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
                     <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Clinic Details</h4>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                       {[
-                        { label: 'Email',        value: data.profile.email },
-                        { label: 'Phone',        value: data.profile.phone || '—' },
-                        { label: 'Joined',       value: fmtDate(data.profile.createdAt) },
-                        { label: 'Last Login',   value: data.auth.lastSignInTime ? `${timeAgo(data.auth.lastSignInTime)} (${fmtDate(data.auth.lastSignInTime)})` : 'Never' },
+                        { label: 'Email',           value: data.profile.email },
+                        { label: 'Phone',           value: data.profile.phone || '—' },
+                        { label: 'License No.',     value: data.profile.licenseNumber || '—' },
+                        { label: 'Email Verified',  value: data.auth.emailVerified ? 'Yes ✓' : 'No' },
+                        { label: 'Joined',          value: fmtDate(data.profile.createdAt) },
+                        { label: 'Last Login',      value: data.auth.lastSignInTime ? `${timeAgo(data.auth.lastSignInTime)} (${fmtDate(data.auth.lastSignInTime)})` : 'Never' },
                       ].map(({ label, value }) => (
                         <div key={label}>
                           <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-semibold">{label}</p>
-                          <p className="text-gray-800 dark:text-gray-200 mt-0.5 truncate">{value}</p>
+                          <p className="text-gray-800 dark:text-gray-200 mt-0.5 text-sm truncate">{value}</p>
                         </div>
                       ))}
                     </div>
@@ -1031,7 +1060,6 @@ export default function AdminPage() {
                       {[
                         { key: 'clinicName',     label: 'Clinic'         },
                         { key: 'firstName',      label: 'Doctor'         },
-                        { key: 'email',          label: 'Email'          },
                         { key: 'specialization', label: 'Specialization' },
                         { key: 'subscription',   label: 'Plan'           },
                         { key: 'createdAt',      label: 'Joined'         },
@@ -1072,18 +1100,6 @@ export default function AdminPage() {
                             <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
                               Dr. {d.firstName} {d.lastName}
                             </p>
-                          </td>
-
-                          {/* Email */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1">
-                              <p className="text-xs text-gray-600 dark:text-gray-400">{d.email || '—'}</p>
-                              {d.emailVerified && (
-                                <svg className="w-3 h-3 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                                </svg>
-                              )}
-                            </div>
                           </td>
 
                           {/* Specialization */}
