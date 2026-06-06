@@ -1374,8 +1374,6 @@ export default function SettingsPage() {
           </div>
         </CollapsibleSection>
 
-        </>} {/* end !isReceptionist */}
-
       </div>
     </AppLayout>
   )
