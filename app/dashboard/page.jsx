@@ -64,7 +64,7 @@ function StatCard({ label, value, sub, color, icon, href }) {
 }
 
 export default function DashboardPage() {
-  const { doctor, isReceptionist } = useAuth()
+  const { doctor, isReceptionist, org, activeBranch, switchBranch, baseDoctor } = useAuth()
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
 
@@ -591,6 +591,53 @@ export default function DashboardPage() {
       }
     >
       <div className="space-y-7">
+
+        {/* Branch selector — shown when doctor belongs to an org */}
+        {org && !isReceptionist && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm px-5 py-3 flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">
+              <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              {org.name}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              {/* Own branch */}
+              <button
+                onClick={() => switchBranch(null)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  !activeBranch
+                    ? 'bg-primary-500 text-white border-primary-500'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${!activeBranch ? 'bg-white' : 'bg-green-400'}`}/>
+                {baseDoctor?.branchName ?? 'My Branch'}
+              </button>
+              {/* Other branches */}
+              {(org.branches ?? []).filter(b => b.uid !== baseDoctor?.id).map(b => (
+                <button key={b.uid}
+                  onClick={() => switchBranch(b)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    activeBranch?.uid === b.uid
+                      ? 'bg-primary-500 text-white border-primary-500'
+                      : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${activeBranch?.uid === b.uid ? 'bg-white' : 'bg-gray-400'}`}/>
+                  {b.branchName}
+                </button>
+              ))}
+            </div>
+            {activeBranch && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium flex-shrink-0 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Viewing {activeBranch.branchName}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Welcome banner — always shown */}
         <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 text-white flex items-center justify-between gap-4 relative overflow-hidden">
