@@ -124,10 +124,13 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
 
   const handleLogout = () => { logout(); router.push('/login') }
 
+  // Always show the logged-in user in the footer — not the managed doctor being viewed
+  const footerDoctor = doctor?._isManagedView ? baseDoctor : doctor
+
   const initials = isReceptionist
     ? (doctor?._receptionistName ?? '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
-    : doctor
-      ? `${doctor.firstName?.[0] ?? ''}${doctor.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+    : footerDoctor
+      ? `${footerDoctor.firstName?.[0] ?? ''}${footerDoctor.lastName?.[0] ?? ''}`.toUpperCase() || '?'
       : '?'
 
   const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
@@ -337,14 +340,16 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">
-                  {isReceptionist ? doctor?._receptionistName : `Dr. ${doctor?.firstName} ${doctor?.lastName}`}
+                  {isReceptionist ? doctor?._receptionistName : `Dr. ${footerDoctor?.firstName} ${footerDoctor?.lastName}`}
                 </p>
                 <p className="text-xs text-primary-300 truncate">
                   {isReceptionist
                     ? <span className="text-primary-400">Receptionist</span>
-                    : todayRevenue !== null
-                      ? <>Today: <span className="text-green-400 font-semibold">{fmtCurrencyLib(todayRevenue, doctor?.currency ?? 'INR')}</span></>
-                      : <span className="capitalize">{doctor?.specialization?.replace(/_/g, ' ')}</span>
+                    : baseDoctor?.clinicRole === 'clinic_admin'
+                      ? <span className="text-amber-400 font-semibold">Clinic Admin</span>
+                      : todayRevenue !== null
+                        ? <>Today: <span className="text-green-400 font-semibold">{fmtCurrencyLib(todayRevenue, doctor?.currency ?? 'INR')}</span></>
+                        : <span className="capitalize">{footerDoctor?.specialization?.replace(/_/g, ' ')}</span>
                   }
                 </p>
               </div>

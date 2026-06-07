@@ -951,6 +951,9 @@ export default function AdminPage() {
     todayLogin: enriched.filter(d => d.lastSignInTime && Date.now() - new Date(d.lastSignInTime).getTime() < 86400000).length,
   }), [enriched])
 
+  // uid → doctor lookup for resolving managedBy references
+  const uidMap = useMemo(() => Object.fromEntries(enriched.map(d => [d.uid, d])), [enriched])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     let list = enriched.filter(d =>
@@ -1244,7 +1247,11 @@ export default function AdminPage() {
                           {/* Clinic */}
                           <td className="px-4 py-3.5 pl-5">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary-700 dark:text-primary-300">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                d.clinicRole === 'clinic_admin'
+                                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                  : 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300'
+                              }`}>
                                 {initials}
                               </div>
                               <div>
@@ -1258,9 +1265,21 @@ export default function AdminPage() {
 
                           {/* Doctor */}
                           <td className="px-4 py-3.5">
-                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                              Dr. {d.firstName} {d.lastName}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                Dr. {d.firstName} {d.lastName}
+                              </p>
+                              {d.clinicRole === 'clinic_admin' && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                  Clinic Admin · {d.managedDoctors?.length ?? 0} dr
+                                </span>
+                              )}
+                            </div>
+                            {d.managedBy && uidMap[d.managedBy] && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                via Dr. {uidMap[d.managedBy].firstName} {uidMap[d.managedBy].lastName}
+                              </p>
+                            )}
                           </td>
 
                           {/* Specialization */}
