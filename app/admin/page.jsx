@@ -201,108 +201,208 @@ function ArchivedSection({ rows, uidMap, onSelect }) {
   )
 }
 
-function OrgCard({ org, onEdit, onDelete }) {
-  const [open,    setOpen]    = useState(false)
-  const [stats,   setStats]   = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const loadStats = async () => {
-    if (stats) { setOpen(v => !v); return }
-    setOpen(true); setLoading(true)
-    try {
-      const res  = await adminFetch(`/api/admin/org-stats?orgId=${org.id}`)
-      const data = await res.json()
-      if (!data.error) setStats(data)
-    } finally { setLoading(false) }
-  }
-
-  const maxRevenue = stats ? Math.max(...stats.branches.map(b => b.revenue), 1) : 1
-
+function OrgCard({ org, onSelect, onEdit, onDelete }) {
   return (
-    <div className="px-5 py-4">
-      {/* Header row */}
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-          <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-          </svg>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{org.name}</p>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {(org.branches ?? []).map(b => (
-              <span key={b.uid} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
-                {b.branchName}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <button onClick={onEdit} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Edit</button>
-          <button onClick={onDelete} className="text-xs font-medium text-red-500 dark:text-red-400 hover:underline">Delete</button>
-          <button onClick={loadStats}
-            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
-            {loading
-              ? <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              : <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
-            }
-            {open ? 'Hide' : 'View Stats'}
-          </button>
+    <div
+      onClick={() => onSelect(org)}
+      className="px-5 py-4 flex items-center gap-3 hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors cursor-pointer">
+      <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+        <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">{org.name}</p>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {(org.branches ?? []).map(b => (
+            <span key={b.uid} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+              {b.branchName}
+            </span>
+          ))}
         </div>
       </div>
+      <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <button onClick={onEdit} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Edit</button>
+        <button onClick={onDelete} className="text-xs font-medium text-red-500 dark:text-red-400 hover:underline">Delete</button>
+      </div>
+      <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+      </svg>
+    </div>
+  )
+}
 
-      {/* Stats panel */}
-      {open && stats && (
-        <div className="mt-4 space-y-4">
-          {/* Totals */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {[
-              { label: 'Revenue',      value: fmt(stats.totals.revenue),      color: 'text-green-600 dark:text-green-400'   },
-              { label: 'Patients',     value: stats.totals.patients.toLocaleString(), color: 'text-blue-600 dark:text-blue-400' },
-              { label: 'Appointments', value: stats.totals.appointments.toLocaleString(), color: 'text-purple-600 dark:text-purple-400' },
-              { label: 'Pending',      value: fmt(stats.totals.pending),       color: 'text-amber-600 dark:text-amber-400'   },
-              { label: 'Overdue',      value: fmt(stats.totals.overdue),       color: 'text-red-500 dark:text-red-400'       },
-              { label: 'Expenses',     value: fmt(stats.totals.expenses),      color: 'text-rose-600 dark:text-rose-400'     },
-            ].map(s => (
-              <div key={s.label} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-3 py-2.5">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{s.label}</p>
-                <p className={`text-sm font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
+function OrgDrawer({ org, onClose, onEdit, onDelete }) {
+  const [tab,     setTab]     = useState('overview')
+  const [data,    setData]    = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [err,     setErr]     = useState('')
+
+  useEffect(() => {
+    if (!org) return
+    let cancelled = false
+    setLoading(true); setErr(''); setData(null)
+    adminFetch(`/api/admin/org-stats?orgId=${org.id}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { if (d.error) throw new Error(d.error); setData(d) } })
+      .catch(e => { if (!cancelled) setErr(e.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [org])
+
+  const maxRevenue = data ? Math.max(...data.branches.map(b => b.revenue), 1) : 1
+
+  const STATS = data ? [
+    { label: 'Total Revenue',  value: fmt(data.totals.revenue),                    sub: 'from paid invoices',      color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'   },
+    { label: 'Total Patients', value: data.totals.patients.toLocaleString(),        sub: 'across all branches',     color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'       },
+    { label: 'Appointments',   value: data.totals.appointments.toLocaleString(),    sub: 'all time',                color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'},
+    { label: 'Pending',        value: fmt(data.totals.pending),                     sub: 'awaiting payment',        color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'   },
+    { label: 'Overdue',        value: fmt(data.totals.overdue),                     sub: 'past due date',           color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'           },
+    { label: 'Net Revenue',    value: fmt(data.totals.revenue - data.totals.expenses), sub: 'revenue minus expenses', color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'    },
+  ] : []
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}/>
+      <div className="relative w-full max-w-2xl bg-white dark:bg-gray-900 h-full flex flex-col shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-start gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
           </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">{org.name}</h2>
+            <p className="text-sm text-gray-400 dark:text-gray-500">{(org.branches ?? []).length} branches</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => { onClose(); onEdit() }}
+              className="px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              Edit
+            </button>
+            <button onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
 
-          {/* Per-branch breakdown */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Branch Breakdown</p>
-            {stats.branches.map(b => {
-              const pct = maxRevenue > 0 ? (b.revenue / maxRevenue) * 100 : 0
-              return (
-                <div key={b.uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2.5 mb-2">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-100 dark:border-gray-800 flex-shrink-0 px-6">
+          {['overview', 'branches'].map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-4 py-3 text-sm font-semibold capitalize border-b-2 transition-colors ${
+                tab === t
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}>
+              {t === 'overview' ? 'Overview' : 'Branches'}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading && (
+            <div className="flex items-center justify-center py-20 gap-3 text-gray-400 text-sm">
+              <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Loading organization data…
+            </div>
+          )}
+          {err && <p className="text-sm text-red-500 dark:text-red-400">{err}</p>}
+
+          {data && tab === 'overview' && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                {STATS.map(s => (
+                  <div key={s.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+                    <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{s.label}</p>
+                    <p className={`text-xl font-bold mt-1 ${s.color.split(' ').filter(c => c.startsWith('text')).join(' ')}`}>{s.value}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{s.sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Branch revenue bars */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-white mb-4">Revenue by Branch</h3>
+                <div className="space-y-3">
+                  {[...data.branches].sort((a, b) => b.revenue - a.revenue).map(b => (
+                    <div key={b.uid}>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate flex-1 mr-3">{b.branchName}</p>
+                        <p className="text-xs font-bold text-green-600 dark:text-green-400 flex-shrink-0">{fmt(b.revenue)}</p>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500 dark:bg-purple-400 rounded-full transition-all"
+                          style={{ width: `${(b.revenue / maxRevenue) * 100}%` }}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Delete zone */}
+              <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/40 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">Delete Organization</p>
+                  <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">Branch clinics will be unlinked. Their data stays intact.</p>
+                </div>
+                <button onClick={() => { onClose(); onDelete() }}
+                  className="px-3 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex-shrink-0">
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+
+          {data && tab === 'branches' && (
+            <div className="space-y-3">
+              {data.branches.map(b => (
+                <div key={b.uid} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+                  <div className="flex items-center gap-3 mb-3">
                     {b.logoUrl ? (
-                      <img src={b.logoUrl} alt="" className="w-6 h-6 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600"/>
+                      <img src={b.logoUrl} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
                     ) : (
-                      <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-purple-700 dark:text-purple-300">
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0 text-sm font-bold text-purple-700 dark:text-purple-300">
                         {(b.branchName?.[0] ?? 'B').toUpperCase()}
                       </div>
                     )}
-                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 flex-1 truncate">{b.branchName}</p>
-                    <p className="text-xs font-bold text-green-600 dark:text-green-400 flex-shrink-0">{fmt(b.revenue)}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{b.branchName}</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-600 dark:text-green-400 flex-shrink-0">{fmt(b.revenue)}</p>
                   </div>
-                  <div className="h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mb-2">
-                    <div className="h-full bg-purple-500 dark:bg-purple-400 rounded-full" style={{ width: `${pct}%` }}/>
+                  <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                    <div className="h-full bg-purple-500 dark:bg-purple-400 rounded-full"
+                      style={{ width: `${(b.revenue / maxRevenue) * 100}%` }}/>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-[10px]">
-                    <div><span className="text-gray-400">Patients </span><span className="font-semibold text-gray-700 dark:text-gray-300">{b.patients}</span></div>
-                    <div><span className="text-gray-400">Pending </span><span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(b.pending)}</span></div>
-                    <div><span className="text-gray-400">Expenses </span><span className="font-semibold text-red-500 dark:text-red-400">{fmt(b.expenses)}</span></div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: 'Patients',  value: b.patients.toLocaleString(),   color: 'text-blue-600 dark:text-blue-400'  },
+                      { label: 'Pending',   value: fmt(b.pending),                color: 'text-amber-600 dark:text-amber-400'},
+                      { label: 'Overdue',   value: fmt(b.overdue),                color: 'text-red-500 dark:text-red-400'    },
+                      { label: 'Expenses',  value: fmt(b.expenses),               color: 'text-rose-600 dark:text-rose-400'  },
+                    ].map(s => (
+                      <div key={s.label} className="bg-gray-50 dark:bg-gray-700/40 rounded-lg px-2.5 py-2">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">{s.label}</p>
+                        <p className={`text-xs font-bold mt-0.5 ${s.color}`}>{s.value}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1394,6 +1494,7 @@ export default function AdminPage() {
                 <OrgCard
                   key={org.id}
                   org={org}
+                  onSelect={setSelectedOrg}
                   onEdit={() => { setOrgForm({ name: org.name, branches: org.branches ?? [] }); setEditOrg(org); setShowOrgForm(true); setOrgErr('') }}
                   onDelete={async () => {
                     if (!window.confirm('Delete this organization? Branch clinics will be unlinked but their data stays intact.')) return
@@ -1494,6 +1595,26 @@ export default function AdminPage() {
           onClose={() => setSelectedClinic(null)}
           onUpdated={() => fetchDoctors()}
           allDoctors={enriched}
+        />
+      )}
+
+      {selectedOrg && (
+        <OrgDrawer
+          org={selectedOrg}
+          onClose={() => setSelectedOrg(null)}
+          onEdit={() => {
+            setOrgForm({ name: selectedOrg.name, branches: selectedOrg.branches ?? [] })
+            setEditOrg(selectedOrg)
+            setShowOrgForm(true)
+            setOrgErr('')
+            setTab('profile')
+          }}
+          onDelete={async () => {
+            if (!window.confirm('Delete this organization? Branch clinics will be unlinked but their data stays intact.')) return
+            await adminFetch('/api/admin/organizations', { method: 'DELETE', body: JSON.stringify({ id: selectedOrg.id }) })
+            setSelectedOrg(null)
+            fetchOrgs(); fetchDoctors()
+          }}
         />
       )}
 
