@@ -240,7 +240,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
             const visibleItems = section.items.filter(item => {
               if (item.adminOnly && !doctor?.isAdmin) return false
               if (item.doctorOnly && isReceptionist) return false
-              if (doctor?.isAdmin && !item.adminOnly && item.href !== '/settings') return false
+              if (doctor?.isAdmin && !item.adminOnly) return false
               return true
             })
             if (visibleItems.length === 0) return null
