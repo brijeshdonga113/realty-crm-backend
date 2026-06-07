@@ -124,6 +124,7 @@ export async function GET(request) {
         inviteCode:     profile.inviteCode     ?? '',
         organizationId: profile.organizationId ?? null,
         branchName:     profile.branchName     ?? '',
+        logoUrl:        profile.logoUrl        ?? '',
         clinicRole:     profile.clinicRole     ?? 'doctor',
         managedDoctors: profile.managedDoctors ?? [],
         managedBy:      profile.managedBy      ?? null,

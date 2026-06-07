@@ -62,6 +62,7 @@ export async function GET(request) {
         phone:          d.phone          ?? '',
         isAdmin:        d.isAdmin        ?? false,
         viewOnly:       d.viewOnly       ?? false,
+        logoUrl:        d.logoUrl        ?? '',
         clinicRole:     d.clinicRole     ?? 'doctor',
         managedDoctors: d.managedDoctors ?? [],
         managedBy:      d.managedBy      ?? null,

@@ -431,9 +431,14 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
           <>
             {/* Top bar */}
             <div className="flex items-start gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-              <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-lg font-bold text-primary-700 dark:text-primary-300">
-                {(data.profile.firstName?.[0] ?? '').toUpperCase()}{(data.profile.lastName?.[0] ?? '').toUpperCase()}
-              </div>
+              {data.profile.logoUrl ? (
+                <img src={data.profile.logoUrl} alt={data.profile.clinicName || 'logo'}
+                  className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-lg font-bold text-primary-700 dark:text-primary-300">
+                  {(data.profile.firstName?.[0] ?? '').toUpperCase()}{(data.profile.lastName?.[0] ?? '').toUpperCase()}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
                   {data.profile.clinicName || `Dr. ${data.profile.firstName} ${data.profile.lastName}`}
@@ -1268,6 +1273,10 @@ export default function AdminPage() {
                           {/* Clinic */}
                           <td className="px-4 py-3.5 pl-5">
                             <div className="flex items-center gap-2.5">
+                              {d.logoUrl ? (
+                                <img src={d.logoUrl} alt={d.clinicName || 'logo'}
+                                  className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
+                              ) : (
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
                                 d.clinicRole === 'clinic_admin'
                                   ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
@@ -1275,6 +1284,7 @@ export default function AdminPage() {
                               }`}>
                                 {initials}
                               </div>
+                              )}
                               <div>
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
                                   {d.clinicName || <span className="italic text-gray-400">No clinic name</span>}

@@ -5,6 +5,10 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { getThemeScript } from '@/lib/themes'
 import { Analytics } from '@vercel/analytics/next'
 
+// Prevent Next.js from statically prerendering any page — all pages depend on
+// client-side Firebase auth which is unavailable at build time.
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'ClinicCRM',
   description: 'Clinic management system for doctors — patient records, billing, and more.',
