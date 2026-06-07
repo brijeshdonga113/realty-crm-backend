@@ -622,15 +622,36 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${data.profile.clinicRole === 'clinic_admin' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                          {data.profile.clinicRole === 'clinic_admin' ? 'Clinic Admin' : 'Doctor'}
-                        </span>
-                        {data.profile.clinicRole === 'clinic_admin' && (
-                          <span className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
-                            Manages {data.profile.managedDoctors?.length ?? 0} doctor(s)
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-semibold ${data.profile.clinicRole === 'clinic_admin' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                            {data.profile.clinicRole === 'clinic_admin' ? 'Clinic Admin' : 'Doctor'}
                           </span>
-                        )}
+                          {data.profile.clinicRole === 'clinic_admin' && (
+                            <span className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
+                              Manages {data.profile.managedDoctors?.length ?? 0} doctor(s)
+                            </span>
+                          )}
+                        </div>
+                        {(() => {
+                          const adminUid = data.profile.managedBy
+                          if (!adminUid) return null
+                          const admin = allDoctors.find(d => d.uid === adminUid)
+                          return (
+                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                              </svg>
+                              <span>
+                                Managed by{' '}
+                                {admin
+                                  ? <span className="font-semibold text-amber-600 dark:text-amber-400">Dr. {admin.firstName} {admin.lastName}</span>
+                                  : <span className="font-mono text-gray-400">{adminUid}</span>
+                                }
+                              </span>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
