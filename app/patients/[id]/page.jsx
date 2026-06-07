@@ -793,7 +793,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
 export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
-  const { doctor } = useAuth()
+  const { doctor, isReceptionist } = useAuth()
   const specialization = doctor?.specialization ?? ''
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
@@ -806,7 +806,13 @@ export default function PatientProfilePage() {
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
-  const [tab, setTab]            = useState(0)
+  // Receptionists skip to Appointments tab (index 3) — Overview/Follow-ups/Visits are hidden
+  const [tab, setTab]            = useState(isReceptionist ? 3 : 0)
+  // Receptionists only see invoices they created
+  const visibleInvoices = useMemo(
+    () => isReceptionist ? invoices.filter(i => i.createdBy?.uid === doctor?._receptionistUid) : invoices,
+    [invoices, isReceptionist, doctor?._receptionistUid]
+  )
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
   const [editInvoice,   setEditInvoice]   = useState(null)
@@ -1481,9 +1487,11 @@ export default function PatientProfilePage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — receptionists only see Appointments and Billing */}
       <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit overflow-x-auto">
-        {TABS.map((t, i) => (
+        {TABS.map((t, i) => {
+          if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits')) return null
+          return (
           <button key={t} onClick={() => setTab(i)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
               ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
@@ -1499,7 +1507,8 @@ export default function PatientProfilePage() {
               </span>
             )}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* Tab 0: Overview */}
@@ -1788,25 +1797,33 @@ export default function PatientProfilePage() {
       {/* Tab 4: Billing */}
       {tab === 4 && (
         <div className="space-y-4">
+          {isReceptionist && (
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Showing only invoices you created.
+            </div>
+          )}
           {/* Due bills alert */}
-          {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+          {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
             <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
               <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                  {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} unpaid invoice{invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length !== 1 ? 's' : ''}
+                  {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} unpaid invoice{visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length !== 1 ? 's' : ''}
                 </p>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                  {formatCurrency(invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + (i.total || 0), 0))} pending collection
+                  {formatCurrency(visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + (i.total || 0), 0))} pending collection
                 </p>
               </div>
             </div>
           )}
-          {invoices.length === 0 ? (
-            <EmptyState title="No invoices" description="No billing history for this patient."
-              action={() => router.push(`/billing/new?patientId=${id}`)} actionLabel="Create Invoice"/>
+          {visibleInvoices.length === 0 ? (
+            <EmptyState title="No invoices" description={isReceptionist ? "You haven't created any invoices for this patient yet." : "No billing history for this patient."}
+              action={!doctor?.viewOnly ? () => router.push(`/billing/new?patientId=${id}`) : undefined} actionLabel="Create Invoice"/>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full">
@@ -1818,7 +1835,7 @@ export default function PatientProfilePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                  {invoices.map(inv => (
+                  {visibleInvoices.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
@@ -1857,11 +1874,13 @@ export default function PatientProfilePage() {
               </table>
               <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30 flex items-center justify-between">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {invoices.filter(i => i.status === 'paid').length} paid · {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} pending
+                  {visibleInvoices.filter(i => i.status === 'paid').length} paid · {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} pending
                 </span>
-                <span className="text-sm font-bold text-gray-900 dark:text-white">
-                  Total: {formatCurrency(invoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total || 0), 0))} collected
-                </span>
+                {!isReceptionist && (
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    Total: {formatCurrency(visibleInvoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total || 0), 0))} collected
+                  </span>
+                )}
               </div>
             </div>
           )}

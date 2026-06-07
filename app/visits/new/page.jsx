@@ -36,8 +36,8 @@ function VisitEntryForm() {
   const { blockedSlots } = useBlockedSlots()
 
   useEffect(() => {
-    if (doctor?.viewOnly) router.replace('/dashboard')
-  }, [doctor?.viewOnly])
+    if (doctor?.viewOnly || isReceptionist) router.replace('/dashboard')
+  }, [doctor?.viewOnly, isReceptionist])
 
   const patientId     = searchParams.get('patientId') ?? ''
   const appointmentId = searchParams.get('appointmentId') ?? ''

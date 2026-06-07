@@ -106,7 +106,7 @@ function BillingPageInner() {
   const toast = useToast()
   const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
   const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
-  const [filterStatus,    setFilterStatus]    = useState(() => isReceptionist ? 'draft' : 'all')
+  const [filterStatus,    setFilterStatus]    = useState('all')
   const [filterDateFrom,  setFilterDateFrom]  = useState('')
   const [filterDateTo,    setFilterDateTo]    = useState('')
   const [filterCreatedBy, setFilterCreatedBy] = useState('all')
@@ -161,7 +161,10 @@ function BillingPageInner() {
     if (found) setPrintInvoice(found)
   }, [searchParams, invoices])
 
-  const visibleInvoices = invoices
+  // Receptionists only see invoices they created
+  const visibleInvoices = isReceptionist
+    ? invoices.filter(i => i.createdBy?.uid === doctor?._receptionistUid)
+    : invoices
 
   const hasActiveFilters = filterStatus !== 'all' || filterDateFrom || filterDateTo || filterCreatedBy !== 'all'
 
@@ -207,20 +210,8 @@ function BillingPageInner() {
         )
       }
     >
-      {/* Receptionist notice */}
-      {isReceptionist && (
-        <div className="mb-5 flex items-center gap-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl px-4 py-3">
-          <svg className="w-4 h-4 flex-shrink-0 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <p className="text-sm text-orange-800 dark:text-orange-300">
-            Showing <span className="font-semibold">due / unpaid</span> invoices. Open an invoice to mark it as paid once payment is collected.
-          </p>
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* Stats — hidden for receptionists */}
+      {!isReceptionist && <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Total Revenue', value: formatCurrency(stats.revenue), color: 'green', sub: 'from paid invoices' },
           { label: 'Pending',       value: formatCurrency(stats.pending), color: 'teal',  sub: 'awaiting payment' },
@@ -234,7 +225,7 @@ function BillingPageInner() {
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{s.sub}</p>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 mb-4">

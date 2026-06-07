@@ -507,7 +507,7 @@ function PartnerAccessSection() {
 
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
-  const { doctor, updateProfile, org, baseDoctor, activeBranch } = useAuth()
+  const { doctor, updateProfile, org, baseDoctor, activeBranch, isReceptionist } = useAuth()
   const [showAdd,    setShowAdd]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
@@ -535,11 +535,9 @@ export default function StaffPage() {
     <AppLayout title="Staff">
       <div className="space-y-6">
 
-        {/* ── Partner Clinic Access ── only on own branch */}
-        {!activeBranch && <PartnerAccessSection />}
-
-        {/* ── Login Accounts section ──────────────────────────────────── */}
-        <LoginAccountsSection />
+        {/* ── Partner Clinic Access + Login Accounts — doctors only */}
+        {!isReceptionist && !activeBranch && <PartnerAccessSection />}
+        {!isReceptionist && <LoginAccountsSection />}
 
         {/* ── Internal Staff Records ─────────────────────────────────── */}
         {loading ? (
@@ -649,7 +647,7 @@ export default function StaffPage() {
                       )}
                     </div>
 
-                    {!doctor?.viewOnly && (
+                    {!doctor?.viewOnly && !isReceptionist && (
                       <div className="flex border-t border-gray-100 dark:border-gray-700">
                         <button onClick={() => setEditItem(member)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors rounded-bl-xl">
