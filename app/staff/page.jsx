@@ -425,11 +425,89 @@ function LoginAccountsSection() {
   )
 }
 
+// ── Partner Clinic Access ─────────────────────────────────────────────────────
+
+function PartnerAccessSection() {
+  const { doctor, updateProfile, org, baseDoctor } = useAuth()
+  const [saving, setSaving] = useState({})
+
+  const ownUid = baseDoctor?.id ?? doctor?.id
+  const partners = (org?.branches ?? []).filter(b => b.uid !== ownUid)
+
+  if (!org || partners.length === 0) return null
+
+  const allowedWriters = doctor?.allowedWriters ?? []
+
+  const toggle = async (partnerUid) => {
+    setSaving(s => ({ ...s, [partnerUid]: true }))
+    const next = allowedWriters.includes(partnerUid)
+      ? allowedWriters.filter(u => u !== partnerUid)
+      : [...allowedWriters, partnerUid]
+    try { await updateProfile({ allowedWriters: next }) }
+    finally { setSaving(s => { const n = { ...s }; delete n[partnerUid]; return n }) }
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+        <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Partner Clinic Access</h3>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+          Control which partner clinics in <span className="font-medium">{org.name}</span> can write to your clinic's data. These settings are private to your branch.
+        </p>
+      </div>
+      <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+        {partners.map(b => {
+          const hasAccess = allowedWriters.includes(b.uid)
+          return (
+            <div key={b.uid} className="flex items-center gap-4 px-5 py-4">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{b.branchName}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  {hasAccess ? 'Can create, edit and delete your clinic data' : 'Read-only access to your clinic data'}
+                </p>
+              </div>
+              <button
+                disabled={!!saving[b.uid]}
+                onClick={() => toggle(b.uid)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg border transition-all disabled:opacity-50 ${
+                  hasAccess
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 hover:bg-green-100'
+                    : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-primary-400'
+                }`}>
+                {saving[b.uid] ? (
+                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : hasAccess ? (
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                )}
+                {hasAccess ? 'Write Access' : 'Read Only'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
-  const { doctor } = useAuth()
+  const { doctor, updateProfile, org, baseDoctor, activeBranch } = useAuth()
   const [showAdd,    setShowAdd]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
@@ -456,6 +534,9 @@ export default function StaffPage() {
   return (
     <AppLayout title="Staff">
       <div className="space-y-6">
+
+        {/* ── Partner Clinic Access ── only on own branch */}
+        {!activeBranch && <PartnerAccessSection />}
 
         {/* ── Login Accounts section ──────────────────────────────────── */}
         <LoginAccountsSection />

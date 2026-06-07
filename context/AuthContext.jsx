@@ -50,6 +50,7 @@ function buildDoctorProfile(uid, data) {
     viewOnly:       data.viewOnly       ?? false,
     organizationId: data.organizationId ?? null,
     branchName:     data.branchName     ?? '',
+    allowedWriters: data.allowedWriters ?? [],
   }
 }
 
@@ -354,7 +355,14 @@ export function AuthProvider({ children }) {
         setActiveBranchState(saved)
         const branchProfile = await loadFirebaseProfile(saved.uid)
         if (branchProfile) {
-          setDoctor({ ...branchProfile, _activeBranch: saved, _baseDoctor: base ?? profile, organizationId: profile.organizationId })
+          const hasWriteAccess = (branchProfile.allowedWriters ?? []).includes(profile.id)
+          setDoctor({
+            ...branchProfile,
+            _activeBranch:  saved,
+            _baseDoctor:    base ?? profile,
+            organizationId: profile.organizationId,
+            viewOnly:       !hasWriteAccess,
+          })
         }
       }
     } catch { setOrg(null) }
@@ -376,7 +384,15 @@ export function AuthProvider({ children }) {
     // Load the selected branch's doctor profile for UI display
     const branchProfile = await loadFirebaseProfile(branch.uid)
     if (branchProfile) {
-      setDoctor({ ...branchProfile, _activeBranch: branch, _baseDoctor: baseDoctor, organizationId: baseDoctor?.organizationId })
+      // Write access is only granted if this branch has explicitly allowed the current user
+      const hasWriteAccess = (branchProfile.allowedWriters ?? []).includes(baseDoctor?.id)
+      setDoctor({
+        ...branchProfile,
+        _activeBranch:  branch,
+        _baseDoctor:    baseDoctor,
+        organizationId: baseDoctor?.organizationId,
+        viewOnly:       !hasWriteAccess,
+      })
     }
   }, [baseDoctor])
 
