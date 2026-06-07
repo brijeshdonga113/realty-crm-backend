@@ -119,8 +119,9 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const router   = useRouter()
   const { doctor, logout, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor } = useAuth()
   const todayRevenue = useTodayRevenue(doctor)
-  const [branchOpen,  setBranchOpen]  = useState(false)
-  const [managedOpen, setManagedOpen] = useState(false)
+  const [branchOpen,   setBranchOpen]  = useState(false)
+  const [managedOpen,  setManagedOpen] = useState(false)
+  const [branchErr,    setBranchErr]   = useState('')
 
   const handleLogout = () => { logout(); router.push('/login') }
 
@@ -241,7 +242,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
         {org && !isReceptionist && !doctor?.isAdmin && (
           <div className="px-3 py-2 border-b border-primary-800 relative">
             <button
-              onClick={() => setBranchOpen(v => !v)}
+              onClick={() => { setBranchOpen(v => !v); setBranchErr('') }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-800/60 hover:bg-primary-700/60 transition-colors text-left">
               <svg className="w-3.5 h-3.5 text-primary-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -260,9 +261,12 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
 
             {branchOpen && (
               <div className="absolute left-3 right-3 top-full mt-1 bg-primary-800 rounded-xl shadow-xl border border-primary-700 overflow-hidden z-10">
+                {branchErr && (
+                  <p className="px-3 py-2 text-xs text-red-400 border-b border-primary-700/50">{branchErr}</p>
+                )}
                 {/* Own branch */}
                 <button
-                  onClick={() => { switchBranch(null); setBranchOpen(false) }}
+                  onClick={() => { switchBranch(null); setBranchOpen(false); setBranchErr('') }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-primary-700 transition-colors ${!activeBranch ? 'bg-primary-700/60' : ''}`}>
                   <div className="w-2 h-2 rounded-full flex-shrink-0 bg-green-400"/>
                   <div className="min-w-0">
@@ -276,7 +280,12 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
                   .filter(b => b.uid !== baseDoctor?.id)
                   .map(b => (
                     <button key={b.uid}
-                      onClick={() => { switchBranch(b); setBranchOpen(false) }}
+                      onClick={async () => {
+                        setBranchErr('')
+                        const result = await switchBranch(b)
+                        if (result?.ok) { setBranchOpen(false) }
+                        else { setBranchErr(result?.reason ?? 'Access denied.') }
+                      }}
                       className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-primary-700 transition-colors border-t border-primary-700/50 ${activeBranch?.uid === b.uid ? 'bg-primary-700/60' : ''}`}>
                       <div className="w-2 h-2 rounded-full flex-shrink-0 bg-primary-400"/>
                       <p className="text-xs font-semibold text-white truncate flex-1">{b.branchName}</p>

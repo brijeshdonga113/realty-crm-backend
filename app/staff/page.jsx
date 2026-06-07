@@ -427,23 +427,49 @@ function LoginAccountsSection() {
 
 // ── Partner Clinic Access ─────────────────────────────────────────────────────
 
+const ACCESS_LEVELS = [
+  { id: 'none', label: 'No Access',     desc: 'Cannot view or modify your data' },
+  { id: 'read', label: 'Read Only',     desc: 'Can view your clinic data'        },
+  { id: 'write', label: 'Write Access', desc: 'Can create, edit and delete your data' },
+]
+
 function PartnerAccessSection() {
   const { doctor, updateProfile, org, baseDoctor } = useAuth()
   const [saving, setSaving] = useState({})
 
-  const ownUid = baseDoctor?.id ?? doctor?.id
+  const ownUid  = baseDoctor?.id ?? doctor?.id
   const partners = (org?.branches ?? []).filter(b => b.uid !== ownUid)
 
   if (!org || partners.length === 0) return null
 
+  const allowedReaders = doctor?.allowedReaders   // null = not configured yet (backward-compat: any org member can read)
   const allowedWriters = doctor?.allowedWriters ?? []
 
-  const toggle = async (partnerUid) => {
+  // Determine current access level for a partner
+  const getLevel = (partnerUid) => {
+    if (allowedWriters.includes(partnerUid)) return 'write'
+    if (allowedReaders === null || allowedReaders.includes(partnerUid)) return 'read'
+    return 'none'
+  }
+
+  const setLevel = async (partnerUid, level) => {
     setSaving(s => ({ ...s, [partnerUid]: true }))
-    const next = allowedWriters.includes(partnerUid)
-      ? allowedWriters.filter(u => u !== partnerUid)
-      : [...allowedWriters, partnerUid]
-    try { await updateProfile({ allowedWriters: next }) }
+    const readers = allowedReaders ?? []   // materialise null → empty array on first interaction
+    const writers = allowedWriters
+
+    let newReaders, newWriters
+    if (level === 'none') {
+      newReaders = readers.filter(u => u !== partnerUid)
+      newWriters = writers.filter(u => u !== partnerUid)
+    } else if (level === 'read') {
+      newReaders = readers.includes(partnerUid) ? readers : [...readers, partnerUid]
+      newWriters = writers.filter(u => u !== partnerUid)
+    } else {
+      newReaders = readers.includes(partnerUid) ? readers : [...readers, partnerUid]
+      newWriters = writers.includes(partnerUid) ? writers : [...writers, partnerUid]
+    }
+
+    try { await updateProfile({ allowedReaders: newReaders, allowedWriters: newWriters }) }
     finally { setSaving(s => { const n = { ...s }; delete n[partnerUid]; return n }) }
   }
 
@@ -452,12 +478,12 @@ function PartnerAccessSection() {
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
         <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Partner Clinic Access</h3>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-          Control which partner clinics in <span className="font-medium">{org.name}</span> can write to your clinic's data. These settings are private to your branch.
+          Control what partner clinics in <span className="font-medium">{org.name}</span> can do with your data. Settings are private to your branch.
         </p>
       </div>
       <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
         {partners.map(b => {
-          const hasAccess = allowedWriters.includes(b.uid)
+          const level = getLevel(b.uid)
           return (
             <div key={b.uid} className="flex items-center gap-4 px-5 py-4">
               <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
@@ -468,33 +494,31 @@ function PartnerAccessSection() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{b.branchName}</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                  {hasAccess ? 'Can create, edit and delete your clinic data' : 'Read-only access to your clinic data'}
+                  {ACCESS_LEVELS.find(l => l.id === level)?.desc}
                 </p>
               </div>
-              <button
-                disabled={!!saving[b.uid]}
-                onClick={() => toggle(b.uid)}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg border transition-all disabled:opacity-50 ${
-                  hasAccess
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 hover:bg-green-100'
-                    : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-primary-400'
-                }`}>
-                {saving[b.uid] ? (
-                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                ) : hasAccess ? (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-                  </svg>
-                ) : (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                  </svg>
-                )}
-                {hasAccess ? 'Write Access' : 'Read Only'}
-              </button>
+
+              {/* 3-state selector */}
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden flex-shrink-0">
+                {ACCESS_LEVELS.map((l, i) => (
+                  <button key={l.id}
+                    disabled={!!saving[b.uid]}
+                    onClick={() => setLevel(b.uid, l.id)}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                      i > 0 ? 'border-l border-gray-200 dark:border-gray-600' : ''
+                    } ${
+                      level === l.id
+                        ? l.id === 'none'  ? 'bg-gray-600 text-white dark:bg-gray-500'
+                        : l.id === 'read'  ? 'bg-blue-500 text-white'
+                        :                    'bg-green-500 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}>
+                    {saving[b.uid] && level === l.id
+                      ? <svg className="animate-spin w-3 h-3 inline" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      : l.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )
         })}

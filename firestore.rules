@@ -14,14 +14,29 @@ service cloud.firestore {
         && (request.auth.uid == userId || isLinkedReceptionist(userId));
     }
 
-    // Returns true when the caller and target user share the same non-null organizationId
-    // Used for multi-branch org switching — any member of an org can read other branches
-    function isSameOrg(targetUserId) {
+    // Org read: same org AND (allowedReaders is null/unset OR caller is in allowedReaders or allowedWriters)
+    // null allowedReaders = backward-compat mode — any org member can read
+    function isSameOrgRead(targetUserId) {
+      let callerProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/doctor).data;
+      let targetProfile = get(/databases/$(database)/documents/users/$(targetUserId)/profile/doctor).data;
+      let sameOrg = request.auth != null
+        && callerProfile.get('organizationId', null) != null
+        && callerProfile.get('organizationId', null) == targetProfile.get('organizationId', null);
+      let allowedReaders = targetProfile.get('allowedReaders', null);
+      let allowedWriters = targetProfile.get('allowedWriters', []);
+      return sameOrg && (allowedReaders == null
+        || request.auth.uid in allowedReaders
+        || request.auth.uid in allowedWriters);
+    }
+
+    // Org write: same org AND caller is explicitly in allowedWriters
+    function isSameOrgWrite(targetUserId) {
       let callerProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/doctor).data;
       let targetProfile = get(/databases/$(database)/documents/users/$(targetUserId)/profile/doctor).data;
       return request.auth != null
         && callerProfile.get('organizationId', null) != null
-        && callerProfile.get('organizationId', null) == targetProfile.get('organizationId', null);
+        && callerProfile.get('organizationId', null) == targetProfile.get('organizationId', null)
+        && request.auth.uid in targetProfile.get('allowedWriters', []);
     }
 
     // Returns true when the caller is a clinic_admin who has targetUserId in their managedDoctors list
@@ -34,11 +49,13 @@ service cloud.firestore {
 
     // ── All clinic data lives under users/{userId}/... ──────────────────────
     match /users/{userId} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId) || isClinicAdmin(userId);
+      allow read:  if isOwnerOrLinkedReceptionist(userId) || isSameOrgRead(userId)  || isClinicAdmin(userId);
+      allow write: if isOwnerOrLinkedReceptionist(userId) || isSameOrgWrite(userId) || isClinicAdmin(userId);
     }
 
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId) || isClinicAdmin(userId);
+      allow read:  if isOwnerOrLinkedReceptionist(userId) || isSameOrgRead(userId)  || isClinicAdmin(userId);
+      allow write: if isOwnerOrLinkedReceptionist(userId) || isSameOrgWrite(userId) || isClinicAdmin(userId);
     }
 
     // ── Organizations ────────────────────────────────────────────────────────
@@ -83,7 +100,7 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (resource.data.doctorId == request.auth.uid
             || isLinkedReceptionist(resource.data.doctorId)
-            || isSameOrg(resource.data.doctorId));
+            || isSameOrgRead(resource.data.doctorId));
 
       allow create: if request.auth != null
         && (request.resource.data.doctorId == request.auth.uid

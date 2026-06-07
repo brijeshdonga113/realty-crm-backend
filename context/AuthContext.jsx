@@ -51,6 +51,7 @@ function buildDoctorProfile(uid, data) {
     organizationId:  data.organizationId  ?? null,
     branchName:      data.branchName      ?? '',
     allowedWriters:  data.allowedWriters  ?? [],
+    allowedReaders:  data.allowedReaders  ?? null,
     clinicRole:      data.clinicRole      ?? 'doctor',
     managedBy:       data.managedBy       ?? null,
     managedDoctors:  data.managedDoctors  ?? [],
@@ -407,31 +408,38 @@ export function AuthProvider({ children }) {
   }, [baseDoctor])
 
   // Switch active branch — loads that branch's profile and redirects dataStore
+  // Returns { ok: true } or { ok: false, reason: string }
   const switchBranch = useCallback(async (branch) => {
     if (!branch) {
-      // Reset to own branch
       setActiveBranchUid(null)
       setActiveBranchState(null)
       setDoctor(baseDoctor)
       saveActiveBranch(null)
-      return
+      return { ok: true }
     }
+    const branchProfile = await loadFirebaseProfile(branch.uid)
+    if (!branchProfile) return { ok: false, reason: 'Branch profile not found.' }
+
+    const allowedReaders = branchProfile.allowedReaders   // null = backward-compat: anyone in org can read
+    const allowedWriters = branchProfile.allowedWriters ?? []
+    const myUid          = baseDoctor?.id
+
+    // Read access: granted when allowedReaders is null (not yet configured) OR uid is in either list
+    const hasReadAccess  = allowedReaders === null || allowedReaders.includes(myUid) || allowedWriters.includes(myUid)
+    if (!hasReadAccess) return { ok: false, reason: 'This branch has not granted you read access.' }
+
+    const hasWriteAccess = allowedWriters.includes(myUid)
     setActiveBranchUid(branch.uid)
     setActiveBranchState(branch)
     saveActiveBranch(branch)
-    // Load the selected branch's doctor profile for UI display
-    const branchProfile = await loadFirebaseProfile(branch.uid)
-    if (branchProfile) {
-      // Write access is only granted if this branch has explicitly allowed the current user
-      const hasWriteAccess = (branchProfile.allowedWriters ?? []).includes(baseDoctor?.id)
-      setDoctor({
-        ...branchProfile,
-        _activeBranch:  branch,
-        _baseDoctor:    baseDoctor,
-        organizationId: baseDoctor?.organizationId,
-        viewOnly:       !hasWriteAccess,
-      })
-    }
+    setDoctor({
+      ...branchProfile,
+      _activeBranch:  branch,
+      _baseDoctor:    baseDoctor,
+      organizationId: baseDoctor?.organizationId,
+      viewOnly:       !hasWriteAccess,
+    })
+    return { ok: true }
   }, [baseDoctor])
 
   const logout = async () => {
