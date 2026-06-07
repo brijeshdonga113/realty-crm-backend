@@ -1127,6 +1127,7 @@ export default function AdminPage() {
   const [orgSaving,     setOrgSaving]    = useState(false)
   const [orgErr,        setOrgErr]       = useState('')
   const [editOrg,       setEditOrg]      = useState(null) // org being edited
+  const [selectedOrg,   setSelectedOrg]  = useState(null) // org drawer
 
   // Profile tab state
   const [profileForm,    setProfileForm]    = useState({ firstName: '', lastName: '', email: '' })
