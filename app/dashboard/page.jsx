@@ -64,7 +64,7 @@ function StatCard({ label, value, sub, color, icon, href }) {
 }
 
 export default function DashboardPage() {
-  const { doctor, isReceptionist } = useAuth()
+  const { doctor, isReceptionist, activeBranch, activeManagedDoctor } = useAuth()
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
 
@@ -429,7 +429,7 @@ export default function DashboardPage() {
   if (customizing) {
     return (
       <AppLayout
-        title={doctor?.clinicName || 'Dashboard'}
+        title={activeManagedDoctor?.clinicName || activeBranch?.branchName || doctor?.clinicName || 'Dashboard'}
         action={
           <div className="flex items-center gap-2">
             <button onClick={cancelCustomize}

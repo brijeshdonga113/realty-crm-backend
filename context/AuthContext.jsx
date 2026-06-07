@@ -403,6 +403,9 @@ export function AuthProvider({ children }) {
 
   // Clinic admin: switch to view a managed doctor's data (transparent — doctor doesn't know)
   const switchManagedDoctor = useCallback(async (uid) => {
+    // Always clear org branch state — managed doctor view and branch view are mutually exclusive
+    setActiveBranchState(null)
+    saveActiveBranch(null)
     if (!uid) {
       setActiveBranchUid(null)
       setActiveManagedDoctor(null)
@@ -439,6 +442,8 @@ export function AuthProvider({ children }) {
     if (!hasReadAccess) return { ok: false, reason: 'This branch has not granted you read access.' }
 
     const hasWriteAccess = allowedWriters.includes(myUid)
+    // Always clear managed doctor view — branch view and managed doctor view are mutually exclusive
+    setActiveManagedDoctor(null)
     setActiveBranchUid(branch.uid)
     setActiveBranchState(branch)
     saveActiveBranch(branch)
