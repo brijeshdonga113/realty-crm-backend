@@ -1,4 +1,5 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { FieldValue } from 'firebase-admin/firestore'
 
 async function verifyAdmin(request) {
   const idToken = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
@@ -38,6 +39,28 @@ export async function GET(request) {
     if (profile.organizationId) {
       const orgSnap = await db.collection('organizations').doc(profile.organizationId).get()
       if (orgSnap.exists) orgData = { id: orgSnap.id, ...orgSnap.data() }
+    }
+
+    // Fetch managed doctor profiles if this is a clinic admin
+    let managedDoctorProfiles = []
+    if (profile.clinicRole === 'clinic_admin' && profile.managedDoctors?.length) {
+      const snaps = await Promise.all(
+        profile.managedDoctors.map(mUid =>
+          db.collection('users').doc(mUid).collection('profile').doc('doctor').get()
+        )
+      )
+      managedDoctorProfiles = snaps
+        .filter(s => s.exists)
+        .map(s => {
+          const d = s.data()
+          return {
+            uid:            s.ref.parent.parent.id,
+            firstName:      d.firstName      ?? '',
+            lastName:       d.lastName       ?? '',
+            clinicName:     d.clinicName     ?? '',
+            specialization: d.specialization ?? '',
+          }
+        })
     }
 
     // Firebase Auth metadata
@@ -101,7 +124,11 @@ export async function GET(request) {
         inviteCode:     profile.inviteCode     ?? '',
         organizationId: profile.organizationId ?? null,
         branchName:     profile.branchName     ?? '',
+        clinicRole:     profile.clinicRole     ?? 'doctor',
+        managedDoctors: profile.managedDoctors ?? [],
+        managedBy:      profile.managedBy      ?? null,
       },
+      managedDoctorProfiles,
       auth: authMeta,
       org: orgData,
       stats: {
@@ -119,19 +146,62 @@ export async function GET(request) {
   }
 }
 
-// PATCH /api/admin/clinic — update subscription or access
+// PATCH /api/admin/clinic — update subscription, access, role, or managed doctors
 export async function PATCH(request) {
   const caller = await verifyAdmin(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { uid, subscription, viewOnly } = await request.json()
+  const { uid, subscription, viewOnly, clinicRole, addManagedDoctor, removeManagedDoctor } = await request.json()
   if (!uid) return Response.json({ error: 'uid required' }, { status: 400 })
 
   const db = getAdminDb()
+  const profileRef = db.collection('users').doc(uid).collection('profile').doc('doctor')
+
+  // Basic field updates
   const updates = {}
   if (subscription !== undefined) updates.subscription = subscription
   if (viewOnly     !== undefined) updates.viewOnly     = viewOnly
+  if (Object.keys(updates).length) await profileRef.update(updates)
 
-  await db.collection('users').doc(uid).collection('profile').doc('doctor').update(updates)
+  // Role change
+  if (clinicRole !== undefined) {
+    const currentSnap = await profileRef.get()
+    const current = currentSnap.data() ?? {}
+
+    if (clinicRole === 'clinic_admin' && current.clinicRole !== 'clinic_admin') {
+      // Upgrading to clinic_admin — remove from any existing admin's list first
+      if (current.managedBy) {
+        await db.collection('users').doc(current.managedBy)
+          .collection('profile').doc('doctor')
+          .update({ managedDoctors: FieldValue.arrayRemove(uid) })
+      }
+      await profileRef.update({ clinicRole: 'clinic_admin', managedDoctors: [], managedBy: null })
+    } else if (clinicRole === 'doctor' && current.clinicRole === 'clinic_admin') {
+      // Downgrading from clinic_admin — clear managedBy on all linked doctors
+      const linked = current.managedDoctors ?? []
+      await Promise.all(linked.map(mUid =>
+        db.collection('users').doc(mUid).collection('profile').doc('doctor')
+          .update({ managedBy: null })
+      ))
+      await profileRef.update({ clinicRole: 'doctor', managedDoctors: null })
+    }
+  }
+
+  // Add a doctor to this admin's managed list
+  if (addManagedDoctor) {
+    await profileRef.update({ managedDoctors: FieldValue.arrayUnion(addManagedDoctor) })
+    await db.collection('users').doc(addManagedDoctor)
+      .collection('profile').doc('doctor')
+      .update({ managedBy: uid })
+  }
+
+  // Remove a doctor from this admin's managed list
+  if (removeManagedDoctor) {
+    await profileRef.update({ managedDoctors: FieldValue.arrayRemove(removeManagedDoctor) })
+    await db.collection('users').doc(removeManagedDoctor)
+      .collection('profile').doc('doctor')
+      .update({ managedBy: null })
+  }
+
   return Response.json({ ok: true })
 }

@@ -1,4 +1,5 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { FieldValue } from 'firebase-admin/firestore'
 
 function genInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -20,7 +21,7 @@ export async function POST(request) {
   const caller = await verifyAdmin(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { firstName, lastName, email, clinicName, specialization, phone, password } = await request.json()
+  const { firstName, lastName, email, clinicName, specialization, phone, password, clinicRole, managedByUid } = await request.json()
   if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !password?.trim()) {
     return Response.json({ error: 'firstName, lastName, email and password are required.' }, { status: 400 })
   }
@@ -35,7 +36,9 @@ export async function POST(request) {
       displayName: `${firstName.trim()} ${lastName.trim()}`,
     })
 
-    const now = new Date().toISOString()
+    const now  = new Date().toISOString()
+    const role = clinicRole === 'clinic_admin' ? 'clinic_admin' : 'doctor'
+
     await db.collection('users').doc(userRecord.uid)
       .collection('profile').doc('doctor')
       .set({
@@ -49,9 +52,19 @@ export async function POST(request) {
         subscription:   { status: 'trial', trialEndsAt: new Date(Date.now() + 7 * 86400000).toISOString() },
         isAdmin:        false,
         viewOnly:       false,
+        clinicRole:     role,
+        managedDoctors: role === 'clinic_admin' ? [] : null,
+        managedBy:      role === 'doctor' && managedByUid?.trim() ? managedByUid.trim() : null,
         createdAt:      now,
         updatedAt:      now,
       })
+
+    // Append this doctor to the clinic admin's managedDoctors list
+    if (role === 'doctor' && managedByUid?.trim()) {
+      await db.collection('users').doc(managedByUid.trim())
+        .collection('profile').doc('doctor')
+        .update({ managedDoctors: FieldValue.arrayUnion(userRecord.uid) })
+    }
 
     return Response.json({ uid: userRecord.uid, email: userRecord.email })
   } catch (err) {

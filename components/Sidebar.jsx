@@ -117,9 +117,10 @@ const navSections = [
 export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const pathname = usePathname()
   const router   = useRouter()
-  const { doctor, logout, isReceptionist, org, activeBranch, switchBranch, baseDoctor } = useAuth()
+  const { doctor, logout, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor } = useAuth()
   const todayRevenue = useTodayRevenue(doctor)
-  const [branchOpen, setBranchOpen] = useState(false)
+  const [branchOpen,  setBranchOpen]  = useState(false)
+  const [managedOpen, setManagedOpen] = useState(false)
 
   const handleLogout = () => { logout(); router.push('/login') }
 
@@ -181,6 +182,57 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
             </svg>
           </button>
         </div>
+
+        {/* Managed doctors switcher — only visible to clinic admins */}
+        {baseDoctor?.clinicRole === 'clinic_admin' && managedDoctors.length > 0 && (
+          <div className="px-3 py-2 border-b border-primary-800 relative">
+            <button
+              onClick={() => setManagedOpen(v => !v)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-800/60 hover:bg-primary-700/60 transition-colors text-left">
+              <svg className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-primary-400 leading-none mb-0.5">Viewing Clinic</p>
+                <p className="text-white text-xs font-semibold truncate">
+                  {activeManagedDoctor
+                    ? (activeManagedDoctor.clinicName || `Dr. ${activeManagedDoctor.firstName} ${activeManagedDoctor.lastName}`)
+                    : 'My Clinic'}
+                </p>
+              </div>
+              <svg className={`w-3 h-3 text-primary-400 flex-shrink-0 transition-transform ${managedOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+
+            {managedOpen && (
+              <div className="absolute left-3 right-3 top-full mt-1 bg-primary-800 rounded-xl shadow-xl border border-primary-700 overflow-hidden z-10">
+                <button
+                  onClick={() => { switchManagedDoctor(null); setManagedOpen(false) }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-primary-700 transition-colors ${!activeManagedDoctor ? 'bg-primary-700/60' : ''}`}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-400"/>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-white truncate">My Clinic</p>
+                    <p className="text-xs text-primary-400 truncate">{baseDoctor?.clinicName || 'Admin view'}</p>
+                  </div>
+                  {!activeManagedDoctor && <svg className="w-3 h-3 text-green-400 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>}
+                </button>
+                {managedDoctors.map(d => (
+                  <button key={d.id}
+                    onClick={() => { switchManagedDoctor(d.id); setManagedOpen(false) }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-primary-700 transition-colors border-t border-primary-700/50 ${activeManagedDoctor?.id === d.id ? 'bg-primary-700/60' : ''}`}>
+                    <div className="w-2 h-2 rounded-full flex-shrink-0 bg-primary-400"/>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white truncate">{d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}</p>
+                      <p className="text-xs text-primary-400 truncate">{d.specialization?.replace(/_/g, ' ') || 'Doctor'}</p>
+                    </div>
+                    {activeManagedDoctor?.id === d.id && <svg className="w-3 h-3 text-green-400 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Branch switcher — only visible when doctor belongs to an org */}
         {org && !isReceptionist && !doctor?.isAdmin && (

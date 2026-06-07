@@ -103,9 +103,9 @@ const SPECIALIZATIONS = [
   { value: 'other',         label: 'Other' },
 ]
 
-const BLANK = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '' }
+const BLANK = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '', clinicRole: 'doctor', managedByUid: '' }
 
-function CreateClinicModal({ open, onClose, onCreated }) {
+function CreateClinicModal({ open, onClose, onCreated, clinicAdmins = [] }) {
   const [form,    setForm]    = useState(BLANK)
   const [error,   setError]   = useState('')
   const [loading, setLoading] = useState(false)
@@ -117,10 +117,13 @@ function CreateClinicModal({ open, onClose, onCreated }) {
     e.preventDefault()
     setLoading(true); setError('')
     try {
-      const res  = await adminFetch('/api/admin/create-doctor', { method: 'POST', body: JSON.stringify(form) })
+      const payload = { ...form }
+      if (form.clinicRole !== 'doctor') delete payload.managedByUid
+      if (!payload.managedByUid) delete payload.managedByUid
+      const res  = await adminFetch('/api/admin/create-doctor', { method: 'POST', body: JSON.stringify(payload) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setDone({ email: form.email, password: form.password })
+      setDone({ email: form.email, password: form.password, clinicRole: form.clinicRole })
       onCreated?.()
     } catch (err) {
       setError(err.message)
@@ -155,8 +158,14 @@ function CreateClinicModal({ open, onClose, onCreated }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
               </svg>
               <div>
-                <p className="text-sm font-bold text-green-800 dark:text-green-300">Clinic account created</p>
-                <p className="text-xs text-green-700 dark:text-green-400 mt-1">Share these login credentials with the doctor.</p>
+                <p className="text-sm font-bold text-green-800 dark:text-green-300">
+                  {done.clinicRole === 'clinic_admin' ? 'Clinic Admin account created' : 'Clinic account created'}
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                  {done.clinicRole === 'clinic_admin'
+                    ? 'Share these credentials with the clinic admin.'
+                    : 'Share these login credentials with the doctor.'}
+                </p>
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 space-y-2">
@@ -208,6 +217,36 @@ function CreateClinicModal({ open, onClose, onCreated }) {
               </div>
             </div>
             <div>
+              <label className="form-label">Account Role *</label>
+              <div className="flex gap-2 mt-1">
+                {[{ value: 'doctor', label: 'Doctor' }, { value: 'clinic_admin', label: 'Clinic Admin' }].map(r => (
+                  <button key={r.value} type="button" onClick={() => { set('clinicRole', r.value); set('managedByUid', '') }}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                      form.clinicRole === r.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                    }`}>{r.label}</button>
+                ))}
+              </div>
+              {form.clinicRole === 'clinic_admin' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                  This account can transparently view and manage assigned doctors' data.
+                </p>
+              )}
+            </div>
+            {form.clinicRole === 'doctor' && clinicAdmins.length > 0 && (
+              <div>
+                <label className="form-label">Assign to Clinic Admin (optional)</label>
+                <select value={form.managedByUid} onChange={e => set('managedByUid', e.target.value)} className="input-field">
+                  <option value="">None — standalone doctor</option>
+                  {clinicAdmins.map(a => (
+                    <option key={a.uid} value={a.uid}>{a.clinicName || `Dr. ${a.firstName} ${a.lastName}`}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">The admin will be able to access this doctor's data.</p>
+              </div>
+            )}
+            <div>
               <label className="form-label">Temporary Password *</label>
               <input type="text" value={form.password} onChange={e => set('password', e.target.value)}
                 required minLength={6} placeholder="Min 6 characters" className="input-field font-mono"/>
@@ -242,7 +281,7 @@ const PLAN_STATUSES = [
 
 function fmt(n) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n) }
 
-function ClinicDrawer({ uid, onClose, onUpdated }) {
+function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [err,     setErr]     = useState('')
@@ -254,6 +293,15 @@ function ClinicDrawer({ uid, onClose, onUpdated }) {
   const [planExpiry,  setPlanExpiry]  = useState('')
   const [planSaving,  setPlanSaving]  = useState(false)
 
+  // Role edit
+  const [editRole,   setEditRole]   = useState(false)
+  const [newRole,    setNewRole]    = useState('doctor')
+  const [roleSaving, setRoleSaving] = useState(false)
+
+  // Managed doctors
+  const [mdSaving,     setMdSaving]     = useState(false)
+  const [addDoctorUid, setAddDoctorUid] = useState('')
+
   useEffect(() => {
     if (!uid) return
     setLoading(true); setErr('')
@@ -264,6 +312,7 @@ function ClinicDrawer({ uid, onClose, onUpdated }) {
         setData(d)
         setPlanStatus(d.profile.subscription?.status ?? 'trial')
         setPlanExpiry(d.profile.subscription?.expiresAt?.slice(0, 10) ?? d.profile.subscription?.trialEndsAt?.slice(0, 10) ?? '')
+        setNewRole(d.profile.clinicRole ?? 'doctor')
       })
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
@@ -294,6 +343,58 @@ function ClinicDrawer({ uid, onClose, onUpdated }) {
     await adminFetch('/api/admin/clinic', { method: 'PATCH', body: JSON.stringify({ uid, viewOnly: next }) })
     setData(prev => ({ ...prev, profile: { ...prev.profile, viewOnly: next } }))
     onUpdated?.()
+  }
+
+  const handleRoleSave = async () => {
+    setRoleSaving(true)
+    try {
+      await adminFetch('/api/admin/clinic', { method: 'PATCH', body: JSON.stringify({ uid, clinicRole: newRole }) })
+      const newManagedDoctors = newRole === 'clinic_admin' ? [] : null
+      setData(prev => ({
+        ...prev,
+        profile: { ...prev.profile, clinicRole: newRole, managedDoctors: newManagedDoctors ?? [] },
+        managedDoctorProfiles: newRole === 'clinic_admin' ? [] : [],
+      }))
+      setEditRole(false)
+      onUpdated?.()
+    } finally {
+      setRoleSaving(false)
+    }
+  }
+
+  const handleAddManagedDoctor = async () => {
+    if (!addDoctorUid) return
+    setMdSaving(true)
+    try {
+      await adminFetch('/api/admin/clinic', { method: 'PATCH', body: JSON.stringify({ uid, addManagedDoctor: addDoctorUid }) })
+      const added = allDoctors.find(d => d.uid === addDoctorUid)
+      if (added) {
+        setData(prev => ({
+          ...prev,
+          profile: { ...prev.profile, managedDoctors: [...(prev.profile.managedDoctors ?? []), addDoctorUid] },
+          managedDoctorProfiles: [...(prev.managedDoctorProfiles ?? []), { uid: added.uid, firstName: added.firstName, lastName: added.lastName, clinicName: added.clinicName, specialization: added.specialization }],
+        }))
+      }
+      setAddDoctorUid('')
+      onUpdated?.()
+    } finally {
+      setMdSaving(false)
+    }
+  }
+
+  const handleRemoveManagedDoctor = async (doctorUid) => {
+    setMdSaving(true)
+    try {
+      await adminFetch('/api/admin/clinic', { method: 'PATCH', body: JSON.stringify({ uid, removeManagedDoctor: doctorUid }) })
+      setData(prev => ({
+        ...prev,
+        profile: { ...prev.profile, managedDoctors: (prev.profile.managedDoctors ?? []).filter(u => u !== doctorUid) },
+        managedDoctorProfiles: (prev.managedDoctorProfiles ?? []).filter(d => d.uid !== doctorUid),
+      }))
+      onUpdated?.()
+    } finally {
+      setMdSaving(false)
+    }
   }
 
   if (!uid) return null
@@ -474,6 +575,129 @@ function ClinicDrawer({ uid, onClose, onUpdated }) {
                       </button>
                     </div>
                   </div>
+
+                  {/* Role management */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Account Role</h4>
+                      {!editRole && (
+                        <button onClick={() => { setNewRole(data.profile.clinicRole ?? 'doctor'); setEditRole(true) }}
+                          className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                          Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {editRole ? (
+                      <div className="space-y-3 mt-3">
+                        <div className="flex gap-2">
+                          {[{ value: 'doctor', label: 'Doctor' }, { value: 'clinic_admin', label: 'Clinic Admin' }].map(r => (
+                            <button key={r.value} type="button" onClick={() => setNewRole(r.value)}
+                              className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                                newRole === r.value
+                                  ? 'bg-primary-500 text-white border-primary-500'
+                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                              }`}>{r.label}</button>
+                          ))}
+                        </div>
+                        {newRole === 'doctor' && data.profile.clinicRole === 'clinic_admin' && (data.profile.managedDoctors?.length > 0) && (
+                          <p className="text-xs text-red-600 dark:text-red-400">
+                            Warning: this will unlink all {data.profile.managedDoctors.length} currently managed doctor(s).
+                          </p>
+                        )}
+                        {newRole === 'clinic_admin' && data.profile.clinicRole !== 'clinic_admin' && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            This account will be able to transparently view and manage assigned doctors' data.
+                          </p>
+                        )}
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => setEditRole(false)}
+                            className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            Cancel
+                          </button>
+                          <button onClick={handleRoleSave} disabled={roleSaving || newRole === data.profile.clinicRole}
+                            className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors">
+                            {roleSaving ? 'Saving…' : 'Save Role'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className={`text-sm font-semibold ${data.profile.clinicRole === 'clinic_admin' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {data.profile.clinicRole === 'clinic_admin' ? 'Clinic Admin' : 'Doctor'}
+                        </span>
+                        {data.profile.clinicRole === 'clinic_admin' && (
+                          <span className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
+                            Manages {data.profile.managedDoctors?.length ?? 0} doctor(s)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Managed Doctors — only for clinic admins */}
+                  {data.profile.clinicRole === 'clinic_admin' && (() => {
+                    const managedProfiles = data.managedDoctorProfiles ?? []
+                    const alreadyManaged  = new Set(managedProfiles.map(d => d.uid))
+                    const available = allDoctors.filter(d =>
+                      d.uid !== uid &&
+                      d.clinicRole !== 'clinic_admin' &&
+                      !alreadyManaged.has(d.uid) &&
+                      (!d.managedBy || d.managedBy === uid)
+                    )
+                    return (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Managed Doctors</h4>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">{managedProfiles.length} assigned</span>
+                        </div>
+
+                        {/* Current managed doctors */}
+                        <div className="space-y-2 mb-4">
+                          {managedProfiles.length === 0 ? (
+                            <p className="text-xs text-gray-400 dark:text-gray-500">No doctors assigned yet.</p>
+                          ) : managedProfiles.map(d => (
+                            <div key={d.uid} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40">
+                              <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300 flex-shrink-0">
+                                {(d.firstName[0] ?? '').toUpperCase()}{(d.lastName[0] ?? '').toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                  Dr. {d.firstName} {d.lastName}
+                                </p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                  {d.clinicName || d.specialization?.replace(/_/g, ' ') || '—'}
+                                </p>
+                              </div>
+                              <button onClick={() => handleRemoveManagedDoctor(d.uid)} disabled={mdSaving}
+                                className="text-xs text-red-500 dark:text-red-400 hover:underline disabled:opacity-50 flex-shrink-0">
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Add doctor */}
+                        {available.length > 0 && (
+                          <div className="flex gap-2">
+                            <select value={addDoctorUid} onChange={e => setAddDoctorUid(e.target.value)}
+                              className="flex-1 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-400">
+                              <option value="">Add a doctor…</option>
+                              {available.map(d => (
+                                <option key={d.uid} value={d.uid}>
+                                  {d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}
+                                </option>
+                              ))}
+                            </select>
+                            <button onClick={handleAddManagedDoctor} disabled={!addDoctorUid || mdSaving}
+                              className="px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+                              {mdSaving ? '…' : 'Add'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Organization / Group info */}
                   {data.org && (
@@ -931,6 +1155,7 @@ export default function AdminPage() {
             open={showCreate}
             onClose={() => setShowCreate(false)}
             onCreated={() => { setShowCreate(false); fetchDoctors() }}
+            clinicAdmins={enriched.filter(d => d.clinicRole === 'clinic_admin')}
           />
 
           {/* Stats */}
@@ -1073,6 +1298,7 @@ export default function AdminPage() {
           uid={selectedClinic}
           onClose={() => setSelectedClinic(null)}
           onUpdated={() => fetchDoctors()}
+          allDoctors={enriched}
         />
       )}
 

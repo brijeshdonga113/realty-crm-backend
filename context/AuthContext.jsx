@@ -46,11 +46,14 @@ function buildDoctorProfile(uid, data) {
     billingStatuses:  data.billingStatuses  ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
-    isAdmin:        data.isAdmin        ?? false,
-    viewOnly:       data.viewOnly       ?? false,
-    organizationId: data.organizationId ?? null,
-    branchName:     data.branchName     ?? '',
-    allowedWriters: data.allowedWriters ?? [],
+    isAdmin:         data.isAdmin         ?? false,
+    viewOnly:        data.viewOnly        ?? false,
+    organizationId:  data.organizationId  ?? null,
+    branchName:      data.branchName      ?? '',
+    allowedWriters:  data.allowedWriters  ?? [],
+    clinicRole:      data.clinicRole      ?? 'doctor',
+    managedBy:       data.managedBy       ?? null,
+    managedDoctors:  data.managedDoctors  ?? [],
   }
 }
 
@@ -129,6 +132,9 @@ export function AuthProvider({ children }) {
   const [baseDoctor,     setBaseDoctor]     = useState(null) // always the logged-in user's profile
   const [activeBranch,   setActiveBranchState] = useState(null) // { uid, branchName }
   const [org,            setOrg]            = useState(null) // { id, name, branches: [{uid, branchName}] }
+  // Clinic admin: list of managed doctor profiles + which one is currently active
+  const [managedDoctors,       setManagedDoctors]       = useState([])
+  const [activeManagedDoctor,  setActiveManagedDoctor]  = useState(null)
 
   useEffect(() => {
     let unsubscribe
@@ -149,6 +155,7 @@ export function AuthProvider({ children }) {
               setDoctor(profile)
               setBaseDoctor(profile)
               loadOrg(profile, profile)
+              loadManagedDoctors(profile)
             } else {
               // No doctor profile — check if this is a receptionist account
               const recSession = await loadReceptionistSession(user.uid, user.email)
@@ -262,6 +269,7 @@ export function AuthProvider({ children }) {
       setDoctor(profile)
       setBaseDoctor(profile)
       loadOrg(profile)
+      loadManagedDoctors(profile)
       return profile
     }
 
@@ -368,6 +376,36 @@ export function AuthProvider({ children }) {
     } catch { setOrg(null) }
   }, [])
 
+  // Clinic admin: load profiles for all doctors in managedDoctors array
+  const loadManagedDoctors = useCallback(async (profile) => {
+    if (profile?.clinicRole !== 'clinic_admin' || !profile.managedDoctors?.length) {
+      setManagedDoctors([])
+      return
+    }
+    try {
+      const profiles = await Promise.all(profile.managedDoctors.map(uid => loadFirebaseProfile(uid)))
+      setManagedDoctors(profiles.filter(Boolean))
+    } catch {
+      setManagedDoctors([])
+    }
+  }, [])
+
+  // Clinic admin: switch to view a managed doctor's data (transparent — doctor doesn't know)
+  const switchManagedDoctor = useCallback(async (uid) => {
+    if (!uid) {
+      setActiveBranchUid(null)
+      setActiveManagedDoctor(null)
+      setDoctor(baseDoctor)
+      return
+    }
+    setActiveBranchUid(uid)
+    const profile = await loadFirebaseProfile(uid)
+    if (profile) {
+      setActiveManagedDoctor(profile)
+      setDoctor({ ...profile, _baseDoctorId: baseDoctor?.id, _isManagedView: true, viewOnly: false })
+    }
+  }, [baseDoctor])
+
   // Switch active branch — loads that branch's profile and redirects dataStore
   const switchBranch = useCallback(async (branch) => {
     if (!branch) {
@@ -405,13 +443,15 @@ export function AuthProvider({ children }) {
     setActiveBranchState(null)
     setBaseDoctor(null)
     setOrg(null)
+    setManagedDoctors([])
+    setActiveManagedDoctor(null)
     setDoctor(null)
   }
 
   const isReceptionist = doctor?._role === 'receptionist'
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor }}>
       {children}
     </AuthContext.Provider>
   )

@@ -24,13 +24,21 @@ service cloud.firestore {
         && callerProfile.get('organizationId', null) == targetProfile.get('organizationId', null);
     }
 
+    // Returns true when the caller is a clinic_admin who has targetUserId in their managedDoctors list
+    function isClinicAdmin(targetUserId) {
+      let callerProfile = get(/databases/$(database)/documents/users/$(request.auth.uid)/profile/doctor).data;
+      return request.auth != null
+        && callerProfile.get('clinicRole', 'doctor') == 'clinic_admin'
+        && targetUserId in callerProfile.get('managedDoctors', []);
+    }
+
     // ── All clinic data lives under users/{userId}/... ──────────────────────
     match /users/{userId} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId);
+      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId) || isClinicAdmin(userId);
     }
 
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId);
+      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId) || isClinicAdmin(userId);
     }
 
     // ── Organizations ────────────────────────────────────────────────────────
