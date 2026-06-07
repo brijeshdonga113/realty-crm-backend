@@ -26,13 +26,11 @@ service cloud.firestore {
 
     // ── All clinic data lives under users/{userId}/... ──────────────────────
     match /users/{userId} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId);
-      allow read: if isSameOrg(userId);
+      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId);
     }
 
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwnerOrLinkedReceptionist(userId);
-      allow read: if isSameOrg(userId);
+      allow read, write: if isOwnerOrLinkedReceptionist(userId) || isSameOrg(userId);
     }
 
     // ── Organizations ────────────────────────────────────────────────────────

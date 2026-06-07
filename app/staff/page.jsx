@@ -166,10 +166,12 @@ function StaffForm({ initial, onSave, onCancel }) {
 // ── Login Accounts (receptionists with Firebase Auth) ─────────────────────────
 
 function useReceptionists() {
-  const { loading: authLoading } = useAuth()
+  const { loading: authLoading, activeBranch } = useAuth()
   const [receptionists, setReceptionists] = useState([])
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState('')
+
+  const branchUid = activeBranch?.uid ?? null
 
   const getToken = async () => auth.currentUser?.getIdToken() ?? null
 
@@ -186,7 +188,8 @@ function useReceptionists() {
     setLoading(true)
     setError('')
     try {
-      const res  = await apiFetch('/api/staff/receptionists')
+      const url  = branchUid ? `/api/staff/receptionists?branchUid=${branchUid}` : '/api/staff/receptionists'
+      const res  = await apiFetch(url)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setReceptionists(data.receptionists ?? [])
@@ -195,29 +198,29 @@ function useReceptionists() {
     } finally {
       setLoading(false)
     }
-  }, [apiFetch, authLoading])
+  }, [apiFetch, authLoading, branchUid])
 
   useEffect(() => { load() }, [load])
 
   const create = useCallback(async (form) => {
-    const res  = await apiFetch('/api/staff/receptionists', { method: 'POST', body: JSON.stringify(form) })
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'POST', body: JSON.stringify({ ...form, branchUid }) })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error)
     load()
     return data
-  }, [apiFetch, load])
+  }, [apiFetch, load, branchUid])
 
   const remove = useCallback(async (uid) => {
-    const res  = await apiFetch('/api/staff/receptionists', { method: 'DELETE', body: JSON.stringify({ uid }) })
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'DELETE', body: JSON.stringify({ uid, branchUid }) })
     if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
     setReceptionists(prev => prev.filter(r => r.uid !== uid))
-  }, [apiFetch])
+  }, [apiFetch, branchUid])
 
   const toggleViewOnly = useCallback(async (uid, current) => {
-    const res  = await apiFetch('/api/staff/receptionists', { method: 'PATCH', body: JSON.stringify({ uid, viewOnly: !current }) })
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'PATCH', body: JSON.stringify({ uid, viewOnly: !current, branchUid }) })
     if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
     setReceptionists(prev => prev.map(r => r.uid === uid ? { ...r, viewOnly: !current } : r))
-  }, [apiFetch])
+  }, [apiFetch, branchUid])
 
   return { receptionists, loading, error, create, remove, toggleViewOnly, reload: load }
 }

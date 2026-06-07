@@ -145,7 +145,7 @@ export function AuthProvider({ children }) {
               saveSessionLocally(profile)
               setDoctor(profile)
               setBaseDoctor(profile)
-              loadOrg(profile)
+              loadOrg(profile, profile)
             } else {
               // No doctor profile — check if this is a receptionist account
               const recSession = await loadReceptionistSession(user.uid, user.email)
@@ -322,14 +322,39 @@ export function AuthProvider({ children }) {
     return updated
   }
 
-  // Load org when a doctor profile with organizationId is available
-  const loadOrg = useCallback(async (profile) => {
+  // Persist active branch in localStorage so it survives page refreshes
+  const BRANCH_KEY = 'clinic_crm_active_branch'
+  const saveActiveBranch = (branch) => {
+    try {
+      if (branch) localStorage.setItem(BRANCH_KEY, JSON.stringify(branch))
+      else localStorage.removeItem(BRANCH_KEY)
+    } catch {}
+  }
+  const getSavedBranch = () => {
+    try { return JSON.parse(localStorage.getItem(BRANCH_KEY) ?? 'null') } catch { return null }
+  }
+
+  // Load org when a doctor profile with organizationId is available,
+  // then restore any previously selected branch
+  const loadOrg = useCallback(async (profile, base) => {
     if (!profile?.organizationId) { setOrg(null); return }
     try {
       const { doc, getDoc } = await import('firebase/firestore')
       const snap = await getDoc(doc(db, 'organizations', profile.organizationId))
-      if (snap.exists()) setOrg({ id: snap.id, ...snap.data() })
-      else setOrg(null)
+      if (!snap.exists()) { setOrg(null); return }
+      const orgData = { id: snap.id, ...snap.data() }
+      setOrg(orgData)
+
+      // Restore saved branch if it belongs to this org
+      const saved = getSavedBranch()
+      if (saved && (orgData.branches ?? []).some(b => b.uid === saved.uid) && saved.uid !== profile.id) {
+        setActiveBranchUid(saved.uid)
+        setActiveBranchState(saved)
+        const branchProfile = await loadFirebaseProfile(saved.uid)
+        if (branchProfile) {
+          setDoctor({ ...branchProfile, _activeBranch: saved, _baseDoctor: base ?? profile, organizationId: profile.organizationId })
+        }
+      }
     } catch { setOrg(null) }
   }, [])
 
@@ -340,14 +365,15 @@ export function AuthProvider({ children }) {
       setActiveBranchUid(null)
       setActiveBranchState(null)
       setDoctor(baseDoctor)
+      saveActiveBranch(null)
       return
     }
     setActiveBranchUid(branch.uid)
     setActiveBranchState(branch)
+    saveActiveBranch(branch)
     // Load the selected branch's doctor profile for UI display
     const branchProfile = await loadFirebaseProfile(branch.uid)
     if (branchProfile) {
-      // Preserve org info from our own session
       setDoctor({ ...branchProfile, _activeBranch: branch, _baseDoctor: baseDoctor, organizationId: baseDoctor?.organizationId })
     }
   }, [baseDoctor])
@@ -356,6 +382,7 @@ export function AuthProvider({ children }) {
     const { signOut } = await import('firebase/auth')
     await signOut(auth)
     clearSessionLocally()
+    saveActiveBranch(null)
     setActiveBranchUid(null)
     setActiveBranchState(null)
     setBaseDoctor(null)
