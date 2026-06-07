@@ -391,6 +391,16 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Clinic admin: re-fetch own profile + reload managed doctor profiles (call after adding a new doctor)
+  const refreshManagedDoctors = useCallback(async () => {
+    if (!baseDoctor?.id) return
+    const updated = await loadFirebaseProfile(baseDoctor.id)
+    if (!updated) return
+    setBaseDoctor(updated)
+    setDoctor(prev => (prev?._isManagedView ? prev : updated))
+    await loadManagedDoctors(updated)
+  }, [baseDoctor, loadManagedDoctors])
+
   // Clinic admin: switch to view a managed doctor's data (transparent — doctor doesn't know)
   const switchManagedDoctor = useCallback(async (uid) => {
     if (!uid) {
@@ -459,7 +469,7 @@ export function AuthProvider({ children }) {
   const isReceptionist = doctor?._role === 'receptionist'
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor, refreshManagedDoctors }}>
       {children}
     </AuthContext.Provider>
   )

@@ -163,6 +163,214 @@ function StaffForm({ initial, onSave, onCancel }) {
   )
 }
 
+// ── Doctor Accounts (clinic admin only) ──────────────────────────────────────
+
+const SPECIALIZATIONS = [
+  { value: '',              label: 'Select specialization…' },
+  { value: 'general',       label: 'General Practitioner'   },
+  { value: 'cardiology',    label: 'Cardiology'             },
+  { value: 'dermatology',   label: 'Dermatology'            },
+  { value: 'neurology',     label: 'Neurology'              },
+  { value: 'orthopedics',   label: 'Orthopedics'            },
+  { value: 'pediatrics',    label: 'Pediatrics'             },
+  { value: 'psychiatry',    label: 'Psychiatry'             },
+  { value: 'gynecology',    label: 'Gynecology & Obstetrics'},
+  { value: 'ophthalmology', label: 'Ophthalmology'          },
+  { value: 'ent',           label: 'ENT'                    },
+  { value: 'dentistry',     label: 'Dentistry'              },
+  { value: 'homeopathy',    label: 'Homeopathy'             },
+  { value: 'ayurveda',      label: 'Ayurveda'               },
+  { value: 'other',         label: 'Other'                  },
+]
+
+const emptyDoctorForm = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '' }
+
+function DoctorAccountsSection() {
+  const { baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor, refreshManagedDoctors } = useAuth()
+  const [showForm, setShowForm] = useState(false)
+  const [form,     setForm]     = useState(emptyDoctorForm)
+  const [formErr,  setFormErr]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [done,     setDone]     = useState(null)
+  const [switching, setSwitching] = useState({})
+
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setFormErr('') }
+
+  const getToken = async () => {
+    const { auth } = await import('@/lib/firebase')
+    return auth.currentUser?.getIdToken() ?? null
+  }
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setSaving(true); setFormErr('')
+    try {
+      const token = await getToken()
+      const res   = await fetch('/api/staff/doctors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDone({ email: form.email, password: form.password })
+      setForm(emptyDoctorForm)
+      setShowForm(false)
+      await refreshManagedDoctors()
+    } catch (err) {
+      setFormErr(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSwitch = async (uid) => {
+    setSwitching(s => ({ ...s, [uid]: true }))
+    try { await switchManagedDoctor(activeManagedDoctor?.id === uid ? null : uid) }
+    finally { setSwitching(s => { const n = { ...s }; delete n[uid]; return n }) }
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Managed Doctors</h3>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Doctor accounts under your management</p>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold rounded-lg transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Doctor Account
+          </button>
+        )}
+      </div>
+
+      <div className="p-5 space-y-4">
+
+        {/* Credentials banner */}
+        {done && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-bold text-green-800 dark:text-green-300">Doctor account created</p>
+            <div className="text-xs space-y-1">
+              <p className="text-green-700 dark:text-green-400">Email: <span className="font-mono font-semibold">{done.email}</span></p>
+              <p className="text-green-700 dark:text-green-400">Password: <span className="font-mono font-semibold select-all">{done.password}</span></p>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Share these credentials. Ask them to change the password after first login.</p>
+            <button onClick={() => setDone(null)} className="text-xs text-green-600 dark:text-green-400 hover:underline">Dismiss</button>
+          </div>
+        )}
+
+        {/* Add form */}
+        {showForm && (
+          <form onSubmit={handleCreate} className="border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">New Doctor Account</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">First Name *</label>
+                <input value={form.firstName} onChange={e => set('firstName', e.target.value)} required className="input-field"/>
+              </div>
+              <div>
+                <label className="form-label">Last Name *</label>
+                <input value={form.lastName} onChange={e => set('lastName', e.target.value)} required className="input-field"/>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Email *</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Clinic Name</label>
+              <input value={form.clinicName} onChange={e => set('clinicName', e.target.value)} className="input-field"/>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Specialization</label>
+                <select value={form.specialization} onChange={e => set('specialization', e.target.value)} className="input-field">
+                  {SPECIALIZATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Phone</label>
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} className="input-field"/>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Temporary Password *</label>
+              <input type="text" value={form.password} onChange={e => set('password', e.target.value)}
+                required minLength={6} placeholder="Min 6 characters" className="input-field font-mono"/>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">They should change this after first login.</p>
+            </div>
+            {formErr && <p className="text-sm text-red-600 dark:text-red-400">{formErr}</p>}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => { setShowForm(false); setForm(emptyDoctorForm); setFormErr('') }}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                {saving && <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                {saving ? 'Creating…' : 'Create Account'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Managed doctors list */}
+        {managedDoctors.length === 0 && !showForm ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500 py-2">No doctors added yet. Create one above.</p>
+        ) : (
+          <div className="space-y-2">
+            {managedDoctors.map(d => {
+              const isViewing = activeManagedDoctor?.id === d.id
+              return (
+                <div key={d.id} className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-colors ${
+                  isViewing
+                    ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800'
+                    : 'bg-gray-50 dark:bg-gray-700/40'
+                }`}>
+                  <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-xs font-bold text-primary-700 dark:text-primary-300">
+                    {(d.firstName?.[0] ?? '').toUpperCase()}{(d.lastName?.[0] ?? '').toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                      Dr. {d.firstName} {d.lastName}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                      {d.clinicName || d.specialization?.replace(/_/g, ' ') || d.email || '—'}
+                    </p>
+                  </div>
+                  {isViewing && (
+                    <span className="text-xs font-semibold text-primary-600 dark:text-primary-400 flex-shrink-0">Viewing</span>
+                  )}
+                  <button
+                    onClick={() => handleSwitch(d.id)}
+                    disabled={!!switching[d.id]}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 flex-shrink-0 ${
+                      isViewing
+                        ? 'bg-primary-500 border-primary-500 text-white hover:bg-primary-600'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600'
+                    }`}>
+                    {switching[d.id]
+                      ? <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    }
+                    {isViewing ? 'Exit View' : 'View'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Login Accounts (receptionists with Firebase Auth) ─────────────────────────
 
 function useReceptionists() {
@@ -531,7 +739,7 @@ function PartnerAccessSection() {
 
 export default function StaffPage() {
   const { staff, loading, add, update, remove } = useStaff()
-  const { doctor, updateProfile, org, baseDoctor, activeBranch, isReceptionist } = useAuth()
+  const { doctor, updateProfile, org, baseDoctor, activeBranch, isReceptionist, activeManagedDoctor } = useAuth()
   const [showAdd,    setShowAdd]    = useState(false)
   const [editItem,   setEditItem]   = useState(null)
   const [deleteId,   setDeleteId]   = useState(null)
@@ -561,6 +769,7 @@ export default function StaffPage() {
 
         {/* ── Partner Clinic Access + Login Accounts — doctors only */}
         {!isReceptionist && !activeBranch && <PartnerAccessSection />}
+        {!isReceptionist && !activeBranch && baseDoctor?.clinicRole === 'clinic_admin' && <DoctorAccountsSection />}
         {!isReceptionist && <LoginAccountsSection />}
 
         {/* ── Internal Staff Records ─────────────────────────────────── */}
