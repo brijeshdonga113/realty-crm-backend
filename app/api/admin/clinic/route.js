@@ -162,6 +162,8 @@ export async function PATCH(request) {
   const updates = {}
   if (subscription !== undefined) updates.subscription = subscription
   if (viewOnly     !== undefined) updates.viewOnly     = viewOnly
+  // Auto-enforce read-only when subscription is expired
+  if (subscription?.status === 'expired') updates.viewOnly = true
   if (Object.keys(updates).length) await profileRef.update(updates)
 
   // Role change

@@ -67,6 +67,246 @@ function LoginCell({ isoStr }) {
   )
 }
 
+const TABLE_COLS = [
+  { key: 'clinicName',     label: 'Clinic'         },
+  { key: 'firstName',      label: 'Doctor'         },
+  { key: 'specialization', label: 'Specialization' },
+  { key: 'subscription',   label: 'Plan'           },
+  { key: 'createdAt',      label: 'Joined'         },
+  { key: 'lastSignInTime', label: 'Last Login'     },
+]
+
+function ClinicRow({ d, uidMap, onSelect }) {
+  const initials = `${d.firstName?.[0] ?? ''}${d.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+  return (
+    <tr onClick={() => onSelect(d.uid)}
+      className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors cursor-pointer">
+      <td className="px-4 py-3.5 pl-5">
+        <div className="flex items-center gap-2.5">
+          {d.logoUrl ? (
+            <img src={d.logoUrl} alt={d.clinicName || 'logo'}
+              className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
+          ) : (
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+              d.clinicRole === 'clinic_admin'
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                : 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300'
+            }`}>{initials}</div>
+          )}
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {d.clinicName || <span className="italic text-gray-400">No clinic name</span>}
+            </p>
+            {d.phone && <p className="text-xs text-gray-400 dark:text-gray-500">{d.phone}</p>}
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Dr. {d.firstName} {d.lastName}</p>
+          {d.clinicRole === 'clinic_admin' && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+              Clinic Admin · {d.managedDoctors?.length ?? 0} dr
+            </span>
+          )}
+        </div>
+        {d.managedBy && uidMap[d.managedBy] && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            via Dr. {uidMap[d.managedBy].firstName} {uidMap[d.managedBy].lastName}
+          </p>
+        )}
+      </td>
+      <td className="px-4 py-3.5">
+        <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
+          {d.specialization ? d.specialization.replace(/_/g, ' ') : '—'}
+        </span>
+      </td>
+      <td className="px-4 py-3.5"><SubBadge sub={d.subscription} /></td>
+      <td className="px-4 py-3.5"><p className="text-xs text-gray-500 dark:text-gray-400">{fmtDate(d.createdAt)}</p></td>
+      <td className="px-4 py-3.5 pr-5"><LoginCell isoStr={d.lastSignInTime} /></td>
+    </tr>
+  )
+}
+
+function ClinicTable({ rows, title, emptyMsg, uidMap, toggleSort, SortIcon, onSelect }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+        <h3 className="font-semibold text-gray-900 dark:text-white flex-1 text-sm">{title}</h3>
+        <span className="text-xs text-gray-400 dark:text-gray-500">{rows.length} clinic{rows.length !== 1 ? 's' : ''}</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="py-12 text-center text-sm text-gray-400 dark:text-gray-500">{emptyMsg}</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                {TABLE_COLS.map(col => (
+                  <th key={col.label} onClick={() => col.key && toggleSort(col.key)}
+                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide first:pl-5 last:pr-5 ${col.key ? 'cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 select-none' : ''}`}>
+                    {col.label}{col.key && <SortIcon k={col.key} />}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+              {rows.map(d => <ClinicRow key={d.uid} d={d} uidMap={uidMap} onSelect={onSelect} />)}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ArchivedSection({ rows, uidMap, onSelect }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 bg-red-50 dark:bg-red-900/10 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors text-left">
+        <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12v4m4-4v4"/>
+        </svg>
+        <span className="font-semibold text-red-700 dark:text-red-400 text-sm flex-1">Archived (Expired)</span>
+        <span className="text-xs text-red-400 dark:text-red-500 mr-1">{rows.length} clinic{rows.length !== 1 ? 's' : ''} · read-only</span>
+        <svg className={`w-4 h-4 text-red-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="bg-white dark:bg-gray-800 overflow-x-auto">
+          <table className="w-full min-w-[720px]">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                {TABLE_COLS.map(col => (
+                  <th key={col.label}
+                    className="px-4 py-3 text-left text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide first:pl-5 last:pr-5">
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+              {rows.map(d => (
+                <ClinicRow key={d.uid} d={d} uidMap={uidMap} onSelect={onSelect} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OrgCard({ org, onEdit, onDelete }) {
+  const [open,    setOpen]    = useState(false)
+  const [stats,   setStats]   = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const loadStats = async () => {
+    if (stats) { setOpen(v => !v); return }
+    setOpen(true); setLoading(true)
+    try {
+      const res  = await adminFetch(`/api/admin/org-stats?orgId=${org.id}`)
+      const data = await res.json()
+      if (!data.error) setStats(data)
+    } finally { setLoading(false) }
+  }
+
+  const maxRevenue = stats ? Math.max(...stats.branches.map(b => b.revenue), 1) : 1
+
+  return (
+    <div className="px-5 py-4">
+      {/* Header row */}
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{org.name}</p>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {(org.branches ?? []).map(b => (
+              <span key={b.uid} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                {b.branchName}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <button onClick={onEdit} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Edit</button>
+          <button onClick={onDelete} className="text-xs font-medium text-red-500 dark:text-red-400 hover:underline">Delete</button>
+          <button onClick={loadStats}
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
+            {loading
+              ? <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              : <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+            }
+            {open ? 'Hide' : 'View Stats'}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats panel */}
+      {open && stats && (
+        <div className="mt-4 space-y-4">
+          {/* Totals */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              { label: 'Revenue',      value: fmt(stats.totals.revenue),      color: 'text-green-600 dark:text-green-400'   },
+              { label: 'Patients',     value: stats.totals.patients.toLocaleString(), color: 'text-blue-600 dark:text-blue-400' },
+              { label: 'Appointments', value: stats.totals.appointments.toLocaleString(), color: 'text-purple-600 dark:text-purple-400' },
+              { label: 'Pending',      value: fmt(stats.totals.pending),       color: 'text-amber-600 dark:text-amber-400'   },
+              { label: 'Overdue',      value: fmt(stats.totals.overdue),       color: 'text-red-500 dark:text-red-400'       },
+              { label: 'Expenses',     value: fmt(stats.totals.expenses),      color: 'text-rose-600 dark:text-rose-400'     },
+            ].map(s => (
+              <div key={s.label} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{s.label}</p>
+                <p className={`text-sm font-bold mt-0.5 ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-branch breakdown */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Branch Breakdown</p>
+            {stats.branches.map(b => {
+              const pct = maxRevenue > 0 ? (b.revenue / maxRevenue) * 100 : 0
+              return (
+                <div key={b.uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    {b.logoUrl ? (
+                      <img src={b.logoUrl} alt="" className="w-6 h-6 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600"/>
+                    ) : (
+                      <div className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-purple-700 dark:text-purple-300">
+                        {(b.branchName?.[0] ?? 'B').toUpperCase()}
+                      </div>
+                    )}
+                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 flex-1 truncate">{b.branchName}</p>
+                    <p className="text-xs font-bold text-green-600 dark:text-green-400 flex-shrink-0">{fmt(b.revenue)}</p>
+                  </div>
+                  <div className="h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-purple-500 dark:bg-purple-400 rounded-full" style={{ width: `${pct}%` }}/>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-[10px]">
+                    <div><span className="text-gray-400">Patients </span><span className="font-semibold text-gray-700 dark:text-gray-300">{b.patients}</span></div>
+                    <div><span className="text-gray-400">Pending </span><span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(b.pending)}</span></div>
+                    <div><span className="text-gray-400">Expenses </span><span className="font-semibold text-red-500 dark:text-red-400">{fmt(b.expenses)}</span></div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StatCard({ label, value, color }) {
   const cfg = {
     primary: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-800',
@@ -980,18 +1220,24 @@ export default function AdminPage() {
   // uid → doctor lookup for resolving managedBy references
   const uidMap = useMemo(() => Object.fromEntries(enriched.map(d => [d.uid, d])), [enriched])
 
+  const isExpired = (d) => d.subscription?.status === 'expired'
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    let list = enriched.filter(d =>
+    const list = enriched.filter(d =>
       !q || `${d.firstName} ${d.lastName} ${d.clinicName} ${d.email} ${d.specialization}`.toLowerCase().includes(q)
     )
-    return [...list].sort((a, b) => {
+    const sorted = [...list].sort((a, b) => {
       const va = a[sort.key] ?? ''
       const vb = b[sort.key] ?? ''
       if (va < vb) return sort.dir
       if (va > vb) return -sort.dir
       return 0
     })
+    return {
+      active:   sorted.filter(d => !isExpired(d)),
+      archived: sorted.filter(d => isExpired(d)),
+    }
   }, [enriched, search, sort])
 
   if (doctor && !doctor.isAdmin) {
@@ -1142,34 +1388,18 @@ export default function AdminPage() {
           ) : orgs.length === 0 && !showOrgForm ? (
             <div className="py-12 text-center text-sm text-gray-400 dark:text-gray-500">No organizations yet. Create one to link clinic branches.</div>
           ) : (
-            <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {orgs.map(org => (
-                <div key={org.id} className="px-5 py-4 flex items-start gap-4">
-                  <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{org.name}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {(org.branches ?? []).map(b => (
-                        <span key={b.uid} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
-                          {b.branchName}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => { setOrgForm({ name: org.name, branches: org.branches ?? [] }); setEditOrg(org); setShowOrgForm(true); setOrgErr('') }}
-                      className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Edit</button>
-                    <button onClick={async () => {
-                      if (!window.confirm('Delete this organization? Branch clinics will be unlinked but their data stays intact.')) return
-                      await adminFetch('/api/admin/organizations', { method: 'DELETE', body: JSON.stringify({ id: org.id }) })
-                      fetchOrgs(); fetchDoctors()
-                    }} className="text-xs font-medium text-red-500 dark:text-red-400 hover:underline">Delete</button>
-                  </div>
-                </div>
+                <OrgCard
+                  key={org.id}
+                  org={org}
+                  onEdit={() => { setOrgForm({ name: org.name, branches: org.branches ?? [] }); setEditOrg(org); setShowOrgForm(true); setOrgErr('') }}
+                  onDelete={async () => {
+                    if (!window.confirm('Delete this organization? Branch clinics will be unlinked but their data stays intact.')) return
+                    await adminFetch('/api/admin/organizations', { method: 'DELETE', body: JSON.stringify({ id: org.id }) })
+                    fetchOrgs(); fetchDoctors()
+                  }}
+                />
               ))}
             </div>
           )}
@@ -1196,149 +1426,63 @@ export default function AdminPage() {
             <StatCard label="Logged In Today"     value={stats.todayLogin} color="yellow"  />
           </div>
 
-          {/* Client list */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center gap-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white flex-1">
-                All Registered Clients
-                {!loading && <span className="ml-2 text-sm font-normal text-gray-400">({filtered.length})</span>}
-              </h3>
-              <div className="relative w-full sm:w-64">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Search clinic, doctor, email…"
-                  className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-xl pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 transition-all text-gray-900 dark:text-white placeholder-gray-400"/>
-                {search && (
-                  <button onClick={() => setSearch('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <button onClick={() => setShowCreate(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap flex-shrink-0">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                </svg>
-                Add Clinic
-              </button>
+          {/* Search + Add */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 sm:max-w-sm">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search clinic, doctor, email…"
+                className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-xl pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 transition-all text-gray-900 dark:text-white placeholder-gray-400"/>
+              {search && (
+                <button onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              )}
             </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-16 text-gray-400 gap-3 text-sm">
-                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg>
-                Loading all registered clients…
-              </div>
-            ) : apiError ? (
-              <div className="p-6 text-sm text-red-600 dark:text-red-400">{apiError}</div>
-            ) : filtered.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">
-                {search ? `No clients matching "${search}"` : 'No clients registered yet.'}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                      {[
-                        { key: 'clinicName',     label: 'Clinic'         },
-                        { key: 'firstName',      label: 'Doctor'         },
-                        { key: 'specialization', label: 'Specialization' },
-                        { key: 'subscription',   label: 'Plan'           },
-                        { key: 'createdAt',      label: 'Joined'         },
-                        { key: 'lastSignInTime', label: 'Last Login'     },
-                      ].map(col => (
-                        <th key={col.label}
-                          onClick={() => col.key && toggleSort(col.key)}
-                          className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide first:pl-5 last:pr-5 ${col.key ? 'cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 select-none' : ''}`}>
-                          {col.label}{col.key && <SortIcon k={col.key} />}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {filtered.map(d => {
-                      const initials = `${d.firstName?.[0] ?? ''}${d.lastName?.[0] ?? ''}`.toUpperCase() || '?'
-                      return (
-                        <tr key={d.uid} onClick={() => setSelectedClinic(d.uid)}
-                          className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors cursor-pointer">
-
-                          {/* Clinic */}
-                          <td className="px-4 py-3.5 pl-5">
-                            <div className="flex items-center gap-2.5">
-                              {d.logoUrl ? (
-                                <img src={d.logoUrl} alt={d.clinicName || 'logo'}
-                                  className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
-                              ) : (
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                                d.clinicRole === 'clinic_admin'
-                                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                                  : 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300'
-                              }`}>
-                                {initials}
-                              </div>
-                              )}
-                              <div>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  {d.clinicName || <span className="italic text-gray-400">No clinic name</span>}
-                                </p>
-                                {d.phone && <p className="text-xs text-gray-400 dark:text-gray-500">{d.phone}</p>}
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Doctor */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                Dr. {d.firstName} {d.lastName}
-                              </p>
-                              {d.clinicRole === 'clinic_admin' && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
-                                  Clinic Admin · {d.managedDoctors?.length ?? 0} dr
-                                </span>
-                              )}
-                            </div>
-                            {d.managedBy && uidMap[d.managedBy] && (
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                                via Dr. {uidMap[d.managedBy].firstName} {uidMap[d.managedBy].lastName}
-                              </p>
-                            )}
-                          </td>
-
-                          {/* Specialization */}
-                          <td className="px-4 py-3.5">
-                            <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
-                              {d.specialization ? d.specialization.replace(/_/g, ' ') : '—'}
-                            </span>
-                          </td>
-
-                          {/* Plan */}
-                          <td className="px-4 py-3.5"><SubBadge sub={d.subscription} /></td>
-
-                          {/* Joined */}
-                          <td className="px-4 py-3.5">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{fmtDate(d.createdAt)}</p>
-                          </td>
-
-                          {/* Last Login */}
-                          <td className="px-4 py-3.5 pr-5"><LoginCell isoStr={d.lastSignInTime} /></td>
-
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+              </svg>
+              Add Clinic
+            </button>
           </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-gray-400 gap-3 text-sm">
+              <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Loading all registered clients…
+            </div>
+          ) : apiError ? (
+            <div className="p-6 text-sm text-red-600 dark:text-red-400">{apiError}</div>
+          ) : (
+            <ClinicTable
+              rows={filtered.active}
+              title="Active Clients"
+              emptyMsg={search ? `No active clients matching "${search}"` : 'No active clients yet.'}
+              uidMap={uidMap}
+              toggleSort={toggleSort}
+              SortIcon={SortIcon}
+              onSelect={setSelectedClinic}
+            />
+          )}
+
+          {/* Archived (expired) clinics */}
+          {!loading && !apiError && filtered.archived.length > 0 && (
+            <ArchivedSection
+              rows={filtered.archived}
+              uidMap={uidMap}
+              onSelect={setSelectedClinic}
+            />
+          )}
 
         </div>
       )}
