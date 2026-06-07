@@ -1001,7 +1001,100 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                     )}
                   </div>
 
-                  {/* Managed Doctors — only for clinic admins */}
+                  {/* Clinic Hierarchy — shown when admin manages clinics AND/OR belongs to an org */}
+                  {(data.profile.clinicRole === 'clinic_admin' || data.org) && (() => {
+                    const managedProfiles = data.managedDoctorProfiles ?? []
+                    const isAdmin = data.profile.clinicRole === 'clinic_admin'
+                    if (!isAdmin && !data.org) return null
+                    return (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                        <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Clinic Hierarchy</h4>
+                        <div className="flex items-start gap-0">
+
+                          {/* Left: Org membership */}
+                          {data.org && (
+                            <div className="flex flex-col items-center">
+                              <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                </svg>
+                              </div>
+                              <div className="w-px flex-1 min-h-[12px] bg-purple-200 dark:bg-purple-800 mt-1"/>
+                            </div>
+                          )}
+
+                          {data.org && (
+                            <div className="ml-2.5 mr-4 pt-1 min-w-0">
+                              <p className="text-xs font-bold text-purple-700 dark:text-purple-300 truncate">{data.org.name}</p>
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500">Organization · as "{data.profile.branchName || 'Branch'}"</p>
+                            </div>
+                          )}
+
+                          {/* Connector arrow → */}
+                          {data.org && isAdmin && managedProfiles.length > 0 && (
+                            <div className="flex items-center self-center mx-1 text-gray-300 dark:text-gray-600 flex-shrink-0">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                              </svg>
+                            </div>
+                          )}
+
+                          {/* Middle: This clinic (self) */}
+                          <div className="flex flex-col items-center flex-shrink-0">
+                            <div className="relative">
+                              {data.profile.logoUrl ? (
+                                <img src={data.profile.logoUrl} alt="" className="w-8 h-8 rounded-lg object-cover border-2 border-primary-400"/>
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center text-white text-xs font-bold border-2 border-primary-400">
+                                  {(data.profile.firstName?.[0] ?? '').toUpperCase()}{(data.profile.lastName?.[0] ?? '').toUpperCase()}
+                                </div>
+                              )}
+                              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-amber-400 rounded-full border border-white dark:border-gray-800 flex items-center justify-center">
+                                <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>
+                              </div>
+                            </div>
+                            {isAdmin && managedProfiles.length > 0 && (
+                              <div className="w-px bg-primary-200 dark:bg-primary-800 mt-1" style={{ height: `${managedProfiles.length * 44 - 8}px` }}/>
+                            )}
+                          </div>
+
+                          <div className="ml-2.5 pt-1 min-w-0 flex-1">
+                            <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+                              {data.profile.clinicName || `Dr. ${data.profile.firstName} ${data.profile.lastName}`}
+                            </p>
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400">Clinic Admin</p>
+
+                            {/* Managed clinics branching down */}
+                            {isAdmin && managedProfiles.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {managedProfiles.map(d => (
+                                  <div key={d.uid} className="flex items-center gap-2 pl-3 border-l-2 border-primary-200 dark:border-primary-800">
+                                    {d.logoUrl ? (
+                                      <img src={d.logoUrl} alt="" className="w-6 h-6 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-lg bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0">
+                                        {(d.firstName?.[0] ?? '').toUpperCase()}{(d.lastName?.[0] ?? '').toUpperCase()}
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">
+                                        {d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}
+                                      </p>
+                                      {d.clinicName && (
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">Dr. {d.firstName} {d.lastName}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Managed Clinics — edit controls for clinic admins */}
                   {data.profile.clinicRole === 'clinic_admin' && (() => {
                     const managedProfiles = data.managedDoctorProfiles ?? []
                     const alreadyManaged  = new Set(managedProfiles.map(d => d.uid))
@@ -1014,25 +1107,28 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                     return (
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Managed Doctors</h4>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Managed Clinics</h4>
                           <span className="text-xs text-gray-400 dark:text-gray-500">{managedProfiles.length} assigned</span>
                         </div>
 
-                        {/* Current managed doctors */}
                         <div className="space-y-2 mb-4">
                           {managedProfiles.length === 0 ? (
-                            <p className="text-xs text-gray-400 dark:text-gray-500">No doctors assigned yet.</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">No clinics assigned yet.</p>
                           ) : managedProfiles.map(d => (
-                            <div key={d.uid} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40">
-                              <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300 flex-shrink-0">
-                                {(d.firstName[0] ?? '').toUpperCase()}{(d.lastName[0] ?? '').toUpperCase()}
-                              </div>
+                            <div key={d.uid} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-700/40">
+                              {d.logoUrl ? (
+                                <img src={d.logoUrl} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-100 dark:border-gray-700"/>
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300 flex-shrink-0">
+                                  {(d.firstName?.[0] ?? '').toUpperCase()}{(d.lastName?.[0] ?? '').toUpperCase()}
+                                </div>
+                              )}
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
-                                  Dr. {d.firstName} {d.lastName}
+                                  {d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}
                                 </p>
                                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                  {d.clinicName || d.specialization?.replace(/_/g, ' ') || '—'}
+                                  Dr. {d.firstName} {d.lastName}{d.specialization ? ` · ${d.specialization.replace(/_/g, ' ')}` : ''}
                                 </p>
                               </div>
                               <button onClick={() => handleRemoveManagedDoctor(d.uid)} disabled={mdSaving}
@@ -1043,12 +1139,11 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                           ))}
                         </div>
 
-                        {/* Add doctor */}
                         {available.length > 0 && (
                           <div className="flex gap-2">
                             <select value={addDoctorUid} onChange={e => setAddDoctorUid(e.target.value)}
                               className="flex-1 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-400">
-                              <option value="">Add a doctor…</option>
+                              <option value="">Add a clinic…</option>
                               {available.map(d => (
                                 <option key={d.uid} value={d.uid}>
                                   {d.clinicName || `Dr. ${d.firstName} ${d.lastName}`}

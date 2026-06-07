@@ -59,6 +59,7 @@ export async function GET(request) {
             lastName:       d.lastName       ?? '',
             clinicName:     d.clinicName     ?? '',
             specialization: d.specialization ?? '',
+            logoUrl:        d.logoUrl        ?? '',
           }
         })
     }
