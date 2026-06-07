@@ -1472,6 +1472,11 @@ export default function PatientProfilePage() {
           <span>{visits.length} visit{visits.length !== 1 ? 's' : ''}</span>
           <span>{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
           <span>{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
+          {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+            <span className="text-red-300 font-semibold">
+              {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
+            </span>
+          )}
           <span>{patientFollowUps.length} follow-up{patientFollowUps.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
@@ -1486,6 +1491,11 @@ export default function PatientProfilePage() {
             {t === 'Follow-ups' && followUpDueCount > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
                 {followUpDueCount}
+              </span>
+            )}
+            {t === 'Billing' && invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
               </span>
             )}
           </button>
@@ -1777,7 +1787,23 @@ export default function PatientProfilePage() {
 
       {/* Tab 4: Billing */}
       {tab === 4 && (
-        <div>
+        <div className="space-y-4">
+          {/* Due bills alert */}
+          {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+            <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                  {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} unpaid invoice{invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                  {formatCurrency(invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + (i.total || 0), 0))} pending collection
+                </p>
+              </div>
+            </div>
+          )}
           {invoices.length === 0 ? (
             <EmptyState title="No invoices" description="No billing history for this patient."
               action={() => router.push(`/billing/new?patientId=${id}`)} actionLabel="Create Invoice"/>
