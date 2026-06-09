@@ -42,26 +42,37 @@ function InvoicePrint({ invoice, doctor }) {
         <p className="font-semibold text-gray-900 text-base">{invoice.patientName}</p>
       </div>
 
-      <table className="w-full mb-6">
-        <thead>
-          <tr className="border-b-2 border-gray-200">
-            <th className="text-left py-2 text-xs font-semibold text-gray-500 uppercase">Description</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Qty</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
-            <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.lineItems?.map(item => (
-            <tr key={item.id} className="border-b border-gray-100">
-              <td className="py-3">{item.description}</td>
-              <td className="py-3 text-right">{item.quantity}</td>
-              <td className="py-3 text-right">{formatCurrency(item.unitPrice)}</td>
-              <td className="py-3 text-right font-medium">{formatCurrency(item.quantity * item.unitPrice)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {(() => {
+        const hasItemDiscount = invoice.lineItems?.some(i => Number(i.discountPct) > 0)
+        return (
+          <table className="w-full mb-6">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left py-2 text-xs font-semibold text-gray-500 uppercase">Description</th>
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
+                {hasItemDiscount && <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Disc</th>}
+                <th className="text-right py-2 text-xs font-semibold text-gray-500 uppercase">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.lineItems?.map(item => (
+                <tr key={item.id} className="border-b border-gray-100">
+                  <td className="py-3">{item.description}</td>
+                  <td className="py-3 text-right">{item.quantity}</td>
+                  <td className="py-3 text-right">{formatCurrency(item.unitPrice)}</td>
+                  {hasItemDiscount && (
+                    <td className="py-3 text-right text-green-600">
+                      {Number(item.discountPct) > 0 ? `-${item.discountPct}%` : '—'}
+                    </td>
+                  )}
+                  <td className="py-3 text-right font-medium">{formatCurrency(item.total ?? item.quantity * item.unitPrice)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      })()}
 
       <div className="flex justify-end">
         <div className="w-56 space-y-2">

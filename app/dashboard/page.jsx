@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/context/AuthContext'
 import { useReports } from '@/hooks/useReports'
+import { useAppointments } from '@/hooks/useAppointments'
 import { usePreferences } from '@/hooks/usePreferences'
 import { localDateStr } from '@/lib/preferences'
 import { dataStore } from '@/lib/dataStore'
@@ -67,11 +68,18 @@ export default function DashboardPage() {
   const { doctor, isReceptionist, activeBranch, activeManagedDoctor } = useAuth()
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
+  const { update: updateAppt } = useAppointments()
+  const [markingDone, setMarkingDone] = useState(null)
 
   useEffect(() => {
     if (doctor?.isAdmin) router.replace('/admin')
   }, [doctor?.isAdmin])
   const { stats, rawAppointments: appointments, rawPatients: patients, rawFollowups: followups, loading: reportLoading } = useReports()
+
+  async function handleMarkDone(appt) {
+    setMarkingDone(appt.id)
+    try { await updateAppt(appt.id, { status: 'completed' }) } finally { setMarkingDone(null) }
+  }
 
   const [layout, setLayout]         = useState(DEFAULT_LAYOUT)
   const [customizing, setCustomizing] = useState(false)
@@ -225,12 +233,23 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time}</p>
                     <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
-                    {['scheduled','confirmed'].includes(appt.status) && appt.patientId && (
-                      <button
-                        onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
-                        className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                        Attend →
-                      </button>
+                    {['scheduled','confirmed'].includes(appt.status) && (
+                      <div className="flex items-center gap-1">
+                        {appt.patientId && (
+                          <button
+                            onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
+                            className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                            Attend →
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleMarkDone(appt)}
+                          disabled={markingDone === appt.id}
+                          title="Mark as done"
+                          className="text-xs font-semibold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                          {markingDone === appt.id ? '…' : '✓ Done'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
