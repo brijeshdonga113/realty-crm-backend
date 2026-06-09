@@ -12,12 +12,29 @@ function normalizePhone(phone) {
   return (phone || '').replace(/\D/g, '')
 }
 
-const SOURCE_LABELS = { 'walk-in': 'Walk-in', referral: 'Referral', booking: 'Booking', other: 'Other' }
+const SOURCE_LABELS = {
+  'walk-in':      'Walk-in',
+  referral:       'Referral',
+  booking:        'Booking Link',
+  'social-media': 'Social Media',
+  'google':       'Google Search',
+  whatsapp:       'WhatsApp',
+  advertisement:  'Advertisement',
+  'health-camp':  'Health Camp',
+  insurance:      'Insurance',
+  other:          'Other',
+}
 const SOURCE_COLORS = {
-  'walk-in': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  referral:  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-  booking:   'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
-  other:     'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+  'walk-in':      'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  referral:       'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  booking:        'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
+  'social-media': 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300',
+  google:         'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  whatsapp:       'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  advertisement:  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  'health-camp':  'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300',
+  insurance:      'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+  other:          'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
 }
 
 function WAIcon() {
@@ -173,6 +190,12 @@ export default function LeadsPage() {
                 <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input-field">
                   <option value="walk-in">Walk-in</option>
                   <option value="referral">Referral</option>
+                  <option value="social-media">Social Media</option>
+                  <option value="google">Google Search</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="advertisement">Advertisement</option>
+                  <option value="health-camp">Health Camp</option>
+                  <option value="insurance">Insurance</option>
                   <option value="booking">Booking Link</option>
                   <option value="other">Other</option>
                 </select>
