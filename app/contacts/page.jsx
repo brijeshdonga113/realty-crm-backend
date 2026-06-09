@@ -2,9 +2,9 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { usePatients } from '@/hooks/usePatients'
+import { useLeads } from '@/hooks/useLeads'
 import { useAppointments } from '@/hooks/useAppointments'
-import { getPatientAge } from '@/models/Patient'
+import { usePatients } from '@/hooks/usePatients'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { localDateStr } from '@/lib/preferences'
 
@@ -12,30 +12,12 @@ function normalizePhone(phone) {
   return (phone || '').replace(/\D/g, '')
 }
 
-function exportCSV(patients) {
-  const headers = ['Name', 'Phone', 'Email', 'City', 'Address', 'Age', 'Gender', 'Blood Type', 'Conditions', 'Status']
-  const rows = patients.map(p => [
-    `${p.firstName} ${p.lastName}`,
-    p.phone || '',
-    p.email || '',
-    p.address?.city || '',
-    [p.address?.street, p.address?.city, p.address?.state].filter(Boolean).join(', '),
-    getPatientAge(p) ?? '',
-    p.gender || '',
-    p.bloodType || '',
-    (p.chronicConditions || []).join('; '),
-    p.status || '',
-  ])
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url
-  a.download = `contacts_${localDateStr()}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+const SOURCE_LABELS = { 'walk-in': 'Walk-in', referral: 'Referral', booking: 'Booking', other: 'Other' }
+const SOURCE_COLORS = {
+  'walk-in': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  referral:  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  booking:   'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
+  other:     'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
 }
 
 function WAIcon() {
@@ -46,36 +28,58 @@ function WAIcon() {
   )
 }
 
-export default function ContactsPage() {
+function CollapsibleSection({ title, badge, badgeColor = 'blue', subtitle, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const colors = {
+    blue:   'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300',
+    purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300',
+    gray:   'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+  }
+  return (
+    <section>
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-3 mb-3 w-full text-left">
+        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+        </svg>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h2>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${colors[badgeColor]}`}>{badge}</span>
+        {subtitle && <p className="text-xs text-gray-400 dark:text-gray-500">{subtitle}</p>}
+      </button>
+      {open && children}
+    </section>
+  )
+}
+
+export default function LeadsPage() {
   const router = useRouter()
-  const { patients, loading: patientsLoading } = usePatients()
-  const { appointments, loading: apptLoading }  = useAppointments()
+  const { leads, loading: leadsLoading, add: addLead, convert, remove: removeLead } = useLeads()
+  const { appointments, loading: apptLoading } = useAppointments()
+  const { patients, loading: patientsLoading }  = usePatients()
 
-  const [query,          setQuery]          = useState('')
-  const [cityFilter,     setCityFilter]     = useState('')
-  const [statusFilter,   setStatusFilter]   = useState('all')
-  const [bookingOpen,    setBookingOpen]    = useState(true)
-  const [patientsOpen,   setPatientsOpen]   = useState(true)
+  const [query, setQuery] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', phone: '', email: '', source: 'walk-in', note: '' })
+  const [converting, setConverting] = useState(null)
 
-  const loading = patientsLoading || apptLoading
+  const loading = leadsLoading || apptLoading || patientsLoading
 
-  // Build a set of normalized phones from existing patients for fast dedup lookup
+  // Build a set of normalized phones from existing patients for dedup
   const patientPhones = useMemo(
     () => new Set(patients.map(p => normalizePhone(p.phone)).filter(Boolean)),
     [patients]
   )
 
-  // Booking contacts: from booking_link appointments with no linked patient,
-  // deduped by phone, excluding phones that already exist as patients.
-  const bookingContacts = useMemo(() => {
+  // Booking leads: from booking_link appointments with no linked patient
+  const bookingLeads = useMemo(() => {
     const byPhone = {}
     appointments
       .filter(a => a.source === 'booking_link' && !a.patientId)
       .forEach(a => {
         const phone = normalizePhone(a.patientPhone)
         if (!phone) return
-        if (patientPhones.has(phone)) return  // already a patient
-        // Keep entry with the latest date
+        if (patientPhones.has(phone)) return
         if (!byPhone[phone] || a.date > byPhone[phone].date) {
           byPhone[phone] = { name: a.patientName, phone, date: a.date, count: 0 }
         }
@@ -84,69 +88,127 @@ export default function ContactsPage() {
     return Object.values(byPhone).sort((a, b) => b.date.localeCompare(a.date))
   }, [appointments, patientPhones])
 
-  const cities = useMemo(() => {
-    const set = new Set(patients.map(p => p.address?.city).filter(Boolean))
-    return Array.from(set).sort()
-  }, [patients])
-
-  const filteredPatients = useMemo(() => {
+  const filteredLeads = useMemo(() => {
     const q = query.toLowerCase().trim()
-    return patients.filter(p => {
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false
-      if (cityFilter && p.address?.city !== cityFilter) return false
-      if (!q) return true
-      const name  = `${p.firstName} ${p.lastName}`.toLowerCase()
-      const phone = (p.phone || '').toLowerCase()
-      const email = (p.email || '').toLowerCase()
-      return name.includes(q) || phone.includes(q) || email.includes(q)
-    })
-  }, [patients, query, cityFilter, statusFilter])
+    if (!q) return leads
+    return leads.filter(l =>
+      l.name.toLowerCase().includes(q) || (l.phone || '').includes(q) || (l.email || '').toLowerCase().includes(q)
+    )
+  }, [leads, query])
 
   const filteredBooking = useMemo(() => {
     const q = query.toLowerCase().trim()
-    if (!q) return bookingContacts
-    return bookingContacts.filter(c =>
-      c.name.toLowerCase().includes(q) || c.phone.includes(q)
-    )
-  }, [bookingContacts, query])
+    if (!q) return bookingLeads
+    return bookingLeads.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+  }, [bookingLeads, query])
+
+  async function handleAddLead(e) {
+    e.preventDefault()
+    if (!form.name.trim()) return
+    setSaving(true)
+    try {
+      await addLead(form)
+      setForm({ name: '', phone: '', email: '', source: 'walk-in', note: '' })
+      setShowAddForm(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleConvert(lead) {
+    setConverting(lead.id ?? lead.phone)
+    try {
+      if (lead.id) {
+        // Mark as converted in Firestore
+        await convert(lead.id)
+      }
+      // Navigate to new patient pre-filled
+      router.push(`/patients/new?name=${encodeURIComponent(lead.name)}&phone=${encodeURIComponent(lead.phone || '')}`)
+    } finally {
+      setConverting(null)
+    }
+  }
 
   return (
     <AppLayout
-      title="Contacts"
+      title="Leads"
       action={
         <button
-          onClick={() => exportCSV(filteredPatients)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+          onClick={() => setShowAddForm(o => !o)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
           </svg>
-          Export CSV
+          Add Lead
         </button>
       }
     >
-      {/* Search bar */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
+      {/* Add Lead Form */}
+      {showAddForm && (
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">New Lead</h3>
+          <form onSubmit={handleAddLead}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Full Name *</label>
+                <input
+                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. John Doe"
+                  required className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Phone</label>
+                <input
+                  value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="+91 9876543210" className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                <input
+                  type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="optional" className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source</label>
+                <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="input-field">
+                  <option value="walk-in">Walk-in</option>
+                  <option value="referral">Referral</option>
+                  <option value="booking">Booking Link</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Note</label>
+                <input
+                  value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="Optional note about this lead" className="input-field" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving || !form.name.trim()}
+                className="px-5 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors">
+                {saving ? 'Saving…' : 'Save Lead'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="mb-6">
+        <div className="relative">
           <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
           </svg>
           <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search by name or phone…"
-            className="input-field pl-9"
-          />
+            value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Search leads by name or phone…"
+            className="input-field pl-9" />
         </div>
-        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} className="input-field w-40">
-          <option value="">All Cities</option>
-          {cities.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input-field w-36">
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="deceased">Deceased</option>
-        </select>
       </div>
 
       {loading ? (
@@ -155,28 +217,103 @@ export default function ContactsPage() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
-          Loading contacts…
+          Loading leads…
         </div>
       ) : (
         <div className="space-y-8">
 
-          {/* ── Booking contacts ─────────────────────────────────────────── */}
-          {filteredBooking.length > 0 && (
-            <section>
-              <button
-                onClick={() => setBookingOpen(o => !o)}
-                className="flex items-center gap-3 mb-3 w-full text-left group">
-                <svg className={`w-4 h-4 text-gray-400 transition-transform ${bookingOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-                </svg>
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Booking Contacts</h2>
-                <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
-                  {filteredBooking.length}
-                </span>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Booked via appointment link — not yet registered as patients</p>
-              </button>
+          {/* Manual Leads */}
+          <CollapsibleSection
+            title="Manual Leads"
+            badge={filteredLeads.length}
+            badgeColor="purple"
+            subtitle="Walk-ins and referrals added manually">
+            {filteredLeads.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-10 text-center">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No manual leads yet</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Click "Add Lead" to add a walk-in or referral</p>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-purple-50 dark:border-purple-900/30 bg-purple-50/40 dark:bg-purple-900/10">
+                      {['Name', 'Phone', 'Source', 'Note', 'Added', ''].map(h => (
+                        <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                    {filteredLeads.map(lead => {
+                      const initials = lead.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      const isConverting = converting === lead.id
+                      return (
+                        <tr key={lead.id} className="hover:bg-purple-50/20 dark:hover:bg-purple-900/10 transition-colors">
+                          <td className="px-4 py-3.5 pl-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                                <span className="text-purple-700 dark:text-purple-300 font-semibold text-xs">{initials}</span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{lead.name}</p>
+                                {lead.email && <p className="text-xs text-gray-400 dark:text-gray-500">{lead.email}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{lead.phone || '—'}</span>
+                              {lead.phone && (
+                                <a href={buildWAUrl(lead.phone)} target="_blank" rel="noreferrer"
+                                  className="text-green-500 hover:text-green-600 transition-colors">
+                                  <WAIcon />
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SOURCE_COLORS[lead.source] ?? SOURCE_COLORS.other}`}>
+                              {SOURCE_LABELS[lead.source] ?? lead.source}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-gray-500 dark:text-gray-400 max-w-[180px] truncate">
+                            {lead.note || '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-gray-500 dark:text-gray-400">
+                            {lead.createdAt ? lead.createdAt.slice(0, 10) : '—'}
+                          </td>
+                          <td className="px-4 py-3.5 pr-5">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleConvert(lead)}
+                                disabled={isConverting}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 disabled:opacity-50 transition-colors whitespace-nowrap">
+                                {isConverting ? '…' : 'Convert to Patient'}
+                              </button>
+                              <button
+                                onClick={() => removeLead(lead.id)}
+                                className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CollapsibleSection>
 
-              {bookingOpen && <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden">
+          {/* Booking Leads */}
+          {filteredBooking.length > 0 && (
+            <CollapsibleSection
+              title="Booking Leads"
+              badge={filteredBooking.length}
+              badgeColor="blue"
+              subtitle="Booked via appointment link — not yet registered as patients">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-blue-50 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-900/10">
@@ -187,8 +324,8 @@ export default function ContactsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                     {filteredBooking.map(c => {
-                      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                      const addUrl   = `/patients/new?name=${encodeURIComponent(c.name)}&phone=${encodeURIComponent(c.phone)}`
+                      const initials    = c.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      const isConverting = converting === c.phone
                       return (
                         <tr key={c.phone} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
                           <td className="px-4 py-3.5 pl-6">
@@ -218,9 +355,10 @@ export default function ContactsPage() {
                           </td>
                           <td className="px-4 py-3.5 pr-5">
                             <button
-                              onClick={() => router.push(addUrl)}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors whitespace-nowrap">
-                              + Add as Patient
+                              onClick={() => handleConvert(c)}
+                              disabled={isConverting}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 disabled:opacity-50 transition-colors whitespace-nowrap">
+                              {isConverting ? '…' : 'Convert to Patient'}
                             </button>
                           </td>
                         </tr>
@@ -228,112 +366,23 @@ export default function ContactsPage() {
                     })}
                   </tbody>
                 </table>
-              </div>}
-            </section>
+              </div>
+            </CollapsibleSection>
           )}
 
-          {/* ── Registered patients ──────────────────────────────────────── */}
-          <section>
-            <button
-              onClick={() => setPatientsOpen(o => !o)}
-              className="flex items-center gap-3 mb-3 w-full text-left group">
-              <svg className={`w-4 h-4 text-gray-400 transition-transform ${patientsOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-              </svg>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Registered Patients</h2>
-              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
-                {filteredPatients.length} contact{filteredPatients.length !== 1 ? 's' : ''}
-                {(query || cityFilter || statusFilter !== 'all') ? ' matching filters' : ''}
-              </span>
-            </button>
-
-            {patientsOpen && (filteredPatients.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-12 text-center">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No contacts found</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Try a different search term or filter.</p>
+          {filteredLeads.length === 0 && filteredBooking.length === 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-16 text-center">
+              <div className="w-14 h-14 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
               </div>
-            ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                      {['Name', 'Phone', 'Email', 'City / Address', 'Age', 'Status', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                    {filteredPatients.map(p => {
-                      const initials = `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase()
-                      const city     = p.address?.city || ''
-                      const address  = [p.address?.street, city, p.address?.state].filter(Boolean).join(', ')
-                      return (
-                        <tr key={p.id}
-                          className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
-                          onClick={() => router.push(`/patients/${p.id}`)}>
-                          <td className="px-4 py-3.5 pl-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">{initials}</span>
-                              </div>
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {p.firstName} {p.lastName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-700 dark:text-gray-300">{p.phone || '—'}</span>
-                              {p.phone && (
-                                <a href={buildWAUrl(p.phone)} target="_blank" rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  className="text-green-500 hover:text-green-600 transition-colors">
-                                  <WAIcon />
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
-                            {p.email ? (
-                              <a href={`mailto:${p.email}`} onClick={e => e.stopPropagation()}
-                                className="hover:text-primary-600 dark:hover:text-primary-400 hover:underline truncate max-w-xs block">
-                                {p.email}
-                              </a>
-                            ) : '—'}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{city || '—'}</p>
-                            {address && city && (
-                              <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">{address}</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
-                            {getPatientAge(p) ? `${getPatientAge(p)} yrs` : '—'}
-                            {p.gender ? ` / ${p.gender}` : ''}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
-                              ${p.status === 'active'   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                                p.status === 'deceased' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
-                              {p.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 pr-5">
-                            <button
-                              onClick={e => { e.stopPropagation(); router.push(`/patients/${p.id}`) }}
-                              className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                              View →
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </section>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No leads yet</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                {query ? 'No leads match your search.' : 'Add a walk-in or referral using "Add Lead" above.'}
+              </p>
+            </div>
+          )}
 
         </div>
       )}
