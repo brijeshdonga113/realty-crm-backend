@@ -171,10 +171,10 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
               {doctor?.clinicName ? (
                 <>
                   <p className="text-white font-bold text-sm leading-tight truncate">{doctor.clinicName}</p>
-                  <p className="text-primary-300 text-xs truncate">ClinicCRM</p>
+                  <p className="text-primary-300 text-xs truncate">Cliniwayz</p>
                 </>
               ) : (
-                <span className="text-white font-bold text-lg">ClinicCRM</span>
+                <span className="text-white font-bold text-lg">Cliniwayz</span>
               )}
             </div>
           </div>

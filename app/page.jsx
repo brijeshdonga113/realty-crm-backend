@@ -70,7 +70,7 @@ const STATS = [
 const TESTIMONIALS = [
   {
     name: 'Dr. Priya Mehta', role: 'General Physician, Mumbai', initials: 'PM',
-    text: 'ClinicCRM cut my admin time in half. The billing module and WhatsApp reminders are worth the subscription alone.',
+    text: 'Cliniwayz cut my admin time in half. The billing module and WhatsApp reminders are worth the subscription alone.',
   },
   {
     name: 'Dr. Arjun Sharma', role: 'Dentist, Bangalore', initials: 'AS',
@@ -140,7 +140,7 @@ export default function LandingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-lg font-bold text-gray-900">ClinicCRM</span>
+            <span className="text-lg font-bold text-gray-900">Cliniwayz</span>
           </div>
           <div className="hidden md:flex items-center gap-7 text-sm font-medium text-gray-500">
             <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
@@ -196,14 +196,14 @@ export default function LandingPage() {
               <span className="w-3 h-3 rounded-full bg-red-400" />
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
               <span className="w-3 h-3 rounded-full bg-green-400" />
-              <div className="ml-4 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono">cliniccrm.app/dashboard</div>
+              <div className="ml-4 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono">cliniwayz.com/dashboard</div>
             </div>
             <div className="flex bg-white" style={{ height: '340px' }}>
               {/* Sidebar */}
               <div className="w-44 bg-gray-900 flex-shrink-0 flex flex-col py-4 px-2.5 gap-0.5">
                 <div className="flex items-center gap-2 px-2 py-1.5 mb-3">
                   <div className="w-5 h-5 bg-blue-500 rounded flex-shrink-0" />
-                  <span className="text-white text-xs font-bold">ClinicCRM</span>
+                  <span className="text-white text-xs font-bold">Cliniwayz</span>
                 </div>
                 {[
                   ['Dashboard', true], ['Patients', false], ['Appointments', false],
@@ -526,7 +526,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <a
-                href="mailto:prijeshdonga14@gmail.com?subject=ClinicCRM%20Pricing%20%26%20Setup"
+                href="mailto:prijeshdonga14@gmail.com?subject=Cliniwayz%20Pricing%20%26%20Setup"
                 className="block w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition-colors"
               >
                 Mail Us for Pricing
@@ -611,7 +611,7 @@ export default function LandingPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <span className="text-white font-bold">ClinicCRM</span>
+                <span className="text-white font-bold">Cliniwayz</span>
               </div>
               <p className="text-sm leading-relaxed">Clinic management built for Indian doctors and small practices.</p>
             </div>
@@ -641,7 +641,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm">
-            <span>© {new Date().getFullYear()} ClinicCRM. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} Cliniwayz. All rights reserved.</span>
             <span>Built for doctors across India.</span>
           </div>
         </div>

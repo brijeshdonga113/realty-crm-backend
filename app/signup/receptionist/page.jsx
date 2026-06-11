@@ -82,7 +82,7 @@ export default function ReceptionistSignupPage() {
                 d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
           </div>
-          <span className="text-white text-xl font-bold tracking-tight">ClinicCRM</span>
+          <span className="text-white text-xl font-bold tracking-tight">Cliniwayz</span>
         </div>
 
         {/* Centre content */}
@@ -138,7 +138,7 @@ export default function ReceptionistSignupPage() {
           </div>
         </div>
 
-        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} Cliniwayz.</p>
       </div>
 
       {/* Right panel — form */}
@@ -153,7 +153,7 @@ export default function ReceptionistSignupPage() {
                   d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-primary-700 text-lg font-bold">ClinicCRM</span>
+            <span className="text-primary-700 text-lg font-bold">Cliniwayz</span>
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-1">Receptionist Sign Up</h2>

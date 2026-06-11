@@ -10,8 +10,8 @@ import { Analytics } from '@vercel/analytics/next'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'ClinicCRM',
-  description: 'Clinic management system for doctors — patient records, billing, and more.',
+  title: 'Cliniwayz',
+  description: 'Cliniwayz — clinic management for doctors. Patient records, appointments, billing, and WhatsApp reminders in one place.',
 }
 
 export default function RootLayout({ children }) {
