@@ -2,7 +2,6 @@ import { dataStore } from '@/lib/dataStore'
 import { createAppointment } from '@/models/Appointment'
 import { notificationService } from './notificationService'
 import { NOTIFICATION_TYPES } from '@/models/Notification'
-import { visitService } from './visitService'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -98,18 +97,6 @@ export const appointmentService = {
         body:  `${updated.patientName} — ${updated.date} at ${updated.time}`,
         relatedEntity: { type: 'appointment', id: updated.id },
       }).catch(() => {})
-    }
-
-    // Auto-create a visit record when an appointment is marked completed for the first time
-    if (patch.status === 'completed' && existing?.status !== 'completed') {
-      await visitService.create({
-        doctorId:       updated.doctorId,
-        patientId:      updated.patientId,
-        patientName:    updated.patientName,
-        appointmentId:  updated.id,
-        visitDate:      updated.date,
-        chiefComplaint: updated.reason ?? '',
-      })
     }
 
     // Sync update to Google Calendar

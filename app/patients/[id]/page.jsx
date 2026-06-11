@@ -208,7 +208,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
         <div className="flex-shrink-0 min-w-[72px]">
           <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatDate(visit.visitDate)}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-            {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
+            {visit.createdAt ? new Date(visit.createdAt).toLocaleTimeString('en-US', { timeStyle: 'short' }) : ''}
           </p>
         </div>
 

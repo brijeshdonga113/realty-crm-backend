@@ -13,8 +13,12 @@ function visitPath(patientId) {
 
 export const visitService = {
   async getAll() {
-    // collectionGroup query — finds visits across all patients
-    const visits = await dataStore.getAllGroup('visits')
+    // Fetch per-patient to avoid the collectionGroup index requirement on visits/doctorId
+    const patients = await dataStore.getAll('patients')
+    const perPatient = await Promise.all(
+      patients.map(p => dataStore.getAll(`patients/${p.id}/visits`).catch(() => []))
+    )
+    const visits = perPatient.flat()
     return visits.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   },
 
@@ -140,7 +144,7 @@ export const visitService = {
   async getDashboardStats() {
     const today    = new Date().toISOString().slice(0, 10)
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
-    const all = await dataStore.getAllGroup('visits')
+    const all = await this.getAll()
     return {
       todayCount:       all.filter(v => v.visitDate === today).length,
       followupToday:    all.filter(v => v.followUpDate === today).length,
