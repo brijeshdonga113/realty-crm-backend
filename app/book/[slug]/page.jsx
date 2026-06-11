@@ -78,7 +78,9 @@ function ErrorScreen({ status }) {
 function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
   const dateLabel = `${DAYS_FULL[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <BookingNav />
+      <div className="flex items-center justify-center p-4 py-12">
       <div className="bg-white rounded-3xl shadow-lg border border-gray-100 max-w-md w-full overflow-hidden">
         {/* Top gradient band */}
         <div className="bg-gradient-to-br from-green-500 to-emerald-600 px-8 pt-8 pb-10 text-center relative overflow-hidden">
@@ -145,7 +147,33 @@ function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
           </p>
         </div>
       </div>
+      </div>
     </div>
+  )
+}
+
+// ── Top navbar ────────────────────────────────────────────────────────────────
+
+function BookingNav() {
+  return (
+    <nav className="bg-white/90 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+        <a href="https://cliniwayz.com" target="_blank" rel="noreferrer" className="flex items-center gap-2 group">
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          </div>
+          <span className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Cliniwayz</span>
+        </a>
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          Secure &amp; encrypted
+        </div>
+      </div>
+    </nav>
   )
 }
 
@@ -672,6 +700,7 @@ export default function BookingPage({ params }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
+      <BookingNav />
       <BookingHero doctor={doctor} step={step} />
 
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -720,13 +749,22 @@ export default function BookingPage({ params }) {
         </div>
       </div>
 
-      <footer className="text-center py-10 text-xs text-gray-400">
-        <span className="inline-flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <footer className="text-center py-10">
+        <a href="https://cliniwayz.com" target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-blue-200 hover:shadow-sm rounded-full px-4 py-2 transition-all group">
+          <div className="w-5 h-5 bg-blue-600 rounded-md flex items-center justify-center flex-shrink-0">
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          </div>
+          <span className="text-xs text-gray-500 group-hover:text-blue-600 transition-colors">
+            Powered by <strong className="font-semibold">Cliniwayz</strong>
+          </span>
+          <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
           </svg>
-          Powered by Cliniwayz &nbsp;·&nbsp; Secure &amp; encrypted
-        </span>
+          <span className="text-xs text-green-600 font-medium">Secure</span>
+        </a>
       </footer>
     </div>
   )

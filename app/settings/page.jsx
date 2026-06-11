@@ -618,10 +618,14 @@ export default function SettingsPage() {
       }
       const dl = (filename, csv) => {
         const a = document.createElement('a')
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
         a.download = filename
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(a.href)
       }
+      const sleep = ms => new Promise(r => setTimeout(r, ms))
       const today = new Date().toISOString().slice(0, 10)
 
       const [patients, visits, invoices, appointments, inventory] = await Promise.all([
@@ -636,18 +640,22 @@ export default function SettingsPage() {
         ['UHID','First Name','Last Name','Date of Birth','Gender','Phone','Email','Address','Status','Created At'],
         patients.map(p => [p.patientNumber, p.firstName, p.lastName, p.dateOfBirth, p.gender, p.phone, p.email, p.address, p.status, p.createdAt])
       ))
+      await sleep(300)
       dl(`visits-${today}.csv`, makeCsv(
         ['Patient Name','Phone','Visit Date','Chief Complaint','Diagnosis','Treatment Plan','Payment Amount','Created At'],
         visits.map(v => [v.patientName, v.patientPhone, v.visitDate, v.chiefComplaint, Array.isArray(v.diagnosis) ? v.diagnosis.join('|') : v.diagnosis, v.treatmentPlan, v.payment?.amount, v.createdAt])
       ))
+      await sleep(300)
       dl(`invoices-${today}.csv`, makeCsv(
         ['Invoice No','Patient Name','Issue Date','Total','Status','Payment Method','Created At'],
         invoices.map(i => [i.invoiceNumber, i.patientName, i.issueDate, i.total, i.status, i.paymentMethod, i.createdAt])
       ))
+      await sleep(300)
       dl(`appointments-${today}.csv`, makeCsv(
-        ['Patient Name','Phone','Date','Time','Status','Notes','Created At'],
-        appointments.map(a => [a.patientName, a.patientPhone, a.appointmentDate, a.appointmentTime, a.status, a.notes, a.createdAt])
+        ['Patient Name','Phone','Date','Time','Type','Reason','Status','Notes','Created At'],
+        appointments.map(a => [a.patientName, a.patientPhone, a.date, a.time, a.type, a.reason, a.status, a.notes, a.createdAt])
       ))
+      await sleep(300)
       dl(`inventory-${today}.csv`, makeCsv(
         ['Name','Generic','Potency','Dosage Form','Category','Quantity','Unit','Purchase Price','Billing Price','Expiry','Batch','Supplier'],
         inventory.map(m => [m.name, m.generic, m.potency, m.dosageForm, m.category, m.quantity, m.unit, m.mrp, m.billingPrice, m.expiry, m.batch, m.supplier])
