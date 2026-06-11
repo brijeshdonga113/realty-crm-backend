@@ -137,7 +137,10 @@ export default function CalendarPage() {
     }
 
     if (filter === 'all' || filter === 'appointments' || filter === 'new_cases') {
+      const seenApptIds = new Set()
       appointments.forEach(a => {
+        if (seenApptIds.has(a.id)) return
+        seenApptIds.add(a.id)
         if (filter === 'new_cases' && a.type !== 'consultation') return
         addEv(a.date, { ...a, _kind: 'appointment' })
       })
@@ -147,7 +150,10 @@ export default function CalendarPage() {
       followups.filter(f => f.status === 'pending').forEach(f => {
         addEv(f.dueDate, { id: f.id, patientId: f.patientId, patientName: f.patientName, time: '', note: f.note, status: f.status, _kind: 'followup' })
       })
+      // Only show visit follow-ups that don't already have a followups collection record
+      const followupVisitIds = new Set(followups.map(f => f.visitId).filter(Boolean))
       visitFollowUps.forEach(v => {
+        if (followupVisitIds.has(v.id)) return
         addEv(v.date, { id: v.id, patientId: v.patientId, patientName: v.patientName, time: '', note: v.note, status: 'pending', _kind: 'visit_followup' })
       })
     }

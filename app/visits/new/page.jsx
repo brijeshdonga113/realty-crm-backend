@@ -314,7 +314,7 @@ function VisitEntryForm() {
             patientId,
             patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
             issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-            lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId })),
+            lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
             status:        payment.status,
             paymentMethod: payment.method,
             collectedBy:   payment.collectedBy,

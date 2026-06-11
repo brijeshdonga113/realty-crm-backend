@@ -652,8 +652,8 @@ export default function BookingPage({ params }) {
       <div className="flex-1 overflow-hidden">
         <div className="h-full max-w-5xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Left: calendar */}
-          <div className="overflow-auto">
+          {/* Left: calendar — hidden on mobile once a date is picked */}
+          <div className={`overflow-auto ${selectedDate ? 'hidden lg:block' : 'block'}`}>
             <DatePicker
               today={today}
               workingHours={workingHours}
@@ -662,8 +662,21 @@ export default function BookingPage({ params }) {
             />
           </div>
 
-          {/* Right: placeholder → slots → form */}
-          <div className="overflow-auto">
+          {/* Right: slots/form — hidden on mobile until a date is picked */}
+          <div className={`overflow-auto flex flex-col gap-3 ${!selectedDate ? 'hidden lg:flex' : 'flex'}`}>
+            {/* Mobile back-to-dates button */}
+            {selectedDate && (
+              <button
+                onClick={() => { setSelectedDate(null); setSelectedTime(null); setSlots([]); setBlockedReasons([]) }}
+                className="lg:hidden flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 self-start"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back to dates
+              </button>
+            )}
+
             {!selectedDate ? (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-12 px-6 text-center h-full">
                 <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
