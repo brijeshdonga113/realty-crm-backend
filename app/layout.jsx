@@ -4,6 +4,7 @@ import { NotificationsProvider } from '@/context/NotificationsContext'
 import { ToastProvider } from '@/components/ui/Toast'
 import { getThemeScript } from '@/lib/themes'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 // Prevent Next.js from statically prerendering any page — all pages depend on
 // client-side Firebase auth which is unavailable at build time.
@@ -30,6 +31,7 @@ export default function RootLayout({ children }) {
           </NotificationsProvider>
         </AuthProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
