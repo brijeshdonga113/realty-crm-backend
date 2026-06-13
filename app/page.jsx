@@ -144,9 +144,9 @@ export default function LandingPage() {
           </div>
           <div className="hidden md:flex items-center gap-7 text-sm font-medium text-gray-500">
             <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
+            <Link href="/features" className="hover:text-gray-900 transition-colors">Docs</Link>
             <a href="#how-it-works" className="hover:text-gray-900 transition-colors">How it works</a>
             <a href="#contact" className="hover:text-gray-900 transition-colors">Contact</a>
-            <a href="#testimonials" className="hover:text-gray-900 transition-colors">Testimonials</a>
             <a href="#faq" className="hover:text-gray-900 transition-colors">FAQ</a>
           </div>
           <div className="flex items-center gap-3">
