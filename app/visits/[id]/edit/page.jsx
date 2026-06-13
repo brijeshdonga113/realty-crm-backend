@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
-import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 
 function EditVisitForm() {
@@ -134,8 +134,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">History of Present Illness</label>
-            <AutoTextarea value={form.history} onChange={e => set('history', e.target.value)}
-              placeholder="Detailed history…" className="input-field resize"/>
+            <RichTextEditor value={form.history} onChange={v => set('history', v)}
+              placeholder="Detailed history…"/>
           </div>
 
           {/* Vitals */}
@@ -161,8 +161,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Clinical Findings</label>
-            <AutoTextarea value={form.findings} onChange={e => set('findings', e.target.value)}
-              placeholder="Physical examination findings…" className="input-field resize"/>
+            <RichTextEditor value={form.findings} onChange={v => set('findings', v)}
+              placeholder="Physical examination findings…"/>
           </div>
 
           {/* Diagnosis */}
@@ -199,8 +199,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Treatment Plan</label>
-            <AutoTextarea value={form.treatment} onChange={e => set('treatment', e.target.value)}
-              placeholder="Treatment approach…" className="input-field resize"/>
+            <RichTextEditor value={form.treatment} onChange={v => set('treatment', v)}
+              placeholder="Treatment approach…"/>
           </div>
 
           {/* Prescriptions */}
@@ -255,8 +255,8 @@ function EditVisitForm() {
 
           <div>
             <label className="form-label">Notes</label>
-            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Additional notes…" className="input-field resize"/>
+            <RichTextEditor value={form.notes} onChange={v => set('notes', v)}
+              placeholder="Additional notes…"/>
           </div>
         </div>
 

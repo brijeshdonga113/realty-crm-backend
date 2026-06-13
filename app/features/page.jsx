@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 const NAV_SECTIONS = [
@@ -116,6 +116,22 @@ function InfoCard({ title, desc }) {
 export default function FeaturesPage() {
   const [activeSection, setActiveSection] = useState('patient-management')
 
+  useEffect(() => {
+    const NAV_OFFSET = 100
+    const onScroll = () => {
+      const scrollY = window.scrollY
+      let active = NAV_SECTIONS[0].id
+      NAV_SECTIONS.forEach(({ id }) => {
+        const el = document.getElementById(id)
+        if (el && el.offsetTop - NAV_OFFSET <= scrollY) active = id
+      })
+      setActiveSection(active)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
 
@@ -167,7 +183,6 @@ export default function FeaturesPage() {
                 <a
                   key={s.id}
                   href={`#${s.id}`}
-                  onClick={() => setActiveSection(s.id)}
                   className={`block text-sm px-3 py-1.5 rounded-lg transition-colors ${
                     activeSection === s.id
                       ? 'bg-blue-50 text-blue-700 font-semibold'
