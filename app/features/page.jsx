@@ -148,7 +148,7 @@ export default function FeaturesPage() {
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/#features" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Features</Link>
-            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Pricing</Link>
+            <Link href="/#contact" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Login</Link>
             <Link href="/signup" className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
               Start free
@@ -618,7 +618,7 @@ export default function FeaturesPage() {
           <div className="flex items-center gap-5 text-xs text-gray-400">
             <Link href="/" className="hover:text-gray-700 transition-colors">Home</Link>
             <Link href="/features" className="hover:text-gray-700 transition-colors">Features</Link>
-            <Link href="/pricing" className="hover:text-gray-700 transition-colors">Pricing</Link>
+            <Link href="/#contact" className="hover:text-gray-700 transition-colors">Contact</Link>
             <Link href="/login" className="hover:text-gray-700 transition-colors">Login</Link>
           </div>
           <p className="text-xs text-gray-400">© {new Date().getFullYear()} Cliniwayz. All rights reserved.</p>

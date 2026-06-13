@@ -752,7 +752,7 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><Link href="/login" className="hover:text-white transition-colors">Sign In</Link></li>
                 <li><Link href="/signup" className="hover:text-white transition-colors">Create Account</Link></li>
-                <li><Link href="/signup/receptionist" className="hover:text-white transition-colors">Receptionist Sign Up</Link></li>
+                <li><Link href="/join" className="hover:text-white transition-colors">Staff / Receptionist</Link></li>
               </ul>
             </div>
           </div>

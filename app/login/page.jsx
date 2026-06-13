@@ -245,9 +245,9 @@ export default function LoginPage() {
             </Link>
           </p>
           <p className="mt-2 text-center text-sm text-gray-500">
-            Are you a receptionist?{' '}
-            <Link href="/signup/receptionist" className="text-primary-600 font-medium hover:underline">
-              Sign up here
+            Staff / Receptionist?{' '}
+            <Link href="/join" className="text-primary-600 font-medium hover:underline">
+              Join with invite code
             </Link>
           </p>
 
