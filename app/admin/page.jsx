@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
@@ -1304,9 +1304,10 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
 
 export default function AdminPage() {
   const { doctor, updateProfile, loading: authLoading } = useAuth()
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
 
-  const [tab,           setTab]          = useState('dashboard')
+  const [tab,           setTab]          = useState(() => searchParams.get('tab') ?? 'dashboard')
   const [enriched,      setEnriched]     = useState([])
   const [loading,       setLoading]      = useState(true)
   const [apiError,      setApiError]     = useState('')
@@ -1378,6 +1379,11 @@ export default function AdminPage() {
     if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, status }))
     await adminFetch('/api/contact', { method: 'PATCH', body: JSON.stringify({ id, status }) })
   }
+
+  useEffect(() => {
+    const t = searchParams.get('tab') ?? 'dashboard'
+    setTab(t)
+  }, [searchParams])
 
   useEffect(() => {
     if (authLoading || !doctor?.isAdmin) return
@@ -1487,45 +1493,8 @@ export default function AdminPage() {
     </svg>
   )
 
-  const NAV_ITEMS = [
-    { key: 'dashboard', label: 'Clinics',       icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-    { key: 'profile',   label: 'Organizations', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-    { key: 'leads',     label: 'Leads',         icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', badge: leads.filter(l => l.status === 'new').length },
-  ]
-
   return (
     <AppLayout title="Admin Panel">
-      <div className="flex gap-6 items-start">
-
-        {/* Sidebar nav */}
-        <div className="w-48 flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Admin Panel</p>
-          </div>
-          <nav className="p-2 space-y-0.5">
-            {NAV_ITEMS.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors text-left ${
-                  tab === t.key
-                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'
-                }`}>
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon}/>
-                </svg>
-                <span className="flex-1">{t.label}</span>
-                {t.badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {t.badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
 
       {/* ── Organizations tab ─────────────────────────────────────────────────── */}
       {tab === 'profile' && (
@@ -1894,9 +1863,6 @@ export default function AdminPage() {
           }}
         />
       )}
-
-        </div>{/* /main content */}
-      </div>{/* /flex */}
 
     </AppLayout>
   )
