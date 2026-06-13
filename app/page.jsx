@@ -93,7 +93,7 @@ const FAQS = [
   { q: 'Can my receptionist use it too?', a: 'Yes. You can add receptionists and staff with their own login. Role-based access ensures they only see what they need to.' },
   { q: 'Is patient data secure?', a: "All data is stored in Firebase with 256-bit SSL encryption and strict access controls. Your patients' data is private and never shared." },
   { q: 'Can patients book appointments themselves?', a: 'Yes. Each doctor gets a shareable public booking link. Patients pick a date and time without calling your clinic.' },
-  { q: 'What happens after my trial ends?', a: "Reach out to us at prijeshdonga14@gmail.com and we'll set you up with the right plan. We'll notify you before your trial expires — no surprise charges." },
+  { q: 'What happens after my trial ends?', a: "Reach out to us at ideasring11@gmail.com and we'll set you up with the right plan. We'll notify you before your trial expires — no surprise charges." },
 ]
 
 const PRICING_ITEMS = [
@@ -214,7 +214,7 @@ function ContactForm() {
         {sending && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
         {sending ? 'Sending…' : 'Send Message →'}
       </button>
-      <p className="text-xs text-center text-gray-400">Or email us directly at <a href="mailto:prijeshdonga14@gmail.com" className="text-blue-600 hover:underline">prijeshdonga14@gmail.com</a></p>
+      <p className="text-xs text-center text-gray-400">Or email us directly at <a href="mailto:ideasring11@gmail.com" className="text-blue-600 hover:underline">ideasring11@gmail.com</a></p>
     </form>
   )
 }
@@ -615,7 +615,7 @@ export default function LandingPage() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-400 font-medium">Email</p>
-                      <a href="mailto:prijeshdonga14@gmail.com" className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">prijeshdonga14@gmail.com</a>
+                      <a href="mailto:ideasring11@gmail.com" className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">ideasring11@gmail.com</a>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">

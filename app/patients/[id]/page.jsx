@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -125,7 +125,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'Documents']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -813,6 +813,61 @@ export default function PatientProfilePage() {
     () => isReceptionist ? invoices.filter(i => i.createdBy?.uid === doctor?._receptionistUid) : invoices,
     [invoices, isReceptionist, doctor?._receptionistUid]
   )
+  // Documents tab state
+  const [documents,     setDocuments]     = useState([])
+  const [docsLoading,   setDocsLoading]   = useState(false)
+  const [uploading,     setUploading]     = useState(false)
+  const [uploadErr,     setUploadErr]     = useState('')
+
+  const loadDocuments = useCallback(async () => {
+    if (!doctor?.uid || !id) return
+    setDocsLoading(true)
+    try {
+      const token = await import('firebase/auth').then(m => m.getAuth()).then(a => a.currentUser?.getIdToken())
+      const res   = await fetch(`/api/upload-file?patientId=${id}&doctorId=${doctor.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      setDocuments(data.documents ?? [])
+    } catch {} finally { setDocsLoading(false) }
+  }, [doctor?.uid, id])
+
+  useEffect(() => { if (tab === 5) loadDocuments() }, [tab, loadDocuments])
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !doctor?.uid) return
+    setUploading(true); setUploadErr('')
+    try {
+      const { getAuth } = await import('firebase/auth')
+      const token  = await getAuth().currentUser?.getIdToken()
+      const form   = new FormData()
+      form.append('file', file)
+      form.append('patientId', id)
+      form.append('doctorId', doctor.uid)
+      const res  = await fetch('/api/upload-file', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setDocuments(prev => [data.document, ...prev])
+    } catch (err) { setUploadErr(err.message) }
+    finally { setUploading(false) }
+  }
+
+  const handleDeleteDoc = async (doc) => {
+    if (!window.confirm(`Delete "${doc.name}"?`)) return
+    setDocuments(prev => prev.filter(d => d.id !== doc.id))
+    try {
+      const { getAuth } = await import('firebase/auth')
+      const token = await getAuth().currentUser?.getIdToken()
+      await fetch('/api/upload-file', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorId: doctor.uid, patientId: id, docId: doc.id, url: doc.url }),
+      })
+    } catch { loadDocuments() }
+  }
+
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
   const [editInvoice,   setEditInvoice]   = useState(null)
@@ -1490,7 +1545,7 @@ export default function PatientProfilePage() {
       {/* Tabs — receptionists only see Appointments and Billing */}
       <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit overflow-x-auto">
         {TABS.map((t, i) => {
-          if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits')) return null
+          if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (
           <button key={t} onClick={() => setTab(i)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
@@ -1982,6 +2037,100 @@ export default function PatientProfilePage() {
           </div>
         )}
       </Modal>
+
+      {/* Tab 5: Documents */}
+      {tab === 5 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Patient Documents</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Reports, prescriptions, lab results, images — up to 20 MB each</p>
+            </div>
+            <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${
+              uploading
+                ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                : 'bg-primary-600 hover:bg-primary-700 text-white'
+            }`}>
+              {uploading ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  Upload File
+                </>
+              )}
+              <input type="file" className="hidden" disabled={uploading}
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={handleUpload}/>
+            </label>
+          </div>
+
+          {uploadErr && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+              {uploadErr}
+            </div>
+          )}
+
+          {docsLoading ? (
+            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">Loading documents…</div>
+          ) : documents.length === 0 ? (
+            <div className="py-16 text-center">
+              <div className="w-14 h-14 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No documents yet</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Upload reports, prescriptions, or images</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm divide-y divide-gray-50 dark:divide-gray-700/50">
+              {documents.map(doc => {
+                const isImage = doc.type?.startsWith('image/')
+                const isPdf   = doc.type === 'application/pdf'
+                const icon    = isImage ? '🖼️' : isPdf ? '📄' : doc.type?.includes('word') ? '📝' : doc.type?.includes('excel') || doc.type?.includes('sheet') ? '📊' : '📎'
+                const sizeKb  = doc.size ? (doc.size / 1024).toFixed(0) : null
+                const sizeMb  = sizeKb > 999 ? `${(doc.size / 1048576).toFixed(1)} MB` : `${sizeKb} KB`
+                return (
+                  <div key={doc.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <span className="text-2xl flex-shrink-0">{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{doc.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        {sizeMb && `${sizeMb} · `}
+                        {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 border border-primary-200 dark:border-primary-700 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                        Open
+                      </a>
+                      <button onClick={() => handleDeleteDoc(doc)}
+                        className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Delete Patient Modal */}
       <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">
