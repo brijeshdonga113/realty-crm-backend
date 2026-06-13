@@ -1323,6 +1323,10 @@ export default function AdminPage() {
   const [orgErr,        setOrgErr]       = useState('')
   const [editOrg,       setEditOrg]      = useState(null) // org being edited
   const [selectedOrg,   setSelectedOrg]  = useState(null) // org drawer
+  // Leads state
+  const [leads,         setLeads]        = useState([])
+  const [leadsLoading,  setLeadsLoading] = useState(false)
+  const [selectedLead,  setSelectedLead] = useState(null)
 
   // Profile tab state
   const [profileForm,    setProfileForm]    = useState({ firstName: '', lastName: '', email: '' })
@@ -1358,10 +1362,28 @@ export default function AdminPage() {
     }
   }
 
+  const fetchLeads = async () => {
+    setLeadsLoading(true)
+    try {
+      const res  = await adminFetch('/api/contact')
+      const data = await res.json()
+      setLeads(data.leads ?? [])
+    } finally {
+      setLeadsLoading(false)
+    }
+  }
+
+  const updateLeadStatus = async (id, status) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l))
+    if (selectedLead?.id === id) setSelectedLead(prev => ({ ...prev, status }))
+    await adminFetch('/api/contact', { method: 'PATCH', body: JSON.stringify({ id, status }) })
+  }
+
   useEffect(() => {
     if (authLoading || !doctor?.isAdmin) return
     fetchDoctors()
     fetchOrgs()
+    fetchLeads()
     setProfileForm({ firstName: doctor.firstName ?? '', lastName: doctor.lastName ?? '', email: doctor.email ?? '' })
   }, [doctor, authLoading])
 
@@ -1473,6 +1495,7 @@ export default function AdminPage() {
         {[
           { key: 'dashboard', label: 'Clinics',       icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
           { key: 'profile',   label: 'Organizations', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+          { key: 'leads',     label: 'Leads',         icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', badge: leads.filter(l => l.status === 'new').length },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
@@ -1484,6 +1507,11 @@ export default function AdminPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon}/>
             </svg>
             {t.label}
+            {t.badge > 0 && (
+              <span className="ml-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1598,6 +1626,149 @@ export default function AdminPage() {
                   }}
                 />
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Leads tab ─────────────────────────────────────────────────────────── */}
+      {tab === 'leads' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Contact Leads</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Submitted via the landing page contact form</p>
+            </div>
+            <button onClick={fetchLeads} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">Refresh</button>
+          </div>
+
+          {leadsLoading ? (
+            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">Loading leads…</div>
+          ) : leads.length === 0 ? (
+            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">No leads yet. They'll appear here when visitors submit the contact form.</div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                      {['Name', 'Email', 'Phone', 'Type', 'Date', 'Status', ''].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide first:pl-5 last:pr-5">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {leads.map(lead => {
+                      const statusCfg = {
+                        new:       'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                        read:      'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+                        contacted: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                      }
+                      const typeLabel = { pricing: 'Pricing', demo: 'Demo', support: 'Support', general: 'General' }
+                      return (
+                        <tr key={lead.id} onClick={() => setSelectedLead(lead)}
+                          className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors cursor-pointer">
+                          <td className="px-4 py-3.5 pl-5">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{lead.name}</p>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()}
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:underline">{lead.email}</a>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-sm text-gray-600 dark:text-gray-300">{lead.phone || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{typeLabel[lead.type] ?? lead.type}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-xs text-gray-400 dark:text-gray-500">{fmtDate(lead.createdAt)}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${statusCfg[lead.status] ?? ''}`}>
+                              {lead.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 pr-5">
+                            <select value={lead.status}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => updateLeadStatus(lead.id, e.target.value)}
+                              className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-400">
+                              <option value="new">New</option>
+                              <option value="read">Read</option>
+                              <option value="contacted">Contacted</option>
+                            </select>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Lead detail drawer */}
+          {selectedLead && (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedLead(null)}/>
+              <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 h-full flex flex-col shadow-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                  <h2 className="font-bold text-gray-900 dark:text-white">Lead Details</h2>
+                  <button onClick={() => setSelectedLead(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'Name',    value: selectedLead.name  },
+                      { label: 'Email',   value: selectedLead.email },
+                      { label: 'Phone',   value: selectedLead.phone || '—' },
+                      { label: 'Type',    value: { pricing: 'Pricing & Plans', demo: 'Request a Demo', support: 'Technical Support', general: 'General Inquiry' }[selectedLead.type] ?? selectedLead.type },
+                      { label: 'Received', value: fmtDate(selectedLead.createdAt) },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">{f.label}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{f.value}</p>
+                      </div>
+                    ))}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Status</p>
+                      <select value={selectedLead.status} onChange={e => updateLeadStatus(selectedLead.id, e.target.value)}
+                        className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-400">
+                        <option value="new">New</option>
+                        <option value="read">Read</option>
+                        <option value="contacted">Contacted</option>
+                      </select>
+                    </div>
+                  </div>
+                  {selectedLead.message && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Message</p>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                        {selectedLead.message}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <a href={`mailto:${selectedLead.email}`}
+                      className="flex-1 text-center py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                      Reply via Email
+                    </a>
+                    {selectedLead.phone && (
+                      <a href={`https://wa.me/${selectedLead.phone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                        className="flex-1 text-center py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                        WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

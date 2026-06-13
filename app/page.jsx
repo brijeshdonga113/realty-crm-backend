@@ -125,6 +125,100 @@ function ChevronDown({ open }) {
   )
 }
 
+const INQUIRY_TYPES = [
+  { value: 'pricing',  label: 'Pricing & Plans'   },
+  { value: 'demo',     label: 'Request a Demo'     },
+  { value: 'support',  label: 'Technical Support'  },
+  { value: 'general',  label: 'General Inquiry'    },
+]
+
+function ContactForm() {
+  const [form,    setForm]    = useState({ name: '', email: '', phone: '', type: 'pricing', message: '' })
+  const [sending, setSending] = useState(false)
+  const [done,    setDone]    = useState(false)
+  const [err,     setErr]     = useState('')
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSending(true); setErr('')
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Something went wrong.')
+      setDone(true)
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (done) return (
+    <div className="text-center py-10">
+      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h3 className="text-xl font-bold text-gray-900 mb-2">Message sent!</h3>
+      <p className="text-gray-500 text-sm">We'll get back to you within 24 hours.</p>
+    </div>
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Your Name *</label>
+          <input value={form.name} onChange={e => set('name', e.target.value)} required
+            placeholder="Dr. Priya Mehta"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address *</label>
+          <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required
+            placeholder="doctor@clinic.com"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+          <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
+            placeholder="+91 98765 43210"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Inquiry Type</label>
+          <select value={form.type} onChange={e => set('type', e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+            {INQUIRY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Message</label>
+        <textarea value={form.message} onChange={e => set('message', e.target.value)} rows={4}
+          placeholder="Tell us about your clinic — specialization, number of doctors, what you're looking for…"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"/>
+      </div>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      <button type="submit" disabled={sending}
+        className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2">
+        {sending && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+        {sending ? 'Sending…' : 'Send Message →'}
+      </button>
+      <p className="text-xs text-center text-gray-400">Or email us directly at <a href="mailto:prijeshdonga14@gmail.com" className="text-blue-600 hover:underline">prijeshdonga14@gmail.com</a></p>
+    </form>
+  )
+}
+
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState(null)
 
@@ -499,39 +593,61 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Contact for Pricing */}
+      {/* Contact */}
       <section id="contact" className="py-24 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Pricing & Setup</h2>
-            <p className="text-gray-500 text-lg">Get a plan tailored to your clinic. Reach out and we'll set everything up for you.</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Get in Touch</h2>
+            <p className="text-gray-500 text-lg">Questions about pricing, a demo, or just want to say hi? We reply within 24 hours.</p>
           </div>
-          <div className="max-w-lg mx-auto">
-            <div className="bg-white rounded-3xl border-2 border-blue-600 shadow-2xl shadow-blue-100 p-8 text-center">
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start max-w-5xl mx-auto">
+
+            {/* Left — info */}
+            <div className="lg:col-span-2 space-y-6">
+              <div>
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">Contact Info</p>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium">Email</p>
+                      <a href="mailto:prijeshdonga14@gmail.com" className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">prijeshdonga14@gmail.com</a>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-green-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium">Phone / WhatsApp</p>
+                      <a href="https://wa.me/917016663636" className="text-sm font-semibold text-gray-900 hover:text-green-600 transition-colors">+91 70166 63636</a>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wide">Contact Us for Pricing</div>
-              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-                Every clinic is different. Mail us and we'll share pricing details and get your clinic set up quickly.
-              </p>
-              <ul className="text-left text-sm text-gray-600 space-y-3 mb-8">
-                {PRICING_ITEMS.map(item => (
-                  <li key={item} className="flex items-center gap-2.5">
-                    <CheckIcon />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href="mailto:prijeshdonga14@gmail.com?subject=Cliniwayz%20Pricing%20%26%20Setup"
-                className="block w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition-colors"
-              >
-                Mail Us for Pricing
-              </a>
-              <p className="text-xs text-gray-400 mt-3">prijeshdonga14@gmail.com</p>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">What's included</p>
+                <ul className="space-y-2.5">
+                  {PRICING_ITEMS.map(item => (
+                    <li key={item} className="flex items-center gap-2 text-sm text-gray-600">
+                      <CheckIcon className="w-4 h-4 text-green-500 flex-shrink-0"/>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Right — form */}
+            <div className="lg:col-span-3 bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/80 p-8">
+              <ContactForm />
             </div>
           </div>
         </div>
