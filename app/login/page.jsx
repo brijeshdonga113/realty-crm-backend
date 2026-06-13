@@ -48,9 +48,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Already logged in — redirect to dashboard
+  // Already logged in — redirect appropriately
   useEffect(() => {
-    if (!authLoading && doctor) router.replace('/dashboard')
+    if (!authLoading && doctor) router.replace(doctor.isAdmin ? '/admin' : '/dashboard')
   }, [authLoading, doctor, router])
 
   const handleChange = (e) => {
@@ -66,8 +66,8 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      await login(form.email, form.password)
-      router.push('/dashboard')
+      const profile = await login(form.email, form.password)
+      router.push(profile?.isAdmin ? '/admin' : '/dashboard')
     } catch (err) {
       setError(friendlyAuthError(err))
     } finally {
@@ -94,7 +94,7 @@ export default function LoginPage() {
                 d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
           </div>
-          <span className="text-white text-xl font-bold tracking-tight">ClinicCRM</span>
+          <span className="text-white text-xl font-bold tracking-tight">Cliniwayz</span>
         </div>
 
         {/* Centre content — fills available space */}
@@ -134,7 +134,7 @@ export default function LoginPage() {
         {/* Testimonial quote */}
         <div className="relative bg-white/10 backdrop-blur rounded-2xl p-4 flex-shrink-0">
           <p className="text-primary-100 text-sm italic mb-3">
-            "ClinicCRM cut my admin time in half. I can focus on patients instead of paperwork."
+            "Cliniwayz cut my admin time in half. I can focus on patients instead of paperwork."
           </p>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">PM</div>
@@ -145,7 +145,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} ClinicCRM.</p>
+        <p className="relative text-primary-400 text-xs flex-shrink-0">© {new Date().getFullYear()} Cliniwayz.</p>
       </div>
 
       {/* ── Right panel — 50% ──────────────────────────────────────────────── */}
@@ -160,7 +160,7 @@ export default function LoginPage() {
                   d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <span className="text-primary-700 text-lg font-bold">ClinicCRM</span>
+            <span className="text-primary-700 text-lg font-bold">Cliniwayz</span>
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back, Doctor</h2>
@@ -239,15 +239,9 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            New to ClinicCRM?{' '}
+            New to Cliniwayz?{' '}
             <Link href="/signup" className="text-primary-600 font-medium hover:underline">
               Create an account
-            </Link>
-          </p>
-          <p className="mt-2 text-center text-sm text-gray-500">
-            Are you a receptionist?{' '}
-            <Link href="/signup/receptionist" className="text-primary-600 font-medium hover:underline">
-              Sign up here
             </Link>
           </p>
 

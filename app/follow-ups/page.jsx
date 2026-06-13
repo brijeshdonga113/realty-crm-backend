@@ -158,6 +158,38 @@ function Section({ title, count, color, children, emptyMsg, defaultOpen = true }
   )
 }
 
+function ArchivedOverdueSection({ entries, router, doctor, onMarkDone }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-800/40 shadow-sm overflow-hidden opacity-75">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-5 py-3.5 border-b border-red-100 dark:border-red-800/30 flex items-center justify-between hover:bg-red-50/40 dark:hover:bg-red-900/10 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+          </svg>
+          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8"/>
+          </svg>
+          <h3 className="font-semibold text-red-700 dark:text-red-400">Archived (15+ days overdue)</h3>
+        </div>
+        <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700">{entries.length}</span>
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-50 dark:divide-gray-700">
+          {entries.map(e => (
+            <FollowUpRow key={`${e.source}-${e.id}`} entry={e} router={router} doctor={doctor} onMarkDone={onMarkDone}/>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FollowUpsPage() {
   const router = useRouter()
   const { doctor } = useAuth()
@@ -204,12 +236,14 @@ export default function FollowUpsPage() {
     return list
   }, [allEntries, filterDate, viewMode, today])
 
-  const overdue  = displayed.filter(e => e.dueDate < today).sort((a,b) => a.dueDate.localeCompare(b.dueDate))
+  const allOverdue  = displayed.filter(e => e.dueDate < today).sort((a,b) => a.dueDate.localeCompare(b.dueDate))
+  const overdue     = allOverdue.filter(e => daysBetween(e.dueDate) > -15)
+  const archivedOverdue = allOverdue.filter(e => daysBetween(e.dueDate) <= -15)
   const todayF   = displayed.filter(e => e.dueDate === today)
   const tomorrowF= displayed.filter(e => e.dueDate === tomorrow)
   const upcoming = displayed.filter(e => e.dueDate > tomorrow).sort((a,b) => a.dueDate.localeCompare(b.dueDate))
 
-  const totalDue = overdue.length + todayF.length
+  const totalDue = overdue.length + archivedOverdue.length + todayF.length
 
 
   return (
@@ -239,7 +273,7 @@ export default function FollowUpsPage() {
           {/* Summary bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Overdue',   count: allEntries.filter(e => e.dueDate < today).length,    color: 'text-red-600 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800' },
+              { label: 'Overdue',   count: allEntries.filter(e => e.dueDate < today && daysBetween(e.dueDate) > -15).length,    color: 'text-red-600 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800' },
               { label: 'Today',     count: allEntries.filter(e => e.dueDate === today).length,   color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800' },
               { label: 'Tomorrow',  count: allEntries.filter(e => e.dueDate === tomorrow).length, color: 'text-yellow-600 dark:text-yellow-400',  bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-100 dark:border-yellow-800' },
               { label: 'Upcoming',  count: allEntries.filter(e => e.dueDate > tomorrow).length,  color: 'text-primary-600 dark:text-primary-400', bg: 'bg-primary-50 dark:bg-primary-900/20 border-primary-100 dark:border-primary-800' },
@@ -343,10 +377,14 @@ export default function FollowUpsPage() {
                 </Section>
               )}
 
-              {viewMode === 'missed' && overdue.length === 0 && (
+              {viewMode === 'missed' && overdue.length === 0 && archivedOverdue.length === 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-8 text-center text-sm text-gray-400">
                   No missed follow-ups.
                 </div>
+              )}
+
+              {archivedOverdue.length > 0 && (
+                <ArchivedOverdueSection entries={archivedOverdue} router={router} doctor={doctor} onMarkDone={markDone} />
               )}
             </>
           )}

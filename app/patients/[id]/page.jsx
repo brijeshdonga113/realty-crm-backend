@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
@@ -125,7 +125,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'Documents']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -140,6 +140,7 @@ function InfoRow({ label, value }) {
 /* ─────────────── VisitCard with edit + delete ─────────────── */
 function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedInvoice, blockedSlots = [], linkedFollowUp, defaultExpanded = false }) {
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
+  const { doctor } = useAuth()
   const toast = useToast()
   const router = useRouter()
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -207,7 +208,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
         <div className="flex-shrink-0 min-w-[72px]">
           <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatDate(visit.visitDate)}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-            {new Date(visit.visitDate).toLocaleTimeString('en-US', { timeStyle: 'short' })}
+            {visit.createdAt ? new Date(visit.createdAt).toLocaleTimeString('en-US', { timeStyle: 'short' }) : ''}
           </p>
         </div>
 
@@ -266,12 +267,14 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
 
         {/* Actions — stop propagation so they don't toggle expand */}
         <div className="flex-shrink-0 flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-          <button onClick={openEdit} title="Edit visit"
-            className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
-          </button>
+          {!doctor?.viewOnly && (
+            <button onClick={openEdit} title="Edit visit"
+              className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+          )}
           {onDelete && (
             <button title="Delete visit"
               onClick={() => { if (window.confirm('Delete this visit record? This cannot be undone.')) onDelete(visit.id) }}
@@ -790,7 +793,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
 export default function PatientProfilePage() {
   const { id } = useParams()
   const router  = useRouter()
-  const { doctor } = useAuth()
+  const { doctor, isReceptionist } = useAuth()
   const specialization = doctor?.specialization ?? ''
   const { formatCurrency, formatDate, formatDateFull } = usePreferences()
   const toast = useToast()
@@ -803,12 +806,77 @@ export default function PatientProfilePage() {
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
-  const [tab, setTab]            = useState(0)
+  // Receptionists skip to Appointments tab (index 3) — Overview/Follow-ups/Visits are hidden
+  const [tab, setTab]            = useState(isReceptionist ? 3 : 0)
+  // Receptionists only see invoices they created
+  const visibleInvoices = useMemo(
+    () => isReceptionist ? invoices.filter(i => i.createdBy?.uid === doctor?._receptionistUid) : invoices,
+    [invoices, isReceptionist, doctor?._receptionistUid]
+  )
+  // Documents tab state
+  const [documents,     setDocuments]     = useState([])
+  const [docsLoading,   setDocsLoading]   = useState(false)
+  const [uploading,     setUploading]     = useState(false)
+  const [uploadErr,     setUploadErr]     = useState('')
+
+  const loadDocuments = useCallback(async () => {
+    if (!doctor?.uid || !id) return
+    setDocsLoading(true)
+    try {
+      const token = await import('firebase/auth').then(m => m.getAuth()).then(a => a.currentUser?.getIdToken())
+      const res   = await fetch(`/api/upload-file?patientId=${id}&doctorId=${doctor.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      setDocuments(data.documents ?? [])
+    } catch {} finally { setDocsLoading(false) }
+  }, [doctor?.uid, id])
+
+  useEffect(() => { if (tab === 5) loadDocuments() }, [tab, loadDocuments])
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !doctor?.uid) return
+    setUploading(true); setUploadErr('')
+    try {
+      const { getAuth } = await import('firebase/auth')
+      const token  = await getAuth().currentUser?.getIdToken()
+      const form   = new FormData()
+      form.append('file', file)
+      form.append('patientId', id)
+      form.append('doctorId', doctor.uid)
+      const res  = await fetch('/api/upload-file', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setDocuments(prev => [data.document, ...prev])
+    } catch (err) { setUploadErr(err.message) }
+    finally { setUploading(false) }
+  }
+
+  const handleDeleteDoc = async (doc) => {
+    if (!window.confirm(`Delete "${doc.name}"?`)) return
+    setDocuments(prev => prev.filter(d => d.id !== doc.id))
+    try {
+      const { getAuth } = await import('firebase/auth')
+      const token = await getAuth().currentUser?.getIdToken()
+      await fetch('/api/upload-file', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorId: doctor.uid, patientId: id, docId: doc.id, url: doc.url }),
+      })
+    } catch { loadDocuments() }
+  }
+
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting]               = useState(false)
   const [editInvoice,   setEditInvoice]   = useState(null)
   const [editInvForm,   setEditInvForm]   = useState({ description: '', amount: '', method: 'cash', status: 'draft', collectedBy: '' })
   const [editInvSaving, setEditInvSaving] = useState(false)
+  const [payModal,      setPayModal]      = useState(null) // invoice to mark paid
+  const [payMethod,     setPayMethod]     = useState('cash')
+  const [payCollectedBy, setPayCollectedBy] = useState('doctor')
+  const [payMarking,    setPayMarking]    = useState(false)
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -1027,6 +1095,24 @@ export default function PatientProfilePage() {
       toast.error('Failed to update invoice. Please try again.')
     } finally {
       setEditInvSaving(false)
+    }
+  }
+
+  async function handleMarkPaid() {
+    if (!payModal) return
+    setPayMarking(true)
+    try {
+      await billingService.update(payModal.id, {
+        status:        'paid',
+        paymentMethod: payMethod,
+        collectedBy:   payCollectedBy,
+        paymentDate:   new Date().toISOString().slice(0, 10),
+      })
+      setPayModal(null)
+    } catch {
+      toast.error('Failed to mark as paid. Please try again.')
+    } finally {
+      setPayMarking(false)
     }
   }
 
@@ -1368,13 +1454,15 @@ export default function PatientProfilePage() {
             className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1.5 transition-colors">
             ← Back
           </button>
-          <button onClick={() => router.push(`/patients/${id}/edit`)}
-            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
-            Edit
-          </button>
+          {!doctor?.viewOnly && (
+            <button onClick={() => router.push(`/patients/${id}/edit`)}
+              className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit
+            </button>
+          )}
           <button onClick={() => window.print()}
             className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1382,20 +1470,24 @@ export default function PatientProfilePage() {
             </svg>
             Export PDF
           </button>
-          <button onClick={() => setShowDeleteModal(true)}
-            className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-            Delete
-          </button>
-          <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
-            className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
-            Record Visit
-          </button>
+          {!doctor?.viewOnly && (
+            <button onClick={() => setShowDeleteModal(true)}
+              className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Delete
+            </button>
+          )}
+          {!doctor?.viewOnly && (
+            <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
+              className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+              </svg>
+              Record Visit
+            </button>
+          )}
         </div>
       }
     >
@@ -1441,13 +1533,20 @@ export default function PatientProfilePage() {
           <span>{visits.length} visit{visits.length !== 1 ? 's' : ''}</span>
           <span>{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
           <span>{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
+          {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+            <span className="text-red-300 font-semibold">
+              {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
+            </span>
+          )}
           <span>{patientFollowUps.length} follow-up{patientFollowUps.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — receptionists only see Appointments and Billing */}
       <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit overflow-x-auto">
-        {TABS.map((t, i) => (
+        {TABS.map((t, i) => {
+          if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
+          return (
           <button key={t} onClick={() => setTab(i)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
               ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
@@ -1457,8 +1556,14 @@ export default function PatientProfilePage() {
                 {followUpDueCount}
               </span>
             )}
+            {t === 'Billing' && invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
+              </span>
+            )}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* Tab 0: Overview */}
@@ -1746,10 +1851,34 @@ export default function PatientProfilePage() {
 
       {/* Tab 4: Billing */}
       {tab === 4 && (
-        <div>
-          {invoices.length === 0 ? (
-            <EmptyState title="No invoices" description="No billing history for this patient."
-              action={() => router.push(`/billing/new?patientId=${id}`)} actionLabel="Create Invoice"/>
+        <div className="space-y-4">
+          {isReceptionist && (
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Showing only invoices you created.
+            </div>
+          )}
+          {/* Due bills alert */}
+          {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+            <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                  {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} unpaid invoice{visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                  {formatCurrency(visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').reduce((s, i) => s + (i.total || 0), 0))} pending collection
+                </p>
+              </div>
+            </div>
+          )}
+          {visibleInvoices.length === 0 ? (
+            <EmptyState title="No invoices" description={isReceptionist ? "You haven't created any invoices for this patient yet." : "No billing history for this patient."}
+              action={!doctor?.viewOnly ? () => router.push(`/billing/new?patientId=${id}`) : undefined} actionLabel="Create Invoice"/>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <table className="w-full">
@@ -1761,7 +1890,7 @@ export default function PatientProfilePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                  {invoices.map(inv => (
+                  {visibleInvoices.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
@@ -1776,10 +1905,18 @@ export default function PatientProfilePage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => openInvEdit(inv)}
-                            className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:underline transition-colors">
-                            Edit
-                          </button>
+                          {!doctor?.viewOnly && inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                            <button onClick={() => { setPayModal(inv); setPayMethod('cash'); setPayCollectedBy(isReceptionist ? 'receptionist' : 'doctor') }}
+                              className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors">
+                              Mark Paid
+                            </button>
+                          )}
+                          {!doctor?.viewOnly && (
+                            <button onClick={() => openInvEdit(inv)}
+                              className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:underline transition-colors">
+                              Edit
+                            </button>
+                          )}
                           <button onClick={() => router.push(`/billing?invoice=${inv.id}`)}
                             className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors">
                             View
@@ -1792,11 +1929,13 @@ export default function PatientProfilePage() {
               </table>
               <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30 flex items-center justify-between">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {invoices.filter(i => i.status === 'paid').length} paid · {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} pending
+                  {visibleInvoices.filter(i => i.status === 'paid').length} paid · {visibleInvoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} pending
                 </span>
-                <span className="text-sm font-bold text-gray-900 dark:text-white">
-                  Total: {formatCurrency(invoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total || 0), 0))} collected
-                </span>
+                {!isReceptionist && (
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    Total: {formatCurrency(visibleInvoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total || 0), 0))} collected
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -1849,6 +1988,149 @@ export default function PatientProfilePage() {
           </div>
         )}
       </Modal>
+
+      {/* Mark Paid Modal */}
+      <Modal open={!!payModal} onClose={() => setPayModal(null)} title="Mark as Paid" size="sm">
+        {payModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Invoice <span className="font-semibold text-gray-900 dark:text-white">{payModal.invoiceNumber}</span> — {formatCurrency(payModal.total)}
+            </p>
+            <div>
+              <label className="form-label">Payment Method</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m.value} type="button"
+                    onClick={() => setPayMethod(m.value)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      payMethod === m.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
+                    }`}>{m.label}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Collected By</label>
+              <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-sm font-medium">
+                {COLLECTED_BY_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => setPayCollectedBy(o.value)}
+                    className={`flex-1 py-2 transition-colors ${
+                      payCollectedBy === o.value
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}>{o.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setPayModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={handleMarkPaid} disabled={payMarking}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+                {payMarking ? 'Saving…' : 'Confirm Paid'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Tab 5: Documents */}
+      {tab === 5 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Patient Documents</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Reports, prescriptions, lab results, images — up to 20 MB each</p>
+            </div>
+            <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${
+              uploading
+                ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                : 'bg-primary-600 hover:bg-primary-700 text-white'
+            }`}>
+              {uploading ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  Upload File
+                </>
+              )}
+              <input type="file" className="hidden" disabled={uploading}
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={handleUpload}/>
+            </label>
+          </div>
+
+          {uploadErr && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+              {uploadErr}
+            </div>
+          )}
+
+          {docsLoading ? (
+            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">Loading documents…</div>
+          ) : documents.length === 0 ? (
+            <div className="py-16 text-center">
+              <div className="w-14 h-14 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No documents yet</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Upload reports, prescriptions, or images</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm divide-y divide-gray-50 dark:divide-gray-700/50">
+              {documents.map(doc => {
+                const isImage = doc.type?.startsWith('image/')
+                const isPdf   = doc.type === 'application/pdf'
+                const icon    = isImage ? '🖼️' : isPdf ? '📄' : doc.type?.includes('word') ? '📝' : doc.type?.includes('excel') || doc.type?.includes('sheet') ? '📊' : '📎'
+                const sizeKb  = doc.size ? (doc.size / 1024).toFixed(0) : null
+                const sizeMb  = sizeKb > 999 ? `${(doc.size / 1048576).toFixed(1)} MB` : `${sizeKb} KB`
+                return (
+                  <div key={doc.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <span className="text-2xl flex-shrink-0">{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{doc.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        {sizeMb && `${sizeMb} · `}
+                        {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 border border-primary-200 dark:border-primary-700 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                        Open
+                      </a>
+                      <button onClick={() => handleDeleteDoc(doc)}
+                        className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Delete Patient Modal */}
       <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Patient Record" size="sm">

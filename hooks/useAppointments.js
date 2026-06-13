@@ -46,9 +46,20 @@ export function usePatientAppointments(patientId) {
 
   useEffect(() => {
     if (!patientId) return
-    appointmentService.getForPatient(patientId)
-      .then(setAppointments)
-      .finally(() => setLoading(false))
+    setLoading(true)
+    // Use real-time subscription so status changes (e.g. completed) reflect immediately
+    const unsub = dataStore.subscribe('appointments', (all) => {
+      const filtered = all
+        .filter(a => a.patientId === patientId)
+        .sort((a, b) => {
+          const da = new Date(`${a.date}T${a.time || '00:00'}`)
+          const db = new Date(`${b.date}T${b.time || '00:00'}`)
+          return db - da
+        })
+      setAppointments(filtered)
+      setLoading(false)
+    })
+    return () => unsub()
   }, [patientId])
 
   return { appointments, loading }

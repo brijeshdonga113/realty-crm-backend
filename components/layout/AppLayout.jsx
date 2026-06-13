@@ -5,8 +5,6 @@ import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/hooks/useTheme'
 import Sidebar from '@/components/Sidebar'
 import { useNotifications } from '@/hooks/useNotifications'
-import { useSubscription } from '@/hooks/useSubscription'
-import { SubscriptionBanner } from '@/components/ui/SubscriptionBanner'
 import { ChatWidget } from '@/components/chat/ChatWidget'
 import { GlobalSearch } from '@/components/ui/GlobalSearch'
 
@@ -38,7 +36,6 @@ export function AppLayout({ children, title, action }) {
   const router   = useRouter()
   const pathname = usePathname()
   const { unreadCount } = useNotifications()
-  const { isReadOnly } = useSubscription()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Swap favicon to clinic logo when available
@@ -116,8 +113,6 @@ export function AppLayout({ children, title, action }) {
             </div>
           )}
         </header>
-
-        <SubscriptionBanner />
 
         {/* Page content */}
         <div className="flex-1 p-4 lg:p-8">

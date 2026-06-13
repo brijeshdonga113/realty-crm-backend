@@ -1,10 +1,10 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 import { initTrial } from '@/lib/subscription'
-import { getDefaultFields } from '@/lib/patientIntakePresets'
+import { setActiveBranchUid } from '@/lib/dataStore'
 
 const AuthContext = createContext(null)
 
@@ -41,11 +41,20 @@ function buildDoctorProfile(uid, data) {
     bookingSlug:   data.bookingSlug   ?? '',
     workingHours:  data.workingHours  ?? null,
     logoUrl:       data.logoUrl       ?? '',
-    waTemplates:   data.waTemplates   ?? null,
+    waTemplates:      data.waTemplates      ?? null,
+    serviceCharges:   data.serviceCharges   ?? [],
+    billingStatuses:  data.billingStatuses  ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],
-    patientFormFields:     data.patientFormFields     ?? [],
-    serviceCharges:        data.serviceCharges        ?? [],
     createdAt:     data.createdAt     ?? new Date().toISOString(),
+    isAdmin:         data.isAdmin         ?? false,
+    viewOnly:        data.viewOnly        ?? false,
+    organizationId:  data.organizationId  ?? null,
+    branchName:      data.branchName      ?? '',
+    allowedWriters:  data.allowedWriters  ?? [],
+    allowedReaders:  data.allowedReaders  ?? null,
+    clinicRole:      data.clinicRole      ?? 'doctor',
+    managedBy:       data.managedBy       ?? null,
+    managedDoctors:  data.managedDoctors  ?? [],
   }
 }
 
@@ -93,7 +102,7 @@ async function loadReceptionistSession(uid, userEmail) {
   const { doc, getDoc } = await import('firebase/firestore')
   const recSnap = await getDoc(doc(db, 'receptionists', uid))
   if (!recSnap.exists()) return null
-  const { name, email, doctorId, ...recData } = recSnap.data()
+  const { name, email, doctorId, viewOnly: recViewOnly, ...recData } = recSnap.data()
   const doctorProfile = await loadFirebaseProfile(doctorId)
   if (!doctorProfile) return null
 
@@ -106,6 +115,8 @@ async function loadReceptionistSession(uid, userEmail) {
   return {
     ...doctorProfile,
     ...ownPrefs,
+    // Per-receptionist viewOnly overrides the clinic-level flag
+    viewOnly: recViewOnly ?? doctorProfile.viewOnly ?? false,
     _role: 'receptionist',
     _receptionistUid: uid,
     _receptionistName: name,
@@ -116,8 +127,15 @@ async function loadReceptionistSession(uid, userEmail) {
 export function AuthProvider({ children }) {
   // Hydrate from localStorage immediately so the app renders without a login flash.
   // Firebase onAuthStateChanged then validates and refreshes the session in the background.
-  const [doctor, setDoctor]   = useState(() => typeof window !== 'undefined' ? getLocalSession() : null)
-  const [loading, setLoading] = useState(true)
+  const [doctor,         setDoctor]         = useState(() => typeof window !== 'undefined' ? getLocalSession() : null)
+  const [loading,        setLoading]        = useState(true)
+  // Multi-branch org state
+  const [baseDoctor,     setBaseDoctor]     = useState(null) // always the logged-in user's profile
+  const [activeBranch,   setActiveBranchState] = useState(null) // { uid, branchName }
+  const [org,            setOrg]            = useState(null) // { id, name, branches: [{uid, branchName}] }
+  // Clinic admin: list of managed doctor profiles + which one is currently active
+  const [managedDoctors,       setManagedDoctors]       = useState([])
+  const [activeManagedDoctor,  setActiveManagedDoctor]  = useState(null)
 
   useEffect(() => {
     let unsubscribe
@@ -136,6 +154,9 @@ export function AuthProvider({ children }) {
               restoreGoogleCalendarConnection(profile.googleCalendarConnected)
               saveSessionLocally(profile)
               setDoctor(profile)
+              setBaseDoctor(profile)
+              loadOrg(profile, profile)
+              loadManagedDoctors(profile)
             } else {
               // No doctor profile — check if this is a receptionist account
               const recSession = await loadReceptionistSession(user.uid, user.email)
@@ -177,8 +198,7 @@ export function AuthProvider({ children }) {
       const cred       = await createUserWithEmailAndPassword(auth, doctorData.email, doctorData.password)
       const uid        = cred.user.uid
       const inviteCode = generateInviteCode()
-      const patientFormFields = getDefaultFields(doctorData.specialization)
-      const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial(), patientFormFields })
+      const profile    = buildDoctorProfile(uid, { ...doctorData, inviteCode, subscription: initTrial() })
 
       await setDoc(doc(db, ...profileDocPath(uid)), toFirestoreProfile(profile))
       await setDoc(doc(db, 'inviteCodes', inviteCode), { doctorId: uid, createdAt: new Date().toISOString() })
@@ -248,6 +268,9 @@ export function AuthProvider({ children }) {
     if (profile) {
       saveSessionLocally(profile)
       setDoctor(profile)
+      setBaseDoctor(profile)
+      loadOrg(profile)
+      loadManagedDoctors(profile)
       return profile
     }
 
@@ -311,17 +334,147 @@ export function AuthProvider({ children }) {
     return updated
   }
 
+  // Persist active branch in localStorage so it survives page refreshes
+  const BRANCH_KEY = 'clinic_crm_active_branch'
+  const saveActiveBranch = (branch) => {
+    try {
+      if (branch) localStorage.setItem(BRANCH_KEY, JSON.stringify(branch))
+      else localStorage.removeItem(BRANCH_KEY)
+    } catch {}
+  }
+  const getSavedBranch = () => {
+    try { return JSON.parse(localStorage.getItem(BRANCH_KEY) ?? 'null') } catch { return null }
+  }
+
+  // Load org when a doctor profile with organizationId is available,
+  // then restore any previously selected branch
+  const loadOrg = useCallback(async (profile, base) => {
+    if (!profile?.organizationId) { setOrg(null); return }
+    try {
+      const { doc, getDoc } = await import('firebase/firestore')
+      const snap = await getDoc(doc(db, 'organizations', profile.organizationId))
+      if (!snap.exists()) { setOrg(null); return }
+      const orgData = { id: snap.id, ...snap.data() }
+      setOrg(orgData)
+
+      // Restore saved branch if it belongs to this org
+      const saved = getSavedBranch()
+      if (saved && (orgData.branches ?? []).some(b => b.uid === saved.uid) && saved.uid !== profile.id) {
+        setActiveBranchUid(saved.uid)
+        setActiveBranchState(saved)
+        const branchProfile = await loadFirebaseProfile(saved.uid)
+        if (branchProfile) {
+          const hasWriteAccess = (branchProfile.allowedWriters ?? []).includes(profile.id)
+          setDoctor({
+            ...branchProfile,
+            _activeBranch:  saved,
+            _baseDoctor:    base ?? profile,
+            organizationId: profile.organizationId,
+            viewOnly:       !hasWriteAccess,
+          })
+        }
+      }
+    } catch { setOrg(null) }
+  }, [])
+
+  // Clinic admin: load profiles for all doctors in managedDoctors array
+  const loadManagedDoctors = useCallback(async (profile) => {
+    if (profile?.clinicRole !== 'clinic_admin' || !profile.managedDoctors?.length) {
+      setManagedDoctors([])
+      return
+    }
+    try {
+      const profiles = await Promise.all(profile.managedDoctors.map(uid => loadFirebaseProfile(uid)))
+      setManagedDoctors(profiles.filter(Boolean))
+    } catch {
+      setManagedDoctors([])
+    }
+  }, [])
+
+  // Clinic admin: re-fetch own profile + reload managed doctor profiles (call after adding a new doctor)
+  const refreshManagedDoctors = useCallback(async () => {
+    if (!baseDoctor?.id) return
+    const updated = await loadFirebaseProfile(baseDoctor.id)
+    if (!updated) return
+    setBaseDoctor(updated)
+    setDoctor(prev => (prev?._isManagedView ? prev : updated))
+    await loadManagedDoctors(updated)
+  }, [baseDoctor, loadManagedDoctors])
+
+  // Clinic admin: switch to view a managed doctor's data (transparent — doctor doesn't know)
+  const switchManagedDoctor = useCallback(async (uid) => {
+    // Always clear org branch state — managed doctor view and branch view are mutually exclusive
+    setActiveBranchState(null)
+    saveActiveBranch(null)
+    if (!uid) {
+      setActiveBranchUid(null)
+      setActiveManagedDoctor(null)
+      setDoctor(baseDoctor)
+      return
+    }
+    setActiveBranchUid(uid)
+    const profile = await loadFirebaseProfile(uid)
+    if (profile) {
+      setActiveManagedDoctor(profile)
+      setDoctor({ ...profile, _baseDoctorId: baseDoctor?.id, _isManagedView: true, viewOnly: false })
+    }
+  }, [baseDoctor])
+
+  // Switch active branch — loads that branch's profile and redirects dataStore
+  // Returns { ok: true } or { ok: false, reason: string }
+  const switchBranch = useCallback(async (branch) => {
+    if (!branch) {
+      setActiveBranchUid(null)
+      setActiveBranchState(null)
+      setDoctor(baseDoctor)
+      saveActiveBranch(null)
+      return { ok: true }
+    }
+    const branchProfile = await loadFirebaseProfile(branch.uid)
+    if (!branchProfile) return { ok: false, reason: 'Branch profile not found.' }
+
+    const allowedReaders = branchProfile.allowedReaders   // null = backward-compat: anyone in org can read
+    const allowedWriters = branchProfile.allowedWriters ?? []
+    const myUid          = baseDoctor?.id
+
+    // Read access: granted when allowedReaders is null (not yet configured) OR uid is in either list
+    const hasReadAccess  = allowedReaders === null || allowedReaders.includes(myUid) || allowedWriters.includes(myUid)
+    if (!hasReadAccess) return { ok: false, reason: 'This branch has not granted you read access.' }
+
+    const hasWriteAccess = allowedWriters.includes(myUid)
+    // Always clear managed doctor view — branch view and managed doctor view are mutually exclusive
+    setActiveManagedDoctor(null)
+    setActiveBranchUid(branch.uid)
+    setActiveBranchState(branch)
+    saveActiveBranch(branch)
+    setDoctor({
+      ...branchProfile,
+      _activeBranch:  branch,
+      _baseDoctor:    baseDoctor,
+      organizationId: baseDoctor?.organizationId,
+      viewOnly:       !hasWriteAccess,
+    })
+    return { ok: true }
+  }, [baseDoctor])
+
   const logout = async () => {
     const { signOut } = await import('firebase/auth')
     await signOut(auth)
     clearSessionLocally()
+    saveActiveBranch(null)
+    setActiveBranchUid(null)
+    setActiveBranchState(null)
+    setBaseDoctor(null)
+    setOrg(null)
+    setManagedDoctors([])
+    setActiveManagedDoctor(null)
     setDoctor(null)
   }
 
   const isReceptionist = doctor?._role === 'receptionist'
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor, refreshManagedDoctors }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppointments } from '@/hooks/useAppointments'
@@ -28,6 +28,10 @@ function NewAppointmentForm() {
   const searchParams      = useSearchParams()
   const { doctor }            = useAuth()
   const { add, appointments } = useAppointments()
+
+  useEffect(() => {
+    if (doctor?.viewOnly) router.replace('/appointments')
+  }, [doctor?.viewOnly])
   const { patients }          = usePatients()
   const { blockedSlots }      = useBlockedSlots()
 

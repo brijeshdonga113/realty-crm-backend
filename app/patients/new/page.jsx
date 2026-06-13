@@ -1,15 +1,13 @@
 'use client'
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatients } from '@/hooks/usePatients'
 import { BLOOD_TYPES } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
-import { useAuth } from '@/context/AuthContext'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import RichTextEditor from '@/components/ui/RichTextEditor'
-import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
+import { useAuth } from '@/context/AuthContext'
 
 const GENERALS_CONFIG = [
   { key: 'appetite',     label: 'Appetite'     },
@@ -35,20 +33,16 @@ const ACCENT = {
   orange: 'border-l-orange-500',
 }
 
-function SectionCard({ icon, title, accentColor = 'teal', children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
+function SectionCard({ icon, title, accentColor = 'teal', children }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className={`w-full flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT[accentColor]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30 hover:bg-gray-100/60 dark:hover:bg-gray-700/50 transition-colors text-left`}>
+      <div className={`flex items-center gap-3 px-6 py-4 border-l-4 ${ACCENT[accentColor]} border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-700/30`}>
         <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">{icon}</span>
-        <h3 className="flex-1 font-semibold text-gray-900 dark:text-white">{title}</h3>
-        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      {open && <div className="p-6 space-y-4">{children}</div>}
+        <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+      </div>
+      <div className="p-6 space-y-4">
+        {children}
+      </div>
     </div>
   )
 }
@@ -62,68 +56,16 @@ function Spinner() {
   )
 }
 
-// ── Dynamic clinical field renderer ─────────────────────────────────────────
-
-function ClinicalField({ field, value, onChange }) {
-  const { label, type, options = [] } = field
-
-  if (type === 'textarea') return (
-    <div className="sm:col-span-2">
-      <label className="form-label">{label}</label>
-      <RichTextEditor value={value || ''} onChange={onChange} placeholder=""/>
-    </div>
-  )
-  if (type === 'number') return (
-    <div>
-      <label className="form-label">{label}</label>
-      <input type="number" min="0" value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
-    </div>
-  )
-  if (type === 'scale') return (
-    <div className="sm:col-span-2">
-      <label className="form-label">{label}</label>
-      <div className="flex items-center gap-2 mt-1">
-        <span className="text-xs text-gray-400 w-4">0</span>
-        <input type="range" min="0" max="10" step="1" value={value ?? 0}
-          onChange={e => onChange(Number(e.target.value))} className="flex-1 accent-primary-500"/>
-        <span className="text-xs text-gray-400 w-4">10</span>
-        <span className={`ml-2 text-sm font-bold w-6 text-center ${(value??0)>=8?'text-red-500':(value??0)>=5?'text-amber-500':'text-green-500'}`}>{value ?? 0}</span>
-      </div>
-    </div>
-  )
-  if (type === 'chips' && options.length > 0) {
-    const sel = Array.isArray(value) ? value : (value ? [value] : [])
-    const toggle = opt => onChange(sel.includes(opt) ? sel.filter(s => s !== opt) : [...sel, opt])
-    return (
-      <div className="sm:col-span-2">
-        <label className="form-label">{label}</label>
-        <div className="flex flex-wrap gap-2 mt-1">
-          {options.map(opt => (
-            <button key={opt} type="button" onClick={() => toggle(opt)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                sel.includes(opt) ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-primary-400'
-              }`}>{opt}</button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div>
-      <label className="form-label">{label}</label>
-      <input value={value || ''} onChange={e => onChange(e.target.value)} className="input-field"/>
-    </div>
-  )
-}
-
 function NewCaseForm() {
   const router         = useRouter()
   const searchParams   = useSearchParams()
-  const { add, patients } = usePatients()
   const { doctor }        = useAuth()
+  const { add, patients } = usePatients()
   const referralSources   = useReferralSources()
-  const specialization    = doctor?.specialization ?? ''
+
+  useEffect(() => {
+    if (doctor?.viewOnly) router.replace('/patients')
+  }, [doctor?.viewOnly])
 
   const [loading,      setLoading]      = useState(false)
   const [errors,       setErrors]       = useState({})
@@ -159,7 +101,6 @@ function NewCaseForm() {
     emergencyContact: { name: '', phone: '', relationship: '' },
     insuranceProvider: '', insurancePolicyNumber: '', insuranceExpiry: '', insuranceGroupNumber: '',
     consentFormSigned: false,
-    specialtyData: {},
   })
 
   useEffect(() => {
@@ -203,35 +144,10 @@ function NewCaseForm() {
   const addComplaint    = () => setFormState(p => ({ ...p, chiefComplaints: [...p.chiefComplaints, { ...EMPTY_COMPLAINT }] }))
   const removeComplaint = (i) => setFormState(p => ({ ...p, chiefComplaints: p.chiefComplaints.filter((_, j) => j !== i) }))
 
-  const complaintRefs  = useRef([])
-  const pendingFocusRow = useRef(null)
-
-  const handleComplaintKeyDown = (e, rowIdx) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      if (rowIdx === form.chiefComplaints.length - 1) {
-        addComplaint()
-        pendingFocusRow.current = rowIdx + 1
-      } else {
-        complaintRefs.current[rowIdx + 1]?.focus()
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (pendingFocusRow.current !== null) {
-      complaintRefs.current[pendingFocusRow.current]?.focus()
-      pendingFocusRow.current = null
-    }
-  }, [form.chiefComplaints.length])
-
   const addCustomGeneral    = () => setFormState(p => ({ ...p, customGenerals: [...p.customGenerals, { id: Date.now().toString(36), label: '', value: '' }] }))
   const removeCustomGeneral = (id) => setFormState(p => ({ ...p, customGenerals: p.customGenerals.filter(g => g.id !== id) }))
   const setCustomGeneral    = (id, field, v) =>
     setFormState(p => ({ ...p, customGenerals: p.customGenerals.map(g => g.id === id ? { ...g, [field]: v } : g) }))
-
-  const setSpecialtyField = (key, value) =>
-    setFormState(p => ({ ...p, specialtyData: { ...p.specialtyData, [key]: value } }))
 
   const validate = () => {
     const errs = {}
@@ -302,9 +218,7 @@ function NewCaseForm() {
       <div className="max-w-5xl mx-auto pb-12 space-y-5">
 
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {isHomeopathy(specialization)
-            ? 'Create a high-fidelity digital case record. Complete all clinical parameters to ensure holistic remedy selection.'
-            : 'Register a new patient and capture specialty-specific clinical intake for your practice.'}
+          Create a high-fidelity digital case record. Complete all clinical parameters to ensure holistic remedy selection.
         </p>
 
         {saveError && (
@@ -346,7 +260,6 @@ function NewCaseForm() {
         <SectionCard
           accentColor="teal"
           title="Patient Profile"
-          defaultOpen={true}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -465,7 +378,7 @@ function NewCaseForm() {
           <div>
             <label className="form-label">Address</label>
             <AutoTextarea value={form.address} onChange={e => set('address', e.target.value)}
-              placeholder="Full address including city, state, zip" className="input-field resize-y-y"/>
+              placeholder="Full address including city, state, zip" className="input-field resize"/>
           </div>
 
           {/* Marital Status */}
@@ -502,221 +415,190 @@ function NewCaseForm() {
             </div>
           </div>
 
-        </SectionCard>
-
-        {/* ── Other Medical History ─────────────────────────────────────────── */}
-        <SectionCard
-          accentColor="blue"
-          title="Other Medical History"
-          defaultOpen={false}
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-            </svg>
-          }
-        >
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
-            <RichTextEditor value={form.observation} onChange={v => set('observation', v)}
-              placeholder="Doctor's initial observations…"/>
+            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
+              placeholder="Doctor's initial observations…" className="input-field resize"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
-            <RichTextEditor value={form.pastHistory} onChange={v => set('pastHistory', v)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…"/>
+            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
-            <RichTextEditor value={form.familyHistory} onChange={v => set('familyHistory', v)}
-              placeholder="Hereditary conditions, family medical background…"/>
+            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
+              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
           </div>
         </SectionCard>
 
-        {/* ── Clinical Sections (specialty-specific) ───────────────────────── */}
-        {isHomeopathy(specialization) ? (
-          <>
-            {/* ── Chief Complaints ─────────────────────────────────────────── */}
-            <SectionCard
-              accentColor="blue"
-              title="Chief Complaints (C/o)"
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-                </svg>
-              }
-            >
-              <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] table-fixed">
-                    <thead>
-                      <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                        {['Complaint (C/O)', 'Location (LO)', 'Sensation (S)', 'Modality (M)', 'Concomitant (C)'].map((h, hi) => (
-                          <th key={h} style={{ width: hi === 0 ? '24%' : '19%' }}
-                            className="px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">
-                            {h}
-                          </th>
-                        ))}
-                        <th style={{ width: '32px' }}/>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.chiefComplaints.map((row, i) => (
-                        <tr key={i} className="group border-t border-gray-100 dark:border-gray-700 first:border-t-0">
-                          {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map((field, fi) => (
-                            <td key={field} className="px-2 py-1.5 border-r border-gray-100 dark:border-gray-700 align-top">
-                              <AutoTextarea
-                                ref={fi === 0 ? el => { complaintRefs.current[i] = el } : undefined}
-                                value={row[field]}
-                                onChange={e => setComplaint(i, field, e.target.value)}
-                                onKeyDown={e => handleComplaintKeyDown(e, i)}
-                                placeholder="—"
-                                className="w-full text-sm px-1 py-0.5 bg-transparent border-0 outline-none resize-none text-gray-800 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none"
-                                style={{ minHeight: '28px' }}
-                              />
-                            </td>
-                          ))}
-                          <td className="px-1.5 py-1.5 text-center align-top" style={{ width: '32px' }}>
-                            {form.chiefComplaints.length > 1 && (
-                              <button type="button" onClick={() => removeComplaint(i)}
-                                className="opacity-0 group-hover:opacity-100 mt-0.5 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none transition-all">×</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
-                Press <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Enter</kbd> in any cell to add a new row, or <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono text-gray-500 dark:text-gray-400 text-xs">Shift+Enter</kbd> for a line break.
-              </p>
-            </SectionCard>
-
-            {/* ── Physical Generals ─────────────────────────────────────────── */}
-            <SectionCard
-              accentColor="green"
-              title="Physical Generals"
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-                </svg>
-              }
-            >
-              <div className="divide-y divide-gray-50 dark:divide-gray-700/50 -mt-2">
-                {GENERALS_CONFIG.map(({ key, label }) => (
-                  <div key={key} className="flex items-start gap-4 py-3">
-                    <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">{label}</label>
-                    <AutoTextarea value={form.generals[key]} onChange={e => setGeneral(key, e.target.value)}
-                      placeholder={`Enter ${label.toLowerCase()}…`} className="input-field flex-1 text-sm py-2 resize-y"/>
-                  </div>
-                ))}
-                {form.customGenerals.map(g => (
-                  <div key={g.id} className="flex items-start gap-3 py-3">
-                    <input value={g.label} onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
-                      placeholder="Parameter…" className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"/>
-                    <AutoTextarea value={g.value} onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
-                      placeholder="Enter value…" className="input-field flex-1 text-sm py-2 resize-y"/>
-                    <button type="button" onClick={() => removeCustomGeneral(g.id)}
-                      className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">×</button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={addCustomGeneral}
-                className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                Add Another Parameter
-              </button>
-            </SectionCard>
-
-            {/* ── History of (H/o) ─────────────────────────────────────────── */}
-            <SectionCard
-              accentColor="purple"
-              title={`${form.gender === 'female' ? 'Female' : 'Male'} — History of (H/o)`}
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                </svg>
-              }
-            >
-              <RichTextEditor value={form.historyOf} onChange={v => set('historyOf', v)}
-                placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"/>
-            </SectionCard>
-
-            {/* ── Life Span ────────────────────────────────────────────────── */}
-            <SectionCard
-              accentColor="orange"
-              title="Life Span"
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                </svg>
-              }
-            >
-              <RichTextEditor value={form.lifeSpan} onChange={v => set('lifeSpan', v)}
-                placeholder="Key life events, miasmatic background, constitutional timeline…"/>
-            </SectionCard>
-
-            {/* ── Prescription Details ─────────────────────────────────────── */}
-            <SectionCard
-              accentColor="teal"
-              title="Prescription Details"
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-              }
-            >
-              <RichTextEditor value={form.prescriptionDetails} onChange={v => set('prescriptionDetails', v)}
-                placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"/>
-            </SectionCard>
-          </>
-        ) : (() => {
-          // Non-homeopathy: render specialty-specific sections from presets,
-          // then any additional custom fields the doctor has saved.
-          const presetSections = getIntakeSections(specialization)
-          const customFields   = doctor?.patientFormFields ?? []
-          const customSections = customFields.length
-            ? [...new Set(customFields.map(f => f.section || 'Additional Info'))]
-            : []
-          const ACCENT_KEYS = ['blue', 'teal', 'green', 'purple', 'orange']
-          return (
-            <>
-              {presetSections.map(sec => (
-                <SectionCard key={sec.title} title={sec.title} accentColor={sec.accentColor} defaultOpen={false}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {sec.fields.map(field => (
-                      <ClinicalField
-                        key={field.key}
-                        field={field}
-                        value={(form.specialtyData || {})[field.key]}
-                        onChange={v => setSpecialtyField(field.key, v)}
-                      />
+        {/* ── Chief Complaints ─────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="blue"
+          title="Chief Complaints (C/o)"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+          }
+        >
+          <div className="overflow-x-auto -mx-2 px-2">
+            <table className="w-full min-w-[680px]">
+              <thead>
+                <tr className="border-b-2 border-gray-100 dark:border-gray-700">
+                  {[
+                    'Complaint (C/O)',
+                    'Location (LO)',
+                    'Sensation (S)',
+                    'Modality (M)',
+                    'Concomitant (C)',
+                  ].map(h => (
+                    <th key={h} className="px-2 pb-3 text-xs font-semibold text-gray-500 dark:text-gray-400 text-left uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                  <th className="w-8"/>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {form.chiefComplaints.map((row, i) => (
+                  <tr key={i}>
+                    {['complaint', 'location', 'sensation', 'modality', 'concomitant'].map(field => (
+                      <td key={field} className="px-1.5 py-2">
+                        <input
+                          value={row[field]}
+                          onChange={e => setComplaint(i, field, e.target.value)}
+                          placeholder="—"
+                          className="input-field text-sm py-2 w-full"
+                        />
+                      </td>
                     ))}
-                  </div>
-                </SectionCard>
-              ))}
-              {customSections.map((sec, si) => (
-                <SectionCard key={`custom-${sec}`} title={sec} accentColor={ACCENT_KEYS[si % ACCENT_KEYS.length]} defaultOpen={false}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {customFields.filter(f => (f.section || 'Additional Info') === sec).map(field => (
-                      <ClinicalField
-                        key={field.id}
-                        field={field}
-                        value={(form.specialtyData || {})[field.id]}
-                        onChange={v => setSpecialtyField(field.id, v)}
-                      />
-                    ))}
-                  </div>
-                </SectionCard>
-              ))}
-            </>
-          )
-        })()}
+                    <td className="px-1.5 py-2 text-center">
+                      {form.chiefComplaints.length > 1 && (
+                        <button type="button" onClick={() => removeComplaint(i)}
+                          className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none transition-colors">
+                          ×
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" onClick={addComplaint}
+            className="mt-1 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Another Complaint
+          </button>
+        </SectionCard>
+
+        {/* ── Physical Generals ────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="green"
+          title="Physical Generals"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+          }
+        >
+          <div className="divide-y divide-gray-50 dark:divide-gray-700/50 -mt-2">
+            {GENERALS_CONFIG.map(({ key, label }) => (
+              <div key={key} className="flex items-start gap-4 py-3">
+                <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">
+                  {label}
+                </label>
+                <AutoTextarea
+                  value={form.generals[key]}
+                  onChange={e => setGeneral(key, e.target.value)}
+                  placeholder={`Enter ${label.toLowerCase()}…`}
+                  className="input-field flex-1 text-sm py-2 resize"
+                />
+              </div>
+            ))}
+
+            {form.customGenerals.map(g => (
+              <div key={g.id} className="flex items-start gap-3 py-3">
+                <input
+                  value={g.label}
+                  onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  placeholder="Parameter…"
+                  className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"
+                />
+                <AutoTextarea
+                  value={g.value}
+                  onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  placeholder="Enter value…"
+                  className="input-field flex-1 text-sm py-2 resize"
+                />
+                <button type="button" onClick={() => removeCustomGeneral(g.id)}
+                  className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addCustomGeneral}
+            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Another Parameter
+          </button>
+        </SectionCard>
+
+        {/* ── History of (H/o) ─────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="purple"
+          title={`${form.gender === 'female' ? 'Female' : 'Male'} — History of (H/o)`}
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
+            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
+
+        {/* ── Life Span ─────────────────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="orange"
+          title="Life Span"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
+            placeholder="Key life events, miasmatic background, constitutional timeline…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
+
+        {/* ── Prescription Details ──────────────────────────────────────────── */}
+        <SectionCard
+          accentColor="teal"
+          title="Prescription Details"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          }
+        >
+          <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
+            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
+            className="input-field resize min-h-[96px]"/>
+        </SectionCard>
 
         {/* ── Footer Actions ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">

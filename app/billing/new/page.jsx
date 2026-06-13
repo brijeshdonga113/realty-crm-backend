@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
@@ -33,6 +33,10 @@ function NewInvoiceForm() {
   const { doctor, isReceptionist } = useAuth()
   const { items: inventory }              = useInventory()
   const { formatCurrency }         = usePreferences()
+
+  useEffect(() => {
+    if (doctor?.viewOnly) router.replace('/billing')
+  }, [doctor?.viewOnly])
 
   const [loading,   setLoading]   = useState(false)
   const [errors,    setErrors]    = useState({})

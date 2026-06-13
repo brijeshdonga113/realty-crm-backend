@@ -78,7 +78,8 @@ function ErrorScreen({ status }) {
 function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
   const dateLabel = `${DAYS_FULL[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="flex items-center justify-center p-4 py-12">
       <div className="bg-white rounded-3xl shadow-lg border border-gray-100 max-w-md w-full overflow-hidden">
         {/* Top gradient band */}
         <div className="bg-gradient-to-br from-green-500 to-emerald-600 px-8 pt-8 pb-10 text-center relative overflow-hidden">
@@ -145,9 +146,11 @@ function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
           </p>
         </div>
       </div>
+      </div>
     </div>
   )
 }
+
 
 // ── Hero with step indicator ───────────────────────────────────────────────────
 
@@ -163,93 +166,65 @@ function BookingHero({ doctor, step }) {
   ]
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 relative overflow-hidden">
-      {/* Decorative blobs */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 pt-8 pb-0 relative">
-        {/* Doctor / clinic info */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 pb-8">
-          {/* Logo or initials avatar */}
-          {doctor.logoUrl ? (
-            <div className="w-20 h-20 rounded-2xl bg-white shadow-xl flex items-center justify-center p-2 overflow-hidden flex-shrink-0">
-              <img
-                src={doctor.logoUrl}
-                alt={doctor.clinicName || 'Clinic'}
-                className="w-full h-full object-contain"
-                onError={e => { e.currentTarget.style.display = 'none' }}
-              />
-            </div>
-          ) : (
-            <div className="w-20 h-20 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-2xl font-bold">{initials}</span>
-            </div>
-          )}
-
-          {/* Text info */}
-          <div className="flex-1 min-w-0">
-            <p className="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-1.5">
-              Online Appointment Booking
-            </p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">
-              {doctor.clinicName || `Dr. ${doctor.name}`}
-            </h1>
-            {doctor.clinicName && doctor.name && (
-              <p className="text-blue-200 text-sm mt-0.5">Dr. {doctor.name}</p>
-            )}
-            {doctor.specialization && (
-              <span className="inline-flex items-center gap-1.5 mt-2.5 text-xs font-semibold bg-white/15 text-white px-3 py-1.5 rounded-full capitalize">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-                </svg>
-                {doctor.specialization.replace(/_/g, ' ')}
-              </span>
-            )}
+    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 border-b border-blue-900/20">
+      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
+        {/* Doctor logo / initials */}
+        {doctor.logoUrl ? (
+          <div className="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center p-1 overflow-hidden flex-shrink-0">
+            <img src={doctor.logoUrl} alt="" className="w-full h-full object-contain"
+              onError={e => { e.currentTarget.style.display = 'none' }} />
           </div>
-
-          {/* Verified badge */}
-          <div className="hidden sm:flex items-center gap-3 bg-white/10 backdrop-blur border border-white/10 rounded-2xl px-5 py-3 flex-shrink-0">
-            <div className="w-8 h-8 bg-green-400/20 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-white text-xs font-bold">Verified Clinic</p>
-              <p className="text-blue-200 text-xs">Secure instant booking</p>
-            </div>
+        ) : (
+          <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-sm font-bold">{initials}</span>
           </div>
+        )}
+
+        {/* Clinic / doctor name */}
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm truncate leading-tight">
+            {doctor.clinicName || `Dr. ${doctor.name}`}
+          </p>
+          <p className="text-blue-200 text-xs truncate leading-tight">
+            {doctor.clinicName && doctor.name ? `Dr. ${doctor.name}` : 'Online Appointment Booking'}
+            {doctor.specialization && ` · ${doctor.specialization.replace(/_/g, ' ')}`}
+          </p>
         </div>
 
-        {/* Step indicator strip */}
-        <div className="border-t border-white/10 py-4">
-          <div className="flex items-center gap-2">
-            {steps.map((s, i) => {
-              const done   = step > s.n
-              const active = step === s.n
-              return (
-                <div key={s.n} className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={`flex items-center gap-2 ${active ? 'opacity-100' : done ? 'opacity-90' : 'opacity-40'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all
-                      ${done ? 'bg-green-400 text-white' : active ? 'bg-white text-blue-700' : 'bg-white/20 text-white'}`}>
-                      {done
-                        ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
-                        : s.n}
-                    </div>
-                    <span className={`text-xs font-semibold hidden sm:block whitespace-nowrap ${active ? 'text-white' : 'text-blue-200'}`}>
-                      {s.label}
-                    </span>
+        {/* Verified badge */}
+        <div className="hidden sm:flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-lg px-2.5 py-1.5 flex-shrink-0">
+          <svg className="w-3.5 h-3.5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+          <span className="text-xs text-white font-semibold whitespace-nowrap leading-none">Verified Clinic</span>
+          <span className="text-blue-300 text-xs">by</span>
+          <span className="text-xs font-bold text-white whitespace-nowrap leading-none">Cliniwayz</span>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {steps.map((s, i) => {
+            const done   = step > s.n
+            const active = step === s.n
+            return (
+              <div key={s.n} className="flex items-center gap-1.5">
+                <div className={`flex items-center gap-1.5 ${active ? 'opacity-100' : done ? 'opacity-90' : 'opacity-40'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all
+                    ${done ? 'bg-green-400 text-white' : active ? 'bg-white text-blue-700' : 'bg-white/20 text-white'}`}>
+                    {done
+                      ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                      : s.n}
                   </div>
-                  {i < steps.length - 1 && (
-                    <div className={`flex-1 h-px mx-1 ${done ? 'bg-green-400/40' : 'bg-white/15'}`} />
-                  )}
+                  <span className={`text-xs font-medium hidden md:block whitespace-nowrap ${active ? 'text-white' : 'text-blue-200'}`}>
+                    {s.label}
+                  </span>
                 </div>
-              )
-            })}
-          </div>
+                {i < steps.length - 1 && (
+                  <div className={`w-6 h-px mx-0.5 ${done ? 'bg-green-400/50' : 'bg-white/20'}`} />
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -287,7 +262,7 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Month nav */}
-      <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
         <button
           onClick={prevMonth}
           disabled={!canGoPrev}
@@ -308,11 +283,11 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
         </button>
       </div>
 
-      <div className="p-4">
+      <div className="p-3">
         {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 mb-1">
+        <div className="grid grid-cols-7 mb-0.5">
           {DAYS_SHORT.map(d => (
-            <div key={d} className="text-center text-xs font-bold text-gray-400 py-1.5">{d}</div>
+            <div key={d} className="text-center text-xs font-bold text-gray-400 py-1">{d}</div>
           ))}
         </div>
 
@@ -349,7 +324,7 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
 
         {/* Hours legend */}
         {workingHours && (
-          <div className="mt-4 pt-3 border-t border-gray-50 flex items-center gap-1.5 flex-wrap">
+          <div className="mt-2 pt-2 border-t border-gray-50 flex items-center gap-1.5 flex-wrap">
             <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
@@ -375,11 +350,11 @@ function TimeSlotGrid({ selectedDate, slots, loading, onSelect, blockedReasons =
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h2 className="font-bold text-gray-900">Available Times</h2>
-        <p className="text-xs text-gray-400 mt-0.5">{dateLabel}</p>
+      <div className="px-4 py-3 border-b border-gray-50">
+        <h2 className="font-bold text-gray-900 text-sm">Available Times</h2>
+        <p className="text-xs text-gray-400">{dateLabel}</p>
       </div>
-      <div className="p-5">
+      <div className="p-4">
         {blockedReasons.length > 0 && (
           <div className="mb-4 flex gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
             <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -463,11 +438,11 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Selected slot summary */}
-      <div className="bg-blue-600 px-5 py-4">
+      <div className="bg-blue-600 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-0.5">Selected slot</p>
-            <p className="text-white font-bold text-lg">{formatTime(selectedTime)}</p>
+            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider">Selected slot</p>
+            <p className="text-white font-bold text-base leading-tight">{formatTime(selectedTime)}</p>
             <p className="text-blue-200 text-xs">{dateLabel}</p>
           </div>
           <button
@@ -482,7 +457,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-5 space-y-4">
+      <form onSubmit={handleSubmit} className="p-4 space-y-3">
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
             Full Name <span className="text-red-400">*</span>
@@ -671,31 +646,46 @@ export default function BookingPage({ params }) {
   const step = !selectedDate ? 1 : !selectedTime ? 2 : 3
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
+    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
       <BookingHero doctor={doctor} step={step} />
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full max-w-5xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Left: calendar */}
-          <DatePicker
-            today={today}
-            workingHours={workingHours}
-            selectedDate={selectedDate}
-            onSelect={handleDateSelect}
-          />
+          {/* Left: calendar — hidden on mobile once a date is picked */}
+          <div className={`overflow-auto ${selectedDate ? 'hidden lg:block' : 'block'}`}>
+            <DatePicker
+              today={today}
+              workingHours={workingHours}
+              selectedDate={selectedDate}
+              onSelect={handleDateSelect}
+            />
+          </div>
 
-          {/* Right: placeholder → slots → form */}
-          <div>
+          {/* Right: slots/form — hidden on mobile until a date is picked */}
+          <div className={`overflow-auto flex flex-col gap-3 ${!selectedDate ? 'hidden lg:flex' : 'flex'}`}>
+            {/* Mobile back-to-dates button */}
+            {selectedDate && (
+              <button
+                onClick={() => { setSelectedDate(null); setSelectedTime(null); setSlots([]); setBlockedReasons([]) }}
+                className="lg:hidden flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 self-start"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                </svg>
+                Back to dates
+              </button>
+            )}
+
             {!selectedDate ? (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 px-6 text-center h-full min-h-[280px]">
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-12 px-6 text-center h-full">
+                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
+                  <svg className="w-7 h-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>
                 </div>
                 <p className="text-sm font-bold text-gray-700">Choose a date to begin</p>
-                <p className="text-xs text-gray-400 mt-1.5">Available time slots will appear here</p>
+                <p className="text-xs text-gray-400 mt-1">Available time slots will appear here</p>
               </div>
             ) : selectedTime ? (
               <BookingForm
@@ -719,15 +709,6 @@ export default function BookingPage({ params }) {
 
         </div>
       </div>
-
-      <footer className="text-center py-10 text-xs text-gray-400">
-        <span className="inline-flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-          </svg>
-          Powered by ClinicCRM &nbsp;·&nbsp; Secure &amp; encrypted
-        </span>
-      </footer>
     </div>
   )
 }

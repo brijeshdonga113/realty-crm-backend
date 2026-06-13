@@ -60,7 +60,7 @@ export default function PricingPage() {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_Sep33i5fn1eA0x',
         subscription_id: subscriptionId,
-        name:            'ClinicCRM',
+        name:            'Cliniwayz',
         description:     plan === 'yearly' ? 'Yearly Plan — ₹5,000/year' : 'Monthly Plan — ₹600/month',
         prefill: {
           name:  `${doctor.firstName} ${doctor.lastName}`.trim(),
