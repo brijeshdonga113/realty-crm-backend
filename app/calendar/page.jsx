@@ -9,6 +9,7 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents'
 import { usePatients } from '@/hooks/usePatients'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { visitService } from '@/services/visitService'
+import { appointmentService } from '@/services/appointmentService'
 import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
 import { localDateStr } from '@/lib/preferences'
@@ -61,6 +62,10 @@ export default function CalendarPage() {
   const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(() => localDateStr())
 
+  // Drag-and-drop reschedule state
+  const [draggingAppt, setDraggingAppt] = useState(null)
+  const [dragOverDate, setDragOverDate] = useState(null)
+
   // Block time modal state
   const [blockOpen,   setBlockOpen]   = useState(false)
   const [blockSaving, setBlockSaving] = useState(false)
@@ -79,6 +84,14 @@ export default function CalendarPage() {
   const openAddEvent = () => {
     setEventForm({ ...BLANK_EVENT_FORM, date: selected })
     setEventOpen(true)
+  }
+
+  const handleReschedule = async (appt, newDate) => {
+    if (!appt || appt.date === newDate) return
+    try {
+      await appointmentService.update(appt.id, { date: newDate })
+      if (selected === appt.date) setSelected(newDate)
+    } catch {}
   }
 
   const handleAddBlock = async () => {
@@ -298,12 +311,17 @@ export default function CalendarPage() {
               const fuCount     = dayEvents.filter(e => e._kind === 'followup' || e._kind === 'visit_followup').length
               const evCount     = dayEvents.filter(e => e._kind === 'event').length
               const bdCount     = dayEvents.filter(e => e._kind === 'birthday').length
+              const isDropTarget = draggingAppt && dragOverDate === dateStr && dateStr !== draggingAppt.date
               return (
                 <div key={day} onClick={() => setSelected(dateStr)}
+                  onDragOver={draggingAppt ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOverDate(dateStr) } : undefined}
+                  onDragLeave={draggingAppt ? () => setDragOverDate(null) : undefined}
+                  onDrop={draggingAppt ? (ev) => { ev.preventDefault(); setDragOverDate(null); handleReschedule(draggingAppt, dateStr); setDraggingAppt(null) } : undefined}
                   className={`h-24 border-b border-r border-gray-50 dark:border-gray-700 p-1.5 cursor-pointer transition-colors
-                    ${isSel     ? 'bg-primary-50 dark:bg-primary-900/20'   : ''}
-                    ${isBlocked && !isSel ? 'bg-red-50/60 dark:bg-red-900/10' : ''}
-                    ${!isSel && !isBlocked ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}
+                    ${isDropTarget ? 'ring-2 ring-inset ring-primary-400 bg-primary-50 dark:bg-primary-900/20' : ''}
+                    ${isSel && !isDropTarget ? 'bg-primary-50 dark:bg-primary-900/20' : ''}
+                    ${isBlocked && !isSel && !isDropTarget ? 'bg-red-50/60 dark:bg-red-900/10' : ''}
+                    ${!isSel && !isBlocked && !isDropTarget ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}
                     ${(firstDay + day - 1) % 7 === 6 ? 'border-r-0' : ''}`}>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-semibold inline-flex w-6 h-6 items-center justify-center rounded-full
@@ -413,17 +431,27 @@ export default function CalendarPage() {
                   const canAttend  = e._kind === 'appointment' && ['scheduled','confirmed'].includes(e.status) && e.patientId
                   return (
                     <div key={`${e._kind}-${e.id}-${idx}`}
+                      draggable={e._kind === 'appointment'}
+                      onDragStart={e._kind === 'appointment' ? (ev) => { ev.dataTransfer.effectAllowed = 'move'; setDraggingAppt(e) } : undefined}
+                      onDragEnd={e._kind === 'appointment' ? () => { setDraggingAppt(null); setDragOverDate(null) } : undefined}
                       className={`px-5 py-3.5 transition-colors ${
-                        isBirthday ? 'bg-pink-50/40 dark:bg-pink-900/5 hover:bg-pink-50 dark:hover:bg-pink-900/10' :
-                        isEvent    ? 'bg-violet-50/40 dark:bg-violet-900/5 hover:bg-violet-50 dark:hover:bg-violet-900/10' :
-                        'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
+                        e._kind === 'appointment' ? 'cursor-grab active:cursor-grabbing' : ''}${
+                        isBirthday ? ' bg-pink-50/40 dark:bg-pink-900/5 hover:bg-pink-50 dark:hover:bg-pink-900/10' :
+                        isEvent    ? ' bg-violet-50/40 dark:bg-violet-900/5 hover:bg-violet-50 dark:hover:bg-violet-900/10' :
+                        ' hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
                       <div className="flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                          isBirthday ? 'bg-pink-400' :
-                          isEvent    ? 'bg-violet-500' :
-                          isFollowUp ? 'bg-orange-400' :
-                          e.status === 'completed' ? 'bg-gray-400' : 'bg-primary-500'
-                        }`}/>
+                        {e._kind === 'appointment' ? (
+                          <svg className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
+                          </svg>
+                        ) : (
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                            isBirthday ? 'bg-pink-400' :
+                            isEvent    ? 'bg-violet-500' :
+                            isFollowUp ? 'bg-orange-400' :
+                            e.status === 'completed' ? 'bg-gray-400' : 'bg-primary-500'
+                          }`}/>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
                             <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
@@ -500,6 +528,12 @@ export default function CalendarPage() {
                 })
             )}
           </div>
+
+          {draggingAppt && (
+            <div className="px-5 py-2.5 bg-primary-50 dark:bg-primary-900/20 border-t border-primary-100 dark:border-primary-800 text-xs text-primary-600 dark:text-primary-400 font-medium text-center">
+              Drop on any date to reschedule
+            </div>
+          )}
 
           <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2">
             <button onClick={() => router.push(`/appointments/new`)}
