@@ -125,7 +125,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'Documents']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
 
 function InfoRow({ label, value }) {
   if (!value) return null

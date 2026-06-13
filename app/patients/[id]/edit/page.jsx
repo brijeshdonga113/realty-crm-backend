@@ -442,9 +442,9 @@ export default function EditPatientPage() {
                 {form.chiefComplaints.map((row, i) => (
                   <tr key={i}>
                     {['complaint','location','sensation','modality','concomitant'].map(field => (
-                      <td key={field} className="px-1.5 py-2">
-                        <input value={row[field]} onChange={e => setComplaint(i, field, e.target.value)}
-                          placeholder="—" className="input-field text-sm py-2 w-full"/>
+                      <td key={field} className="px-1.5 py-2 align-top">
+                        <AutoTextarea value={row[field]} onChange={e => setComplaint(i, field, e.target.value)}
+                          placeholder="—" className="input-field text-sm py-2 w-full resize-none"/>
                       </td>
                     ))}
                     <td className="px-1.5 py-2 text-center">
