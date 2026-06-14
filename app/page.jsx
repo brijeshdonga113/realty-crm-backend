@@ -758,7 +758,11 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm">
             <span>© {new Date().getFullYear()} Cliniwayz. All rights reserved.</span>
-            <span>Built for doctors across India.</span>
+            <div className="flex items-center gap-4">
+              <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+              <span>Built for doctors across India.</span>
+            </div>
           </div>
         </div>
       </footer>
