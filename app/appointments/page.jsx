@@ -13,14 +13,6 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 
-function getWADateFormat(fallback) {
-  if (typeof window === 'undefined') return fallback
-  try {
-    const s = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-    return s.dateFormat || fallback
-  } catch { return fallback }
-}
-
 const STATUS_COLOR = { scheduled: 'teal', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -259,26 +251,21 @@ export default function AppointmentsPage() {
     setEditAppt(null)
   }
 
-  // WhatsApp reminder message — uses WhatsApp Templates date format setting
+  // WhatsApp reminder message — uses the doctor's saved WhatsApp Templates (Settings)
   const getReminderMessage = (appt) => {
     const clinicName = doctor?.clinicName || 'our clinic'
-    const waFmt = getWADateFormat(dateFormat)
-    let tmpl = null
-    try {
-      const stored = JSON.parse(localStorage.getItem('whatsapp_templates') || '{}')
-      tmpl = stored.appointment?.template || null
-    } catch {}
+    const templates = doctor?.waTemplates ?? {}
+    const waFmt = templates.dateFormat || dateFormat
+    const tmpl = templates.appointment?.template
+      || 'Hello {name},\n\nThis is a reminder for your appointment at {clinic} on *{date}* at *{time}*.\n\nPlease arrive 5 minutes early. If you need to reschedule, please contact us.\n\nThank you!'
     const date = fmtDateLib(appt.date, waFmt)
     const time = formatTime(appt.time)
-    if (tmpl) {
-      return tmpl
-        .replace(/\{name\}/g,   appt.patientName || '')
-        .replace(/\{clinic\}/g, clinicName)
-        .replace(/\{date\}/g,   date)
-        .replace(/\{time\}/g,   time)
-        .replace(/\{days\}/g,   '')
-    }
-    return `Hello ${appt.patientName},\n\nThis is a reminder for your appointment at ${clinicName} on *${date}* at *${time}*.\n\nPlease arrive 5 minutes early. If you need to reschedule, please contact us.\n\nThank you!`
+    return tmpl
+      .replace(/\{name\}/g,   appt.patientName || '')
+      .replace(/\{clinic\}/g, clinicName)
+      .replace(/\{date\}/g,   date)
+      .replace(/\{time\}/g,   time)
+      .replace(/\{days\}/g,   '')
   }
 
   const openRemind = (appt) => {

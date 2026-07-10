@@ -103,9 +103,8 @@ function InvoicePrint({ invoice, doctor }) {
 
 function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
   const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
-  return encodeURIComponent(
-    `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
-  )
+  // buildWAUrl() encodes this text itself — don't pre-encode here or it gets double-encoded
+  return `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
 }
 
 function BillingPageInner() {

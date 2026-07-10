@@ -337,12 +337,16 @@ function VisitEntryForm() {
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
-    if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
-    if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
-    if (useInvoice) {
-      if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
-    } else {
-      if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
+    // Pricing was already collected when this visit was first recorded — editing an
+    // existing visit shouldn't require re-entering (or duplicating) the invoice.
+    if (!editVisitId) {
+      if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
+      if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
+      if (useInvoice) {
+        if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
+      } else {
+        if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
+      }
     }
 
     // Auto-commit any partially filled prescription before saving
@@ -379,37 +383,41 @@ function VisitEntryForm() {
         await appointmentService.update(appointmentId, { status: 'completed' })
       }
 
-      if (useInvoice) {
-        const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
-        if (billableLines.length > 0) {
+      // Skip invoice creation entirely when editing — the invoice for this visit
+      // already exists from when it was first recorded.
+      if (!editVisitId) {
+        if (useInvoice) {
+          const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
+          if (billableLines.length > 0) {
+            await billingService.create({
+              patientId,
+              patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+              issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
+              lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
+              status:        payment.status,
+              paymentMethod: payment.method,
+              collectedBy:   payment.collectedBy,
+              paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
+              taxRate:       Number(payment.taxRate) / 100,
+              discount:      Number(payment.discount),
+              visitId:       visit.id,
+            })
+          }
+        } else if (Number(payment.amount) > 0) {
           await billingService.create({
             patientId,
             patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
             issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-            lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
+            lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
             status:        payment.status,
             paymentMethod: payment.method,
             collectedBy:   payment.collectedBy,
             paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-            taxRate:       Number(payment.taxRate) / 100,
-            discount:      Number(payment.discount),
+            taxRate:       0,
+            discount:      0,
             visitId:       visit.id,
           })
         }
-      } else if (Number(payment.amount) > 0) {
-        await billingService.create({
-          patientId,
-          patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
-          issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-          lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
-          status:        payment.status,
-          paymentMethod: payment.method,
-          collectedBy:   payment.collectedBy,
-          paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-          taxRate:       0,
-          discount:      0,
-          visitId:       visit.id,
-        })
       }
 
       setSavedVisit(visit)
@@ -514,7 +522,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft' : 'Save Draft'}
           </button>
           <button type="button" onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (!editVisitId && (!payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))))}
             className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
             {saving && (
               <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
@@ -522,7 +530,7 @@ function VisitEntryForm() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
             )}
-            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+            {saving ? 'Saving…' : editVisitId ? 'Update Visit' : isDraft ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
       }
@@ -835,7 +843,9 @@ function VisitEntryForm() {
           })()}
         </div>
 
-        {/* Payment / Invoice */}
+        {/* Payment / Invoice — pricing was already set when the visit was first recorded;
+            editing an existing visit only touches clinical details, not billing. */}
+        {!editVisitId && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
           {/* Header */}
           <div className="mb-4">
@@ -1186,6 +1196,7 @@ function VisitEntryForm() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Actions */}
         {saveError && (
@@ -1210,7 +1221,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft Saved' : 'Save as Draft'}
           </button>
           <button onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (!editVisitId && (!payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))))}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
             {saving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -1218,7 +1229,7 @@ function VisitEntryForm() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
             )}
-            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+            {saving ? 'Saving…' : editVisitId ? 'Update Visit' : isDraft ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
       </div>{/* end form column */}
