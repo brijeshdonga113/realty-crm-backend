@@ -11,6 +11,7 @@ import { useVisits } from '@/hooks/useVisits'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
+import { usePatientWhatsAppMessages } from '@/hooks/useWhatsAppMessages'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
@@ -125,7 +126,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'WhatsApp']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -805,6 +806,7 @@ export default function PatientProfilePage() {
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
+  const { messages: waMessages, loading: waLoading } = usePatientWhatsAppMessages(id)
   const { blockedSlots }        = useBlockedSlots()
   // Receptionists skip to Appointments tab (index 3) — Overview/Follow-ups/Visits are hidden
   const [tab, setTab]            = useState(isReceptionist ? 3 : 0)
@@ -1937,6 +1939,40 @@ export default function PatientProfilePage() {
                   </span>
                 )}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 5: WhatsApp */}
+      {tab === 5 && (
+        <div>
+          {waLoading ? (
+            <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
+          ) : waMessages.length === 0 ? (
+            <EmptyState title="No WhatsApp messages yet" description="Messages sent to this patient via the WhatsApp API will show up here."/>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm divide-y divide-gray-50 dark:divide-gray-700">
+              {waMessages.map(m => (
+                <div key={m.id} className="px-6 py-4 flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Badge label={m.status === 'sent' ? 'Sent' : 'Failed'} color={m.status === 'sent' ? 'green' : 'red'}/>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">{(m.type || 'manual').replace(/_/g, ' ')}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{m.message}</p>
+                    {m.status === 'failed' && m.error && (
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-1">{m.error}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{m.to}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                      {formatDate(m.createdAt?.slice(0, 10))} · {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

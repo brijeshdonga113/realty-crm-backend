@@ -295,7 +295,13 @@ export default function AppointmentsPage() {
     setApiSending(true)
     setApiResult(null)
     try {
-      const result = await sendWhatsAppMessage({ to: remindPhone, message: getReminderMessage(remindAppt) })
+      const result = await sendWhatsAppMessage({
+        to:          remindPhone,
+        message:     getReminderMessage(remindAppt),
+        patientId:   remindAppt.patientId ?? null,
+        patientName: remindAppt.patientName,
+        type:        'appointment_reminder',
+      })
       setApiResult(result)
     } finally {
       setApiSending(false)

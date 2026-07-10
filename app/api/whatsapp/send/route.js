@@ -1,4 +1,5 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { createWhatsAppMessage } from '@/models/WhatsAppMessage'
 
 const GRAPH_VERSION = 'v21.0'
 
@@ -34,20 +35,31 @@ export async function POST(request) {
   const doctorId = await resolveDoctorId(request, db)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { to, message } = await request.json().catch(() => ({}))
+  const { to, message, patientId, patientName, type } = await request.json().catch(() => ({}))
   if (!to?.trim() || !message?.trim()) {
     return Response.json({ error: 'to and message are required.' }, { status: 400 })
   }
+
+  const logsRef = db.collection('users').doc(doctorId).collection('whatsappMessages')
+  const logMessage = (patch) => logsRef.add(createWhatsAppMessage({
+    doctorId, patientId: patientId ?? null, patientName: patientName ?? '', to, message, type, ...patch,
+  })).catch(() => {}) // logging failure shouldn't mask the real send result
 
   const doctorSnap = await db.collection('users').doc(doctorId).collection('profile').doc('doctor').get()
   const doctor = doctorSnap.data()
   const { accessToken, phoneNumberId } = doctor?.whatsappApi ?? {}
   if (!accessToken || !phoneNumberId) {
-    return Response.json({ error: 'WhatsApp API is not connected. Add your access token and phone number ID in WhatsApp Templates settings.' }, { status: 400 })
+    const error = 'WhatsApp API is not connected. Add your access token and phone number ID in WhatsApp Templates settings.'
+    await logMessage({ status: 'failed', error })
+    return Response.json({ error }, { status: 400 })
   }
 
   const toNumber = normalisePhone(to, doctor?.waTemplates?.countryCode)
-  if (!toNumber) return Response.json({ error: 'Invalid recipient phone number.' }, { status: 400 })
+  if (!toNumber) {
+    const error = 'Invalid recipient phone number.'
+    await logMessage({ status: 'failed', error })
+    return Response.json({ error }, { status: 400 })
+  }
 
   const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
     method:  'POST',
@@ -62,8 +74,12 @@ export async function POST(request) {
 
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    return Response.json({ error: data?.error?.message || 'WhatsApp API request failed.' }, { status: res.status })
+    const error = data?.error?.message || 'WhatsApp API request failed.'
+    await logMessage({ status: 'failed', error })
+    return Response.json({ error }, { status: res.status })
   }
 
-  return Response.json({ ok: true, messageId: data?.messages?.[0]?.id ?? null })
+  const messageId = data?.messages?.[0]?.id ?? null
+  await logMessage({ status: 'sent', messageId })
+  return Response.json({ ok: true, messageId })
 }

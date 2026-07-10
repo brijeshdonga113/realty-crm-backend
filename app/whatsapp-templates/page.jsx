@@ -190,6 +190,7 @@ export default function WhatsAppTemplatesPage() {
       const result = await sendWhatsAppMessage({
         to:      testPhone,
         message: `Hello! This is a test message from ${clinicName} confirming your WhatsApp API connection is working.`,
+        type:    'test',
       })
       setTestResult(result)
     } finally {
