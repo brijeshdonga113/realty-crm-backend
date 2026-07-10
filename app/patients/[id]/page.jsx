@@ -596,7 +596,7 @@ function Section({ title, subtitle, action, accentClass, className = '', childre
 }
 
 /* ─────────────── Main Page ─────────────── */
-function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency }) {
+function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency, effectiveLayout }) {
   const spec = doctor?.specialization ?? ''
   const isHom = isHomeopathy(spec)
   const age = patient.dateOfBirth
@@ -623,6 +623,218 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
   )
 
   const sortedVisits = [...(visits ?? [])].filter(v => v.status !== 'draft').sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? '')).slice(0, 15)
+
+  // Mirrors the Overview tab's renderSection() so print follows the same doctor-customized
+  // section order (effectiveLayout) instead of a separate hardcoded sequence.
+  const renderPrintSection = (sectionId) => {
+    switch (sectionId) {
+      case 'personal': {
+        const fields = [
+          { label: 'National ID',       value: patient.nationalId },
+          { label: 'Registration Date', value: patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null },
+          { label: 'Patient / Case No.', value: patient.patientNumber ? `#${patient.patientNumber}` : null },
+          { label: 'Alt Phone',         value: patient.alternatePhone },
+          { label: 'Education',         value: patient.education },
+          { label: 'Occupation',        value: patient.occupation },
+          { label: 'Marital Status',    value: patient.maritalStatus ? patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1) : null },
+        ].filter(f => f.value)
+        if (!fields.length) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Personal Details"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {fields.map(f => <Field key={f.label} label={f.label} value={f.value}/>)}
+            </div>
+          </div>
+        )
+      }
+
+      case 'medical_summary':
+        if (!(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Medical Summary"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
+              {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
+              {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
+            </div>
+          </div>
+        )
+
+      case 'insurance':
+        if (!patient.insuranceProvider) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Insurance"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Field label="Provider" value={patient.insuranceProvider}/>
+              <Field label="Policy #" value={patient.insurancePolicyNumber}/>
+              <Field label="Group #" value={patient.insuranceGroupNumber}/>
+              <Field label="Expiry" value={patient.insuranceExpiry}/>
+            </div>
+          </div>
+        )
+
+      case 'emergency_contact':
+        if (!patient.emergencyContact?.name) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Emergency Contact"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Field label="Name" value={patient.emergencyContact.name}/>
+              <Field label="Phone" value={patient.emergencyContact.phone}/>
+              <Field label="Relationship" value={patient.emergencyContact.relationship}/>
+            </div>
+          </div>
+        )
+
+      case 'history_ho':
+        if (!isHom || !(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="History (H/o)"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+              {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+              {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+              {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+              {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
+              {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
+            </div>
+          </div>
+        )
+
+      case 'other_medical_history':
+        if (isHom || !(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Other Medical History"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+              {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+              {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+              {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+            </div>
+          </div>
+        )
+
+      case 'generals': {
+        if (!isHom) return null
+        const rows = [
+          ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
+          ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
+          ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
+        ].filter(([key]) => patient.generals?.[key])
+        const customRows = (patient.customGenerals ?? []).filter(g => g.label && g.value)
+        if (!rows.length && !customRows.length) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Generals"/>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {rows.map(([key, label]) => (
+                  <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '6px 8px', width: 140, fontWeight: 700, color: '#374151' }}>{label}</td>
+                    <td style={{ padding: '6px 8px' }}>{patient.generals[key]}</td>
+                  </tr>
+                ))}
+                {customRows.map(field => (
+                  <tr key={field.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '6px 8px', width: 140, fontWeight: 700, color: '#374151' }}>{field.label}</td>
+                    <td style={{ padding: '6px 8px' }}>{field.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      case 'chief_complaints':
+        if (!isHom || !patient.chiefComplaints?.some(c => c.complaint)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Chief Complaints (C/o)"/>
+            {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
+              <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
+                  {row.location    && <span><b>Location:</b> {row.location}</span>}
+                  {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
+                  {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
+                  {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+
+      case 'prescription_details':
+        if (!isHom || !patient.prescriptionDetails) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Prescription Details"/>
+            <RichVal val={patient.prescriptionDetails}/>
+          </div>
+        )
+
+      default: {
+        if (isHom) return null
+
+        if (sectionId.startsWith('preset__')) {
+          const secTitle = sectionId.slice('preset__'.length)
+          const sec = getIntakeSections(spec).find(s => s.title === secTitle)
+          if (!sec) return null
+          const fields = sec.fields.filter(f => {
+            const v = patient.specialtyData?.[f.key]
+            return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+          })
+          if (!fields.length) return null
+          return (
+            <div key={sectionId}>
+              <SectionHeader title={sec.title}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.key} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
+                    ? patient.specialtyData[f.key].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.key]} / 10`
+                      : String(patient.specialtyData[f.key] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        }
+
+        if (sectionId.startsWith('section__')) {
+          const secName = sectionId.slice('section__'.length)
+          const fields = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Additional Info') === secName)
+            .filter(f => {
+              const v = patient.specialtyData?.[f.id]
+              return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+            })
+          if (!fields.length) return null
+          return (
+            <div key={sectionId}>
+              <SectionHeader title={secName}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.id} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.id])
+                    ? patient.specialtyData[f.id].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.id]} / 10`
+                      : String(patient.specialtyData[f.id] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        }
+
+        return null
+      }
+    }
+  }
 
   return (
     <div id="patient-print" style={{ display: 'none', fontFamily: 'Arial, sans-serif', color: '#111827', padding: '32px 40px', maxWidth: 800, margin: '0 auto', fontSize: 13 }}>
@@ -655,108 +867,8 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
         {patient.address && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}><b>Address:</b> {patient.address}</div>}
       </div>
 
-      {/* Medical Background */}
-      {(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length) ? (
-        <>
-          <SectionHeader title="Medical Background"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
-            {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
-            {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Emergency Contact */}
-      {(patient.emergencyName || patient.emergencyPhone) ? (
-        <>
-          <SectionHeader title="Emergency Contact"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {patient.emergencyName && <Field label="Name" value={patient.emergencyName}/>}
-            {patient.emergencyPhone && <Field label="Phone" value={patient.emergencyPhone}/>}
-            {patient.emergencyRelation && <Field label="Relationship" value={patient.emergencyRelation}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Homeopathy: History */}
-      {isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan) ? (
-        <>
-          <SectionHeader title="History (H/o)"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
-            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
-            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
-            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
-            {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
-            {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Non-homeopathy: Other Medical History */}
-      {!isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes) ? (
-        <>
-          <SectionHeader title="Other Medical History"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
-            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
-            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
-            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Homeopathy: Chief Complaints */}
-      {isHom && patient.chiefComplaints?.some(c => c.complaint) ? (
-        <>
-          <SectionHeader title="Chief Complaints (C/o)"/>
-          {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
-            <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
-                {row.location    && <span><b>Location:</b> {row.location}</span>}
-                {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
-                {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
-                {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
-              </div>
-            </div>
-          ))}
-        </>
-      ) : null}
-
-      {/* Homeopathy: Prescription Details */}
-      {isHom && patient.prescriptionDetails ? (
-        <>
-          <SectionHeader title="Prescription Details"/>
-          <RichVal val={patient.prescriptionDetails}/>
-        </>
-      ) : null}
-
-      {/* Non-homeopathy: Specialty Preset Sections */}
-      {!isHom && (() => {
-        const sections = getIntakeSections(spec)
-        const hasData = sections.some(sec => sec.fields.some(f => patient.specialtyData?.[f.key]))
-        if (!hasData) return null
-        return sections.map(sec => {
-          const fields = sec.fields.filter(f => patient.specialtyData?.[f.key] != null && patient.specialtyData?.[f.key] !== '')
-          if (!fields.length) return null
-          return (
-            <div key={sec.title}>
-              <SectionHeader title={sec.title}/>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {fields.map(f => <Field key={f.key} label={f.label} value={
-                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
-                    ? patient.specialtyData[f.key].join(', ')
-                    : f.type === 'scale'
-                      ? `${patient.specialtyData[f.key]} / 10`
-                      : String(patient.specialtyData[f.key] ?? '')
-                }/>)}
-              </div>
-            </div>
-          )
-        })
-      })()}
+      {/* Ordered sections — same order as the doctor-customized Overview tab layout */}
+      {(effectiveLayout ?? []).filter(item => item.visible).map(item => renderPrintSection(item.id))}
 
       {/* Visit History */}
       {sortedVisits.length > 0 ? (
@@ -2159,6 +2271,7 @@ export default function PatientProfilePage() {
         doctor={doctor}
         formatDate={formatDate}
         formatCurrency={formatCurrency}
+        effectiveLayout={effectiveLayout}
       />
     </AppLayout>
   )

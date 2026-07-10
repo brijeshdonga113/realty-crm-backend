@@ -19,6 +19,7 @@ import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 import { useInventory } from '@/hooks/useInventory'
 import { useAppointments } from '@/hooks/useAppointments'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
+import { Modal } from '@/components/ui/Modal'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -211,6 +212,43 @@ function VisitEntryForm() {
 
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
+
+  // Has the user entered anything worth not losing? Used to guard accidental exits.
+  const isDirty = !savedVisit && (
+    form.chiefComplaint.trim() || form.history.trim() || form.findings.trim() ||
+    form.diagnosis.length > 0 || form.treatment.trim() || form.prescriptions.length > 0 ||
+    form.labOrders.length > 0 || form.followUpDate || form.notes.trim() ||
+    Object.values(form.vitalSigns).some(v => v.trim()) ||
+    rx.medication.trim() ||
+    invoiceLines.some(l => l.description.trim() || Number(l.unitPrice) > 0) ||
+    Number(payment.amount) > 0
+  )
+
+  // Warn on tab close / refresh while there are unsaved changes
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // In-app navigation (Back / Cancel / profile link) — confirm before discarding unsaved work
+  const [pendingNav, setPendingNav] = useState(null)
+  const requestLeave = (navigate) => { isDirty ? setPendingNav(() => navigate) : navigate() }
+  const [leavingSaving, setLeavingSaving] = useState(false)
+  const saveDraftAndLeave = async () => {
+    setLeavingSaving(true)
+    try {
+      await handleSaveDraft()
+      pendingNav?.()
+    } finally {
+      setLeavingSaving(false)
+      setPendingNav(null)
+    }
+  }
 
   const addFollowUpDays = (days) => {
     const base = form.visitDate ? new Date(form.visitDate) : new Date()
@@ -426,7 +464,7 @@ function VisitEntryForm() {
       title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
         <div className="flex items-center gap-2">
-          <button onClick={() => router.back()}
+          <button onClick={() => requestLeave(() => router.back())}
             className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
             ← Back
           </button>
@@ -487,7 +525,7 @@ function VisitEntryForm() {
                 {patient.chronicConditions?.length > 0 && ` · ${patient.chronicConditions.join(', ')}`}
               </p>
             </div>
-            <button onClick={() => router.push(`/patients/${patientId}`)}
+            <button onClick={() => requestLeave(() => router.push(`/patients/${patientId}`))}
               className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium flex-shrink-0">
               View Profile →
             </button>
@@ -1122,7 +1160,7 @@ function VisitEntryForm() {
           </div>
         )}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.back()}
+          <button type="button" onClick={() => requestLeave(() => router.back())}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
@@ -1353,6 +1391,26 @@ function VisitEntryForm() {
 
       </div>{/* end grid */}
       </div>{/* end max-w-6xl */}
+
+      <Modal open={!!pendingNav} onClose={() => setPendingNav(null)} title="Leave without finishing?" size="sm">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+          This visit hasn't been saved yet. Save it as a draft so you can pick up where you left off, or discard your changes.
+        </p>
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={saveDraftAndLeave} disabled={leavingSaving}
+            className="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+            {leavingSaving ? 'Saving…' : 'Save as Draft & Leave'}
+          </button>
+          <button type="button" onClick={() => { pendingNav?.(); setPendingNav(null) }} disabled={leavingSaving}
+            className="px-4 py-2.5 border border-red-200 dark:border-red-800 text-sm font-medium text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors">
+            Discard Changes
+          </button>
+          <button type="button" onClick={() => setPendingNav(null)} disabled={leavingSaving}
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-60 transition-colors">
+            Keep Editing
+          </button>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }
