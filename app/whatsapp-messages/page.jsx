@@ -1,124 +1,172 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages'
 import { usePreferences } from '@/hooks/usePreferences'
+import { sendWhatsAppMessage } from '@/lib/whatsappApi'
+import AutoTextarea from '@/components/ui/AutoTextarea'
 
-function formatTimestamp(iso, formatDate) {
-  if (!iso) return '—'
-  const time = new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  return `${formatDate(iso.slice(0, 10))} · ${time}`
+function conversationKey(m) {
+  return m.patientId || m.contactPhone || m.to || 'unknown'
 }
 
-const TYPE_LABELS = {
-  appointment_reminder: 'Appointment Reminder',
-  followup_reminder:    'Follow-up Reminder',
-  test:                 'Test Message',
-  manual:               'Manual',
+function initials(name) {
+  return (name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
-
-const STATUS_OPTS = [
-  { value: 'all',    label: 'All' },
-  { value: 'sent',   label: 'Sent' },
-  { value: 'failed', label: 'Failed' },
-]
 
 export default function WhatsAppMessagesPage() {
   const router = useRouter()
   const { messages, loading } = useWhatsAppMessages()
   const { formatDate } = usePreferences()
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [filterType, setFilterType]     = useState('all')
+  const [selectedKey, setSelectedKey] = useState(null)
+  const [draft, setDraft]             = useState('')
+  const [sending, setSending]         = useState(false)
+  const [sendError, setSendError]     = useState('')
 
-  const types = ['all', ...new Set(messages.map(m => m.type || 'manual'))]
+  // Group messages into one conversation per patient/contact, newest last message first
+  const conversations = useMemo(() => {
+    const byKey = {}
+    messages.forEach(m => {
+      const key = conversationKey(m)
+      if (!byKey[key]) {
+        byKey[key] = {
+          key,
+          patientId:   m.patientId ?? null,
+          patientName: m.patientName || '',
+          contactPhone: m.contactPhone || m.to || '',
+          messages: [],
+        }
+      }
+      byKey[key].messages.push(m)
+      // Prefer a real patient name if any message in the thread has one
+      if (m.patientName && !byKey[key].patientName) byKey[key].patientName = m.patientName
+    })
+    return Object.values(byKey)
+      .map(c => ({ ...c, messages: c.messages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) }))
+      .sort((a, b) => {
+        const aLast = a.messages[a.messages.length - 1]?.createdAt || ''
+        const bLast = b.messages[b.messages.length - 1]?.createdAt || ''
+        return bLast.localeCompare(aLast)
+      })
+  }, [messages])
 
-  const filtered = messages.filter(m => {
-    if (filterStatus !== 'all' && m.status !== filterStatus) return false
-    if (filterType !== 'all' && (m.type || 'manual') !== filterType) return false
-    return true
-  })
+  const selected = conversations.find(c => c.key === selectedKey) ?? conversations[0] ?? null
 
-  const sentCount   = messages.filter(m => m.status === 'sent').length
-  const failedCount = messages.filter(m => m.status === 'failed').length
+  const handleSend = async () => {
+    if (!selected || !draft.trim()) return
+    setSending(true)
+    setSendError('')
+    try {
+      const result = await sendWhatsAppMessage({
+        to:          selected.contactPhone,
+        message:     draft.trim(),
+        patientId:   selected.patientId,
+        patientName: selected.patientName,
+        type:        'manual',
+      })
+      if (result.success) setDraft('')
+      else setSendError(result.error)
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <AppLayout title="WhatsApp Messages">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="h-[calc(100vh-140px)] flex bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Sent</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{messages.length}</p>
+        {/* Left column — conversations */}
+        <div className="w-80 flex-shrink-0 border-r border-gray-100 dark:border-gray-700 flex flex-col">
+          <div className="px-4 py-3.5 border-b border-gray-100 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Conversations</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{conversations.length} contact{conversations.length !== 1 ? 's' : ''}</p>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Delivered to Meta</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{sentCount}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Failed</p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{failedCount}</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          {STATUS_OPTS.map(o => (
-            <button key={o.value} onClick={() => setFilterStatus(o.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                ${filterStatus === o.value
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-              {o.label}
-            </button>
-          ))}
-          <span className="w-px bg-gray-200 dark:bg-gray-700 mx-1"/>
-          {types.map(t => (
-            <button key={t} onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                ${filterType === t
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-              {t === 'all' ? 'All Types' : (TYPE_LABELS[t] || t)}
-            </button>
-          ))}
-        </div>
-
-        {/* List */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-          {loading ? (
-            <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <EmptyState title="No messages yet" description="Messages sent via the WhatsApp API will show up here."/>
-          ) : (
-            <div className="divide-y divide-gray-50 dark:divide-gray-700">
-              {filtered.map(m => (
-                <div key={m.id}
-                  onClick={() => m.patientId && router.push(`/patients/${m.patientId}`)}
-                  className={`px-6 py-4 flex items-start gap-4 ${m.patientId ? 'cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50' : ''} transition-colors`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {m.patientName || m.to}
-                      </p>
-                      <Badge label={TYPE_LABELS[m.type] || m.type || 'Manual'} color="blue"/>
-                      <Badge label={m.status === 'sent' ? 'Sent' : 'Failed'} color={m.status === 'sent' ? 'green' : 'red'}/>
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
+            ) : conversations.length === 0 ? (
+              <EmptyState title="No conversations yet" description="Messages sent or received via the WhatsApp API will show up here."/>
+            ) : (
+              conversations.map(c => {
+                const last = c.messages[c.messages.length - 1]
+                return (
+                  <div key={c.key} onClick={() => setSelectedKey(c.key)}
+                    className={`px-4 py-3 flex items-center gap-3 cursor-pointer border-b border-gray-50 dark:border-gray-700/60 transition-colors
+                      ${selected?.key === c.key ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'}`}>
+                    <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">{initials(c.patientName || c.contactPhone)}</span>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 truncate">{m.message}</p>
-                    {m.status === 'failed' && m.error && (
-                      <p className="text-xs text-red-500 dark:text-red-400 mt-1">{m.error}</p>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{c.patientName || c.contactPhone}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {last?.direction === 'outbound' ? 'You: ' : ''}{last?.message}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{m.to}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{formatTimestamp(m.createdAt, formatDate)}</p>
-                  </div>
-                </div>
-              ))}
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right column — thread */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {!selected ? (
+            <div className="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">
+              Select a conversation to view messages.
             </div>
+          ) : (
+            <>
+              <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white text-sm">{selected.patientName || selected.contactPhone}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{selected.contactPhone}</p>
+                </div>
+                {selected.patientId && (
+                  <button onClick={() => router.push(`/patients/${selected.patientId}`)}
+                    className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                    View Profile →
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/20">
+                {selected.messages.map(m => (
+                  <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
+                      m.direction === 'outbound'
+                        ? (m.status === 'failed' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-primary-500 text-white')
+                        : 'bg-white dark:bg-gray-700 border border-gray-100 dark:border-gray-600'
+                    }`}>
+                      <p className={`text-sm whitespace-pre-wrap ${m.direction === 'outbound' && m.status !== 'failed' ? 'text-white' : 'text-gray-800 dark:text-gray-100'}`}>
+                        {m.message}
+                      </p>
+                      {m.status === 'failed' && m.error && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">✗ {m.error}</p>
+                      )}
+                      <p className={`text-[10px] mt-1 ${m.direction === 'outbound' && m.status !== 'failed' ? 'text-primary-100' : 'text-gray-400 dark:text-gray-500'}`}>
+                        {formatDate(m.createdAt?.slice(0, 10))} · {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-700">
+                {sendError && <p className="text-xs text-red-500 dark:text-red-400 mb-2">{sendError}</p>}
+                <div className="flex items-end gap-2">
+                  <AutoTextarea value={draft} onChange={e => setDraft(e.target.value)}
+                    placeholder="Type a message… (free text only works within 24h of the patient's last message)"
+                    className="input-field flex-1 resize-none" rows={1}/>
+                  <button onClick={handleSend} disabled={sending || !draft.trim()}
+                    className="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors flex-shrink-0">
+                    {sending ? 'Sending…' : 'Send'}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -42,7 +42,7 @@ export async function POST(request) {
 
   const logsRef = db.collection('users').doc(doctorId).collection('whatsappMessages')
   const logMessage = (patch) => logsRef.add(createWhatsAppMessage({
-    doctorId, patientId: patientId ?? null, patientName: patientName ?? '', to, message, type, ...patch,
+    doctorId, direction: 'outbound', patientId: patientId ?? null, patientName: patientName ?? '', to, message, type, ...patch,
   })).catch(() => {}) // logging failure shouldn't mask the real send result
 
   const doctorSnap = await db.collection('users').doc(doctorId).collection('profile').doc('doctor').get()
@@ -90,11 +90,11 @@ export async function POST(request) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const error = data?.error?.message || 'WhatsApp API request failed.'
-    await logMessage({ status: 'failed', error })
+    await logMessage({ status: 'failed', error, contactPhone: toNumber })
     return Response.json({ error }, { status: res.status })
   }
 
   const messageId = data?.messages?.[0]?.id ?? null
-  await logMessage({ status: 'sent', messageId })
+  await logMessage({ status: 'sent', messageId, contactPhone: toNumber })
   return Response.json({ ok: true, messageId })
 }

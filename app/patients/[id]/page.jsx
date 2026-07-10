@@ -1957,8 +1957,15 @@ export default function PatientProfilePage() {
                 <div key={m.id} className="px-6 py-4 flex items-start gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge label={m.status === 'sent' ? 'Sent' : 'Failed'} color={m.status === 'sent' ? 'green' : 'red'}/>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">{(m.type || 'manual').replace(/_/g, ' ')}</span>
+                      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        {m.direction === 'inbound' ? 'Patient' : 'You'}
+                      </span>
+                      <Badge
+                        label={m.status === 'sent' ? 'Sent' : m.status === 'received' ? 'Received' : 'Failed'}
+                        color={m.status === 'sent' ? 'green' : m.status === 'received' ? 'blue' : 'red'}/>
+                      {m.direction !== 'inbound' && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">{(m.type || 'manual').replace(/_/g, ' ')}</span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{m.message}</p>
                     {m.status === 'failed' && m.error && (
@@ -1966,7 +1973,7 @@ export default function PatientProfilePage() {
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{m.to}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{m.contactPhone || m.to}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       {formatDate(m.createdAt?.slice(0, 10))} · {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                     </p>

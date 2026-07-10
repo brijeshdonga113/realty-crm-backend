@@ -176,12 +176,24 @@ export default function WhatsAppTemplatesPage() {
   const handleApiSave = async () => {
     setApiSaving(true)
     try {
-      await updateProfile({ whatsappApi: {
+      const { getAuth } = await import('firebase/auth')
+      const token = await getAuth().currentUser?.getIdToken()
+      const whatsappApi = {
         accessToken:      accessToken.trim(),
         phoneNumberId:    phoneNumberId.trim(),
         templateName:     templateName.trim(),
         templateLanguage: templateLanguage.trim() || 'en_US',
-      } })
+      }
+      // Server route persists the credentials AND keeps the phone-number →
+      // doctor lookup index in sync (needed so the webhook can route incoming
+      // messages to the right doctor) — a plain client write can't touch that index.
+      const res = await fetch('/api/whatsapp/connect', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(whatsappApi),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to save.')
+      await updateProfile({ whatsappApi }) // sync local doctor state for the Connected badge etc.
       setApiSaved(true)
       setTestResult(null)
       setTimeout(() => setApiSaved(false), 2500)
