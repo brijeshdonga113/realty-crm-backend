@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import { isWhatsAppApiConnected, sendWhatsAppMessage } from '@/lib/whatsappApi'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -125,6 +126,14 @@ export default function WhatsAppTemplatesPage() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  const [accessToken, setAccessToken]   = useState('')
+  const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [apiSaving, setApiSaving]       = useState(false)
+  const [apiSaved, setApiSaved]         = useState(false)
+  const [testPhone, setTestPhone]       = useState('')
+  const [testSending, setTestSending]   = useState(false)
+  const [testResult, setTestResult]     = useState(null) // { success, error }
+
   useEffect(() => {
     const wt = doctor?.waTemplates
     if (wt) {
@@ -134,7 +143,9 @@ export default function WhatsAppTemplatesPage() {
     } else {
       setDateFormat(doctor?.dateFormat || 'DD/MM/YYYY')
     }
-  }, [doctor?.waTemplates, doctor?.dateFormat])
+    setAccessToken(doctor?.whatsappApi?.accessToken || '')
+    setPhoneNumberId(doctor?.whatsappApi?.phoneNumberId || '')
+  }, [doctor?.waTemplates, doctor?.dateFormat, doctor?.whatsappApi])
 
   const handleChange = (id, value) => {
     setSaved(false)
@@ -158,6 +169,34 @@ export default function WhatsAppTemplatesPage() {
     }
   }
 
+  const handleApiSave = async () => {
+    setApiSaving(true)
+    try {
+      await updateProfile({ whatsappApi: { accessToken: accessToken.trim(), phoneNumberId: phoneNumberId.trim() } })
+      setApiSaved(true)
+      setTestResult(null)
+      setTimeout(() => setApiSaved(false), 2500)
+    } finally {
+      setApiSaving(false)
+    }
+  }
+
+  const handleSendTest = async () => {
+    if (!testPhone.trim()) return
+    setTestSending(true)
+    setTestResult(null)
+    try {
+      const clinicName = doctor?.clinicName || 'our clinic'
+      const result = await sendWhatsAppMessage({
+        to:      testPhone,
+        message: `Hello! This is a test message from ${clinicName} confirming your WhatsApp API connection is working.`,
+      })
+      setTestResult(result)
+    } finally {
+      setTestSending(false)
+    }
+  }
+
   const getValue = (id) => templates[id]?.template || DEFAULT_TEMPLATES[id]?.template || ''
 
   return (
@@ -178,6 +217,62 @@ export default function WhatsAppTemplatesPage() {
       }
     >
       <div className="max-w-3xl mx-auto space-y-6">
+
+        {/* WhatsApp API Connection */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <h3 className="font-semibold text-gray-900 dark:text-white">WhatsApp API Connection</h3>
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
+              isWhatsAppApiConnected(doctor)
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}>
+              {isWhatsAppApiConnected(doctor) ? 'Connected' : 'Not connected'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            Connect your WhatsApp Business Cloud API so reminders send automatically instead of opening WhatsApp for you to send manually.
+            Get these from Meta for Developers → your App → WhatsApp → API Setup.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Access Token</label>
+              <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); setApiSaved(false) }}
+                placeholder="EAAG..." className="input-field font-mono text-sm"/>
+            </div>
+            <div>
+              <label className="form-label">Phone Number ID</label>
+              <input value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); setApiSaved(false) }}
+                placeholder="123456789012345" className="input-field font-mono text-sm"/>
+            </div>
+          </div>
+          <div className="flex justify-end mt-3">
+            <button onClick={handleApiSave} disabled={apiSaving}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60
+                ${apiSaved ? 'bg-green-500 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
+              {apiSaving ? 'Saving…' : apiSaved ? '✓ Saved!' : 'Save Connection'}
+            </button>
+          </div>
+
+          {isWhatsAppApiConnected(doctor) && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Send a Test Message</p>
+              <div className="flex flex-wrap gap-2">
+                <input value={testPhone} onChange={e => setTestPhone(e.target.value)}
+                  placeholder="Phone number, e.g. 9876543210" className="input-field flex-1 min-w-[200px]"/>
+                <button onClick={handleSendTest} disabled={testSending || !testPhone.trim()}
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
+                  {testSending ? 'Sending…' : 'Send Test'}
+                </button>
+              </div>
+              {testResult && (
+                <p className={`text-xs mt-2 ${testResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {testResult.success ? '✓ Sent! Check the recipient\'s WhatsApp.' : `✗ ${testResult.error}`}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* WhatsApp Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
