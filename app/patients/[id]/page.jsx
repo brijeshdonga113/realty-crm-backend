@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
 import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
+import { useProgressNotes } from '@/hooks/useProgressNotes'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
@@ -914,6 +915,7 @@ export default function PatientProfilePage() {
   const INV_COLORS       = buildStatusColorMap(billingStatuses)
   const { patient, loading, update } = usePatient(id)
   const { visits, update: updateVisit, add: addVisit, remove: removeVisit } = useVisits(id)
+  const { notes: progressNotes, add: addProgressNote, remove: removeProgressNote } = useProgressNotes(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
@@ -989,6 +991,33 @@ export default function PatientProfilePage() {
   const [payMethod,     setPayMethod]     = useState('cash')
   const [payCollectedBy, setPayCollectedBy] = useState('doctor')
   const [payMarking,    setPayMarking]    = useState(false)
+
+  const [showNoteModal, setShowNoteModal] = useState(false)
+  const [noteDate,      setNoteDate]      = useState(() => new Date().toISOString().slice(0, 10))
+  const [noteText,      setNoteText]      = useState('')
+  const [savingNote,    setSavingNote]    = useState(false)
+
+  const handleAddProgressNote = async () => {
+    if (!noteText.trim()) return
+    setSavingNote(true)
+    try {
+      await addProgressNote({
+        patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
+        noteDate,
+        note: noteText.trim(),
+      })
+      setNoteText('')
+      setNoteDate(new Date().toISOString().slice(0, 10))
+      setShowNoteModal(false)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Delete this progress note?')) return
+    await removeProgressNote(noteId)
+  }
 
   const sectionDefs = useMemo(() => {
     const base = [
@@ -1848,6 +1877,19 @@ export default function PatientProfilePage() {
       {/* Tab 2: Visits */}
       {tab === 2 && (
         <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Visit History</h3>
+            {!doctor?.viewOnly && (
+              <button onClick={() => setShowNoteModal(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-3 py-1.5 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Progress Note
+              </button>
+            )}
+          </div>
+
           {/* Draft visits */}
           {visits.filter(v => v.status === 'draft').map(draft => (
             <div key={draft.id} className="mb-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center gap-4">
@@ -1874,54 +1916,100 @@ export default function PatientProfilePage() {
             </div>
           ))}
 
-          {/* Completed visits — timeline */}
+          {/* Completed visits + progress notes — merged timeline */}
           {(() => {
             const completedVisits = visits.filter(v => v.status !== 'draft')
             const draftCount = visits.filter(v => v.status === 'draft').length
-            if (completedVisits.length === 0 && draftCount === 0) {
+            const timelineItems = [
+              ...completedVisits.map(v => ({ type: 'visit', date: v.visitDate, data: v })),
+              ...progressNotes.map(n => ({ type: 'note', date: n.noteDate, data: n })),
+            ].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+
+            if (timelineItems.length === 0 && draftCount === 0) {
               return (
                 <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
                   action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
               )
             }
-            if (completedVisits.length === 0) {
+            if (timelineItems.length === 0) {
               return <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
             }
+            const firstVisitIdx = timelineItems.findIndex(t => t.type === 'visit')
+            let visitNumber = completedVisits.length
             return (
               <div className="relative">
                 {/* Timeline spine */}
                 <div className="absolute left-5 top-10 bottom-6 w-0.5 bg-gradient-to-b from-primary-300 via-gray-200 to-transparent dark:from-primary-700 dark:via-gray-700 dark:to-transparent"/>
 
                 <div className="space-y-3">
-                  {completedVisits.map((visit, idx) => (
-                    <div key={visit.id} className="relative flex gap-4 items-start">
-                      {/* Timeline node */}
-                      <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-gray-900 shadow-sm ${
-                          idx === 0
-                            ? 'bg-primary-500 dark:bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
-                        }`}>
-                          {completedVisits.length - idx}
+                  {timelineItems.map((item, idx) => {
+                    if (item.type === 'note') {
+                      const noteItem = item.data
+                      return (
+                        <div key={`note-${noteItem.id}`} className="relative flex gap-4 items-start group">
+                          {/* Timeline node */}
+                          <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm ring-2 ring-white dark:ring-gray-900 shadow-sm bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-200 dark:border-blue-700">
+                              📝
+                            </div>
+                          </div>
+
+                          {/* Card */}
+                          <div className="flex-1 min-w-0 bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                  Progress Note · {formatDate(noteItem.noteDate)}
+                                </p>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{noteItem.note}</p>
+                              </div>
+                              {!doctor?.viewOnly && (
+                                <button onClick={() => handleDeleteNote(noteItem.id)} title="Delete note"
+                                  className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition-all">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    const visit = item.data
+                    const number = visitNumber
+                    visitNumber -= 1
+                    return (
+                      <div key={visit.id} className="relative flex gap-4 items-start">
+                        {/* Timeline node */}
+                        <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-gray-900 shadow-sm ${
+                            idx === firstVisitIdx
+                              ? 'bg-primary-500 dark:bg-primary-500 text-white'
+                              : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                          }`}>
+                            {number}
+                          </div>
+                        </div>
+
+                        {/* Card */}
+                        <div className="flex-1 min-w-0">
+                          <VisitCard
+                            visit={visit}
+                            onUpdate={updateVisit}
+                            onDelete={removeVisit}
+                            patientId={id}
+                            patientName={`${patient.firstName} ${patient.lastName}`}
+                            linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
+                            blockedSlots={blockedSlots}
+                            linkedFollowUp={followupByVisitId[visit.id] ?? null}
+                            defaultExpanded={idx === firstVisitIdx}
+                          />
                         </div>
                       </div>
-
-                      {/* Card */}
-                      <div className="flex-1 min-w-0">
-                        <VisitCard
-                          visit={visit}
-                          onUpdate={updateVisit}
-                          onDelete={removeVisit}
-                          patientId={id}
-                          patientName={`${patient.firstName} ${patient.lastName}`}
-                          linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
-                          blockedSlots={blockedSlots}
-                          linkedFollowUp={followupByVisitId[visit.id] ?? null}
-                          defaultExpanded={idx === 0}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -2261,6 +2349,32 @@ export default function PatientProfilePage() {
           }}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
             {deleting ? 'Deleting…' : 'Delete Patient'}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={showNoteModal} onClose={() => setShowNoteModal(false)} title="Add Progress Note" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={noteDate} max={new Date().toISOString().slice(0, 10)}
+              onChange={e => setNoteDate(e.target.value)} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Note</label>
+            <AutoTextarea value={noteText} onChange={e => setNoteText(e.target.value)}
+              placeholder="Quick update — e.g. Called patient, feeling better, continuing current meds."
+              className="input-field" rows={2}/>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end mt-6">
+          <button type="button" onClick={() => setShowNoteModal(false)}
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button type="button" disabled={savingNote || !noteText.trim()} onClick={handleAddProgressNote}
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+            {savingNote ? 'Saving…' : 'Save Note'}
           </button>
         </div>
       </Modal>

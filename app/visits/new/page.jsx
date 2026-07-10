@@ -210,6 +210,36 @@ function VisitEntryForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editVisitId, patientId])
 
+  // Resume an already-started draft for this appointment (e.g. the doctor attended
+  // earlier, saved as draft and left) instead of silently starting a second, blank
+  // visit for the same appointment.
+  useEffect(() => {
+    if (draftIdRef.current || editVisitId || !patientId || !appointmentId) return
+    visitService.getDraftsForPatient(patientId).then(drafts => {
+      const existing = drafts.find(d => d.appointmentId === appointmentId)
+      if (!existing) return
+      draftIdRef.current = existing.id
+      setIsDraft(true)
+      const url = new URL(window.location.href)
+      url.searchParams.set('draftId', existing.id)
+      window.history.replaceState({}, '', url.toString())
+      setForm({
+        visitDate:      existing.visitDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        chiefComplaint: existing.chiefComplaint || '',
+        history:        existing.history || '',
+        findings:       existing.examination?.findings || '',
+        diagnosis:      existing.diagnosis || [],
+        treatment:      existing.treatment || '',
+        prescriptions:  existing.prescriptions || [],
+        labOrders:      existing.labOrders || [],
+        followUpDate:   existing.followUpDate || '',
+        notes:          existing.notes || '',
+        vitalSigns:     existing.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+      })
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, appointmentId, editVisitId])
+
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
@@ -335,11 +365,15 @@ function VisitEntryForm() {
     setSaveError('')
     try {
       const visitData = { ...buildVisitData(), prescriptions: finalPrescriptions }
+      const wasFreshCreate = !editVisitId && !draftIdRef.current
       const visit = editVisitId
         ? await visitService.update(editVisitId, { ...visitData, status: 'completed' }, patientId)
         : draftIdRef.current
           ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
           : await visitService.create(visitData)
+      // Remember the id immediately so a retry after a later step fails (e.g. marking the
+      // appointment complete) updates this same visit instead of creating a duplicate.
+      if (wasFreshCreate && visit?.id) draftIdRef.current = visit.id
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
