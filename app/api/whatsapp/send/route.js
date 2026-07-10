@@ -1,7 +1,7 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
 import { createWhatsAppMessage } from '@/models/WhatsAppMessage'
 
-const GRAPH_VERSION = 'v21.0'
+const GRAPH_VERSION = 'v25.0'
 
 // Resolves the caller's Firebase ID token to the doctorId whose WhatsApp
 // credentials should be used — either the doctor themselves, or a
@@ -47,7 +47,7 @@ export async function POST(request) {
 
   const doctorSnap = await db.collection('users').doc(doctorId).collection('profile').doc('doctor').get()
   const doctor = doctorSnap.data()
-  const { accessToken, phoneNumberId } = doctor?.whatsappApi ?? {}
+  const { accessToken, phoneNumberId, templateName, templateLanguage } = doctor?.whatsappApi ?? {}
   if (!accessToken || !phoneNumberId) {
     const error = 'WhatsApp API is not connected. Add your access token and phone number ID in WhatsApp Templates settings.'
     await logMessage({ status: 'failed', error })
@@ -61,15 +61,30 @@ export async function POST(request) {
     return Response.json({ error }, { status: 400 })
   }
 
+  // WhatsApp requires an approved message template for any business-initiated
+  // message (i.e. outside a 24h window where the customer messaged first) —
+  // free-form text only works as a reply within that window. Use the doctor's
+  // configured template when set; otherwise fall back to free text (useful for
+  // replying to patients who've messaged recently, but will fail with
+  // "access denied"-style errors for first-contact reminders without one).
+  const payload = templateName
+    ? {
+        messaging_product: 'whatsapp',
+        to:                 toNumber,
+        type:               'template',
+        template:           { name: templateName, language: { code: templateLanguage || 'en_US' } },
+      }
+    : {
+        messaging_product: 'whatsapp',
+        to:                 toNumber,
+        type:               'text',
+        text:               { body: message },
+      }
+
   const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to:                 toNumber,
-      type:               'text',
-      text:               { body: message },
-    }),
+    body:    JSON.stringify(payload),
   })
 
   const data = await res.json().catch(() => ({}))

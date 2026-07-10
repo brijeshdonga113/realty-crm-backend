@@ -128,6 +128,8 @@ export default function WhatsAppTemplatesPage() {
 
   const [accessToken, setAccessToken]   = useState('')
   const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [templateName, setTemplateName]   = useState('')
+  const [templateLanguage, setTemplateLanguage] = useState('en_US')
   const [apiSaving, setApiSaving]       = useState(false)
   const [apiSaved, setApiSaved]         = useState(false)
   const [testPhone, setTestPhone]       = useState('')
@@ -145,6 +147,8 @@ export default function WhatsAppTemplatesPage() {
     }
     setAccessToken(doctor?.whatsappApi?.accessToken || '')
     setPhoneNumberId(doctor?.whatsappApi?.phoneNumberId || '')
+    setTemplateName(doctor?.whatsappApi?.templateName || '')
+    setTemplateLanguage(doctor?.whatsappApi?.templateLanguage || 'en_US')
   }, [doctor?.waTemplates, doctor?.dateFormat, doctor?.whatsappApi])
 
   const handleChange = (id, value) => {
@@ -172,7 +176,12 @@ export default function WhatsAppTemplatesPage() {
   const handleApiSave = async () => {
     setApiSaving(true)
     try {
-      await updateProfile({ whatsappApi: { accessToken: accessToken.trim(), phoneNumberId: phoneNumberId.trim() } })
+      await updateProfile({ whatsappApi: {
+        accessToken:      accessToken.trim(),
+        phoneNumberId:    phoneNumberId.trim(),
+        templateName:     templateName.trim(),
+        templateLanguage: templateLanguage.trim() || 'en_US',
+      } })
       setApiSaved(true)
       setTestResult(null)
       setTimeout(() => setApiSaved(false), 2500)
@@ -246,7 +255,22 @@ export default function WhatsAppTemplatesPage() {
               <input value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); setApiSaved(false) }}
                 placeholder="123456789012345" className="input-field font-mono text-sm"/>
             </div>
+            <div>
+              <label className="form-label">Message Template Name</label>
+              <input value={templateName} onChange={e => { setTemplateName(e.target.value); setApiSaved(false) }}
+                placeholder="e.g. appointment_reminder" className="input-field font-mono text-sm"/>
+            </div>
+            <div>
+              <label className="form-label">Template Language Code</label>
+              <input value={templateLanguage} onChange={e => { setTemplateLanguage(e.target.value); setApiSaved(false) }}
+                placeholder="en_US" className="input-field font-mono text-sm"/>
+            </div>
           </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+            WhatsApp requires an approved message template for reminders (business-initiated messages), not free text — create one in
+            Meta for Developers → WhatsApp Manager → Message Templates, wait for approval, then enter its exact name and language code here.
+            Leave blank to send free text instead (only works as a reply within 24h of the patient messaging you).
+          </p>
           <div className="flex justify-end mt-3">
             <button onClick={handleApiSave} disabled={apiSaving}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60
