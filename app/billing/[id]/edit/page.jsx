@@ -145,6 +145,12 @@ function EditInvoiceForm() {
   const taxAmount        = Math.round(taxableSubtotal * Number(form?.taxRate ?? 0) / 100)
   const total            = subtotal + taxAmount - Number(form?.discount ?? 0)
 
+  // Doctor-only — total purchase (MRP) cost of medicine line items, for margin visibility.
+  const totalPurchaseCost = lineItems.reduce((s, i) => {
+    const inv = i.inventoryItemId ? inventory.find(x => x.id === i.inventoryItemId) : null
+    return inv?.mrp ? s + Number(inv.mrp) * i.quantity : s
+  }, 0)
+
   // ── Validation ───────────────────────────────────────────────────────────────
 
   const validate = () => {
@@ -380,7 +386,7 @@ function EditInvoiceForm() {
                           <StockBadge invItem={linkedInv} qty={item.quantity}/>
                           {linkedInv && (linkedInv.mrp || linkedInv.billingPrice) && (
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                              {linkedInv.mrp && (
+                              {!isReceptionist && linkedInv.mrp && (
                                 <span className="text-xs text-gray-400 dark:text-gray-500">
                                   Purchase: <span className="font-semibold text-gray-600 dark:text-gray-300">₹{linkedInv.mrp}</span>
                                 </span>
@@ -531,6 +537,12 @@ function EditInvoiceForm() {
                   <span>Total</span>
                   <span className={`w-28 text-right ${total < 0 ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'}`}>{formatCurrency(total)}</span>
                 </div>
+                {!isReceptionist && totalPurchaseCost > 0 && (
+                  <div className="flex gap-8 text-gray-400 dark:text-gray-500">
+                    <span>Purchase Cost</span>
+                    <span className="font-medium w-28 text-right">{formatCurrency(totalPurchaseCost)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

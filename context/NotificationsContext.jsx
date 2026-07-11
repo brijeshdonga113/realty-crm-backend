@@ -2,14 +2,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { notificationService } from '@/services/notificationService'
 import { dataStore } from '@/lib/dataStore'
-import { getNotificationMeta } from '@/models/Notification'
+import { getNotificationMeta, NOTIFICATION_TYPES } from '@/models/Notification'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/Toast'
 
 const NotificationsContext = createContext(null)
-
-// Only pop an alert for these groups — patient/system notifications stay silent in the bell.
-const POPUP_GROUPS = new Set(['Appointments', 'Visits', 'Billing'])
 
 function toastVariantFor(type) {
   if (type === 'appointment_cancelled' || type === 'invoice_overdue') return 'error'
@@ -52,8 +49,11 @@ export function NotificationsProvider({ children }) {
       if (seenIdsRef.current) {
         for (const n of visible) {
           if (seenIdsRef.current.has(n.id)) continue
-          const meta = getNotificationMeta(n.type)
-          if (POPUP_GROUPS.has(meta.group) && !n.read) {
+          // Popup is scoped to brand-new appointments only — visit/billing
+          // events and other appointment subtypes (reminder, cancelled)
+          // still land in the notification bell, just without a popup.
+          if (n.type === NOTIFICATION_TYPES.APPOINTMENT_NEW && !n.read) {
+            const meta = getNotificationMeta(n.type)
             toastRef.current.notify(`${meta.icon} ${n.title}`, toastVariantFor(n.type))
           }
         }
