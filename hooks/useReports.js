@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { dataStore } from '@/lib/dataStore'
+import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
 
@@ -162,9 +163,10 @@ export function useReports() {
     ready.current = { patients: false, appointments: false, invoices: false, followups: false, visits: false }
     live.current  = { patients: [], appointments: [], invoices: [], followups: [], visits: [] }
 
-    // visits uses getAllGroup (one-time fetch) — subscribeGroup requires a
-    // Firestore composite index that may not exist; this avoids that requirement.
-    dataStore.getAllGroup('visits').then(d => recompute('visits', d)).catch(err => {
+    // visits uses visitService.getAll() (fetches per-patient, one-time) rather
+    // than a Firestore collection-group query — same index requirement problem
+    // dataStore.getAllGroup('visits') has, which visitService already works around.
+    visitService.getAll().then(d => recompute('visits', d)).catch(err => {
       console.error('Failed to load visits for reports:', err)
       recompute('visits', [])
     })
