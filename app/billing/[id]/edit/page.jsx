@@ -1,14 +1,13 @@
 'use client'
 import { useState, useMemo, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
-import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { useInventory } from '@/hooks/useInventory'
 import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
-import { inventoryService } from '@/services/inventoryService'
 import { billingService } from '@/services/billingService'
+import { inventoryService } from '@/services/inventoryService'
 import { usePreferences } from '@/hooks/usePreferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
@@ -26,67 +25,64 @@ function StockBadge({ invItem, qty }) {
   return <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{available} {unit} in stock</p>
 }
 
-function NewInvoiceForm() {
-  const router       = useRouter()
-  const searchParams = useSearchParams()
-  const { add }                    = useBilling()
-  const { patients }               = usePatients()
+// Net inventory effect of a medicine line item as currently entered.
+// A negative unit price marks a refund/return line — it restores stock
+// instead of deducting it.
+function lineEffect(item) {
+  if (!item?.inventoryItemId || !(item.quantity > 0)) return 0
+  return item.unitPrice < 0 ? +item.quantity : -item.quantity
+}
+
+function EditInvoiceForm() {
+  const router = useRouter()
+  const { id }  = useParams()
+  const { update } = useBilling()
   const { doctor, isReceptionist } = useAuth()
-  const { items: inventory }              = useInventory()
-  const { formatCurrency }         = usePreferences()
+  const { items: inventory } = useInventory()
+  const { formatCurrency }  = usePreferences()
 
   useEffect(() => {
     if (doctor?.viewOnly) router.replace('/billing')
   }, [doctor?.viewOnly])
 
-  const [loading,   setLoading]   = useState(false)
+  const [invoice,   setInvoice]   = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [saving,    setSaving]    = useState(false)
   const [errors,    setErrors]    = useState({})
   const [saveError, setSaveError] = useState('')
 
-  const [form, setForm] = useState({
-    patientId:     searchParams.get('patientId') ?? '',
-    issueDate:     new Date().toISOString().slice(0, 10),
-    dueDate:       '',
-    taxRate:       0,
-    discount:      0,
-    notes:         '',
-    status:        'draft',
-    paymentMethod: '',
-    collectedBy:   isReceptionist ? 'receptionist' : 'doctor',
-  })
+  const [form, setForm] = useState(null)
+  const [lineItems, setLineItems] = useState([])
 
-  const [lineItems, setLineItems] = useState([createLineItem({ itemType: 'service' })])
-
-  // Prefill from an existing invoice (?duplicateId=) — e.g. re-issuing a
-  // similar bill, or starting a refund by flipping line items negative.
-  const duplicateId = searchParams.get('duplicateId') ?? ''
-  const [duplicateSource, setDuplicateSource] = useState(null)
   useEffect(() => {
-    if (!duplicateId) return
-    billingService.getById(duplicateId).then(source => {
-      if (!source) return
-      setDuplicateSource(source)
-      setForm(p => ({
-        ...p,
-        patientId: source.patientId ?? p.patientId,
-        taxRate:   (source.taxRate ?? 0) * 100,
-        discount:  source.discount ?? 0,
-        notes:     source.notes ?? '',
-      }))
-      setLineItems((source.lineItems ?? []).map(li => createLineItem({ ...li, id: undefined })))
-    }).catch(() => {})
+    if (!id) return
+    billingService.getById(id).then(inv => {
+      if (inv) {
+        setInvoice(inv)
+        setForm({
+          issueDate:     inv.issueDate ?? '',
+          dueDate:       inv.dueDate ?? '',
+          taxRate:       (inv.taxRate ?? 0) * 100,
+          discount:      inv.discount ?? 0,
+          notes:         inv.notes ?? '',
+          status:        inv.status ?? 'draft',
+          paymentMethod: inv.paymentMethod ?? '',
+          collectedBy:   inv.collectedBy || (isReceptionist ? 'receptionist' : 'doctor'),
+        })
+        setLineItems((inv.lineItems ?? []).map(li => createLineItem(li)))
+      }
+      setLoading(false)
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [duplicateId])
-
-  const selectedPatient = patients.find(p => p.id === form.patientId)
+  }, [id])
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
-  // ── Line item helpers ────────────────────────────────────────────────────────
+  // ── Line item helpers (mirrors /billing/new) ──────────────────────────────
 
-  const updateItem = (id, field, raw) => {
+  const updateItem = (itemId, field, raw) => {
     setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item
+      if (item.id !== itemId) return item
       const value   = (field === 'quantity' || field === 'unitPrice' || field === 'discountPct') ? Number(raw) : raw
       const updated = { ...item, [field]: value }
       const lineTotal  = updated.quantity * updated.unitPrice
@@ -95,9 +91,9 @@ function NewInvoiceForm() {
     }))
   }
 
-  const selectServiceItem = (id, name, price) => {
+  const selectServiceItem = (itemId, name, price) => {
     setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item
+      if (item.id !== itemId) return item
       const updated = { ...item, description: name, unitPrice: Number(price) || 0 }
       const lineTotal  = updated.quantity * updated.unitPrice
       const discAmount = lineTotal * (Number(updated.discountPct) || 0) / 100
@@ -105,10 +101,10 @@ function NewInvoiceForm() {
     }))
   }
 
-  const handleMedicineSelect = (id, invId) => {
+  const handleMedicineSelect = (itemId, invId) => {
     const inv = inventory.find(i => i.id === invId) ?? null
     setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item
+      if (item.id !== itemId) return item
       const desc      = inv ? `${inv.name}${inv.potency ? ` (${inv.potency})` : ''}` : ''
       const unitPrice = inv ? (inv.billingPrice ? Number(inv.billingPrice) : (inv.mrp ? Number(inv.mrp) : 0)) : 0
       const lineTotal  = item.quantity * unitPrice
@@ -120,33 +116,37 @@ function NewInvoiceForm() {
   const addMedicine = () => setLineItems(p => [...p, createLineItem({ itemType: 'medicine' })])
   const addService  = (preset) => setLineItems(p => [...p, createLineItem({ ...(preset ?? {}), itemType: 'service' })])
 
-  const removeItem = (id) => {
+  const removeItem = (itemId) => {
     if (lineItems.length === 1) return
-    setLineItems(prev => prev.filter(i => i.id !== id))
+    setLineItems(prev => prev.filter(i => i.id !== itemId))
   }
 
-  // ── Stock warnings (qty > available) ────────────────────────────────────────
+  // ── Stock warnings (qty > available, ignoring what this invoice already holds) ──
 
   const stockWarnings = useMemo(() => {
     const map = {}
     lineItems.forEach(item => {
-      if (!item.inventoryItemId) return
+      if (!item.inventoryItemId || item.unitPrice < 0) return
       const inv = inventory.find(i => i.id === item.inventoryItemId)
-      if (inv && item.quantity > (inv.quantity ?? 0)) map[item.id] = inv.quantity
+      // Add back whatever this invoice already deducted for this exact line, so
+      // editing quantity on an unchanged item doesn't falsely warn about stock.
+      const original = invoice?.lineItems?.find(li => li.id === item.id)
+      const alreadyHeld = original && original.inventoryItemId === item.inventoryItemId && original.unitPrice >= 0
+        ? original.quantity : 0
+      if (inv && item.quantity > (inv.quantity ?? 0) + alreadyHeld) map[item.id] = inv.quantity
     })
     return map
-  }, [lineItems, inventory])
+  }, [lineItems, inventory, invoice])
 
   const subtotal         = lineItems.reduce((s, i) => s + i.total, 0)
   const taxableSubtotal  = lineItems.filter(i => i.taxable !== false).reduce((s, i) => s + i.total, 0)
-  const taxAmount        = Math.round(taxableSubtotal * Number(form.taxRate) / 100)
-  const total            = subtotal + taxAmount - Number(form.discount)
+  const taxAmount        = Math.round(taxableSubtotal * Number(form?.taxRate ?? 0) / 100)
+  const total            = subtotal + taxAmount - Number(form?.discount ?? 0)
 
   // ── Validation ───────────────────────────────────────────────────────────────
 
   const validate = () => {
     const errs = {}
-    if (!form.patientId) errs.patientId = 'Please select a patient'
     if (!form.issueDate) errs.issueDate = 'Required'
     if (!lineItems.every(i => i.description.trim())) errs.items = 'All items need a description'
     return errs
@@ -158,58 +158,73 @@ function NewInvoiceForm() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
-    setLoading(true)
+    setSaving(true)
     setSaveError('')
 
-    const withTimeout = (promise, ms = 15000) =>
-      Promise.race([
-        promise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
-        ),
-      ])
-
     try {
-      await withTimeout(add({
-        ...form,
-        patientName:   selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : '',
-        patientPhone:  selectedPatient?.phone ?? '',
+      await update(id, {
         lineItems,
+        issueDate:     form.issueDate,
+        dueDate:       form.dueDate,
         taxRate:       Number(form.taxRate) / 100,
         discount:      Number(form.discount),
+        notes:         form.notes,
+        status:        form.status,
         paymentMethod: form.paymentMethod || null,
         collectedBy:   form.collectedBy,
-        paymentDate:   form.status === 'paid' ? form.issueDate : null,
-        clinicName:  doctor?.clinicName ?? '',
-        doctorName:  doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
-        doctorPhone: doctor?.phone ?? '',
-        doctorEmail: doctor?.email ?? '',
-        createdBy: isReceptionist
-          ? { role: 'receptionist', name: doctor._receptionistName ?? '', uid: doctor._receptionistUid ?? '' }
-          : { role: 'doctor', name: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '', uid: doctor?.id ?? '' },
-      }))
+        paymentDate:   form.status === 'paid' ? (invoice.paymentDate || form.issueDate) : null,
+      })
 
-      // Adjust inventory stock for medicine items (fire-and-forget on individual failures).
-      // A negative unit price marks a refund/return line — restore stock instead of deducting it.
-      const medicineItems = lineItems.filter(i => i.inventoryItemId && i.quantity > 0)
-      if (medicineItems.length) {
-        await Promise.allSettled(
-          medicineItems.map(i => inventoryService.adjustQty(i.inventoryItemId, i.unitPrice < 0 ? +i.quantity : -i.quantity))
-        )
+      // Reconcile inventory: undo each original line's effect, then apply each
+      // edited line's effect, netted per inventory item so unchanged items are a no-op.
+      const adjustments = new Map()
+      const bump = (invId, delta) => { if (invId && delta) adjustments.set(invId, (adjustments.get(invId) ?? 0) + delta) }
+      const originalById = new Map((invoice.lineItems ?? []).map(li => [li.id, li]))
+      const editedById    = new Map(lineItems.map(li => [li.id, li]))
+      const allIds = new Set([...originalById.keys(), ...editedById.keys()])
+      for (const lid of allIds) {
+        const orig = originalById.get(lid)
+        const edit = editedById.get(lid)
+        if (orig) bump(orig.inventoryItemId, -lineEffect(orig))
+        if (edit) bump(edit.inventoryItemId, lineEffect(edit))
+      }
+      if (adjustments.size) {
+        await Promise.allSettled([...adjustments].map(([invId, delta]) => inventoryService.adjustQty(invId, delta)))
       }
 
       router.push('/billing')
     } catch (err) {
       setSaveError(err?.message || 'Failed to save invoice. Please try again.')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   const hasStockWarning = Object.keys(stockWarnings).length > 0
 
+  if (loading) return (
+    <AppLayout title="Edit Invoice">
+      <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-3">
+        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        Loading invoice…
+      </div>
+    </AppLayout>
+  )
+
+  if (!invoice || !form) return (
+    <AppLayout title="Invoice Not Found">
+      <div className="text-center py-20">
+        <p className="text-gray-500 dark:text-gray-400">Invoice not found.</p>
+        <button onClick={() => router.push('/billing')} className="mt-4 text-primary-600 hover:underline text-sm">Back to Billing</button>
+      </div>
+    </AppLayout>
+  )
+
   return (
-    <AppLayout title="New Invoice"
+    <AppLayout title={`Edit Invoice — ${invoice.invoiceNumber}`}
       action={
         <button onClick={() => router.back()}
           className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
@@ -220,38 +235,22 @@ function NewInvoiceForm() {
       <div className="max-w-3xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {duplicateSource && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-              </svg>
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                Prefilled from <span className="font-semibold">{duplicateSource.invoiceNumber}</span>. This is a new, separate invoice — review the line items before saving.
-                For a refund, flip the relevant unit price(s) to negative.
-              </p>
-            </div>
-          )}
-
           {/* ── Invoice Details ── */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
             <h3 className="font-semibold text-gray-900 dark:text-white">Invoice Details</h3>
 
             <div>
-              <label className="form-label">Patient <span className="text-red-500">*</span></label>
-              <select value={form.patientId} onChange={e => set('patientId', e.target.value)}
-                className={`input-field ${errors.patientId ? 'border-red-400' : ''}`}>
-                <option value="">Select patient…</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.firstName} {p.lastName} — {p.phone}</option>
-                ))}
-              </select>
-              {errors.patientId && <p className="error-text">{errors.patientId}</p>}
+              <label className="form-label">Patient</label>
+              <p className="input-field bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                {invoice.patientName} {invoice.patientPhone ? `— ${invoice.patientPhone}` : ''}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Issue Date <span className="text-red-500">*</span></label>
                 <input type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} className="input-field"/>
+                {errors.issueDate && <p className="error-text">{errors.issueDate}</p>}
               </div>
               <div>
                 <label className="form-label">Due Date</label>
@@ -348,6 +347,11 @@ function NewInvoiceForm() {
                         }`}>
                           {isMedicine ? 'Medicine' : 'Service'}
                         </span>
+                        {item.unitPrice < 0 && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                            Refund
+                          </span>
+                        )}
                       </div>
 
                       {isMedicine ? (
@@ -460,7 +464,7 @@ function NewInvoiceForm() {
 
                     {/* Total */}
                     <div className="col-span-1 pt-8 text-right">
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <span className={`text-sm font-semibold ${item.total < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
                         {formatCurrency(item.total)}
                       </span>
                       {item.discountPct > 0 && (
@@ -504,7 +508,7 @@ function NewInvoiceForm() {
                   <span>Subtotal</span>
                   <span className="font-medium w-28 text-right">{formatCurrency(subtotal)}</span>
                 </div>
-                {taxAmount > 0 && (
+                {taxAmount !== 0 && (
                   <div className="flex gap-8 text-gray-600 dark:text-gray-300">
                     <span>
                       Tax ({form.taxRate}%)
@@ -523,7 +527,7 @@ function NewInvoiceForm() {
                 )}
                 <div className="flex gap-8 font-bold text-base border-t dark:border-gray-700 pt-2 text-gray-900 dark:text-white">
                   <span>Total</span>
-                  <span className="w-28 text-right text-primary-600 dark:text-primary-400">{formatCurrency(total)}</span>
+                  <span className={`w-28 text-right ${total < 0 ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'}`}>{formatCurrency(total)}</span>
                 </div>
               </div>
             </div>
@@ -597,18 +601,18 @@ function NewInvoiceForm() {
           )}
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => router.back()}
+            <button type="button" onClick={() => router.push('/billing')}
               className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="btn-primary w-auto px-6 flex items-center gap-2">
-              {loading && (
+            <button type="submit" disabled={saving} className="btn-primary w-auto px-6 flex items-center gap-2">
+              {saving && (
                 <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
               )}
-              {loading ? 'Creating…' : 'Create Invoice'}
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </form>
@@ -617,10 +621,10 @@ function NewInvoiceForm() {
   )
 }
 
-export default function NewInvoicePage() {
+export default function EditInvoicePage() {
   return (
     <Suspense>
-      <NewInvoiceForm />
+      <EditInvoiceForm />
     </Suspense>
   )
 }

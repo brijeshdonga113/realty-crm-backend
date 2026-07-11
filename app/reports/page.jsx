@@ -14,26 +14,32 @@ import { EXPENSE_CATEGORIES } from '@/app/expenses/page'
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
 const today      = new Date().toISOString().slice(0, 10)
-const firstOfYear = `${new Date().getFullYear()}-01-01`
+const firstOfYear = `${new Date().getUTCFullYear()}-01-01`
 
+// All stored timestamps (createdAt, issueDate, etc.) are recorded via toISOString(),
+// i.e. UTC calendar days — so period boundaries must use UTC getters too, or the
+// "This Month"/"Last Month" range can invert (from > to) in timezones ahead of UTC
+// (e.g. IST) during the first few hours after local midnight, silently returning no data.
 function periodRange(period) {
   const now = new Date()
   const pad = n => String(n).padStart(2, '0')
+  const y = now.getUTCFullYear()
+  const m = now.getUTCMonth()
   switch (period) {
     case 'this_month': {
-      const from = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+      const from = `${y}-${pad(m + 1)}-01`
       return { from, to: today }
     }
     case 'last_month': {
-      const d    = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const last = new Date(now.getFullYear(), now.getMonth(), 0)
+      const d    = new Date(Date.UTC(y, m - 1, 1))
+      const last = new Date(Date.UTC(y, m, 0))
       return {
-        from: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`,
-        to:   `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`,
+        from: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-01`,
+        to:   `${last.getUTCFullYear()}-${pad(last.getUTCMonth() + 1)}-${pad(last.getUTCDate())}`,
       }
     }
-    case '3m': { const d = new Date(now); d.setMonth(d.getMonth() - 3); return { from: d.toISOString().slice(0, 10), to: today } }
-    case '6m': { const d = new Date(now); d.setMonth(d.getMonth() - 6); return { from: d.toISOString().slice(0, 10), to: today } }
+    case '3m': { const d = new Date(now); d.setUTCMonth(d.getUTCMonth() - 3); return { from: d.toISOString().slice(0, 10), to: today } }
+    case '6m': { const d = new Date(now); d.setUTCMonth(d.getUTCMonth() - 6); return { from: d.toISOString().slice(0, 10), to: today } }
     case 'this_year': return { from: firstOfYear, to: today }
     case 'all':
     default:   return { from: '2000-01-01', to: today }
@@ -340,6 +346,7 @@ export default function ReportsPage() {
 
   const revInvoices = useMemo(() =>
     invoices.filter(inv => {
+      if (inv.status !== 'paid') return false
       const d = String(inv.issueDate || inv.createdAt || '').slice(0, 10)
       return d >= revRange.from && d <= revRange.to
     }),
@@ -352,16 +359,21 @@ export default function ReportsPage() {
       map[item.id] = { id: item.id, name: item.name, category: item.category || '', purchasePrice: Number(item.mrp) || 0, billingPrice: Number(item.billingPrice) || 0, currentQty: item.quantity || 0, unitsSold: 0, grossRevenue: 0, discountAmt: 0, netRevenue: 0 }
     })
     invoices.forEach(inv => {
-      ;(inv.lineItems || []).forEach(li => {
+      const lineItems = inv.lineItems || []
+      const subtotal  = lineItems.reduce((s, li) => s + (li.total != null ? li.total : (li.unitPrice || 0) * (li.quantity || 0)), 0)
+      const invoiceDiscount = inv.discount ?? 0
+      lineItems.forEach(li => {
         if (!li.inventoryItemId || !map[li.inventoryItemId]) return
         const s = map[li.inventoryItemId]
-        const qty   = li.quantity  || 0
-        const gross = (li.unitPrice || 0) * qty
-        const net   = li.total != null ? li.total : gross
+        const qty      = li.quantity  || 0
+        const gross    = (li.unitPrice || 0) * qty
+        const net      = li.total != null ? li.total : gross
+        const share    = subtotal > 0 ? net / subtotal : 0
+        const discShare = invoiceDiscount * share
         s.unitsSold    += qty
         s.grossRevenue += gross
-        s.discountAmt  += gross - net
-        s.netRevenue   += net
+        s.discountAmt  += (gross - net) + discShare
+        s.netRevenue   += net - discShare
       })
     })
     return Object.values(map)
@@ -385,10 +397,21 @@ export default function ReportsPage() {
     revInvoices.forEach(inv => {
       const monthKey = getMonthKey(inv.issueDate || inv.createdAt)
       if (monthKey && !monthlyMap[monthKey]) monthlyMap[monthKey] = { inv: 0, svc: 0, invDisc: 0, svcDisc: 0 }
-      ;(inv.lineItems || []).forEach(li => {
-        const gross = (li.unitPrice || 0) * (li.quantity || 0)
-        const net   = li.total != null ? li.total : gross
-        const disc  = gross - net
+      const lineItems = inv.lineItems || []
+      // subtotal = sum of line totals (after per-line discountPct), matching invoice.subtotal
+      const subtotal = lineItems.reduce((s, li) => s + (li.total != null ? li.total : (li.unitPrice || 0) * (li.quantity || 0)), 0)
+      // invoice-level flat discount and tax, prorated across line items so both the
+      // revenue total AND the discount total reconcile with invoice.total (Billing page)
+      const invoiceDiscount = inv.discount ?? 0
+      const invoiceTax      = inv.taxAmount ?? 0
+      lineItems.forEach(li => {
+        const gross      = (li.unitPrice || 0) * (li.quantity || 0)
+        const netBase    = li.total != null ? li.total : gross
+        const share      = subtotal > 0 ? netBase / subtotal : 0
+        const discShare  = invoiceDiscount * share
+        const taxShare   = invoiceTax * share
+        const net        = netBase - discShare + taxShare
+        const disc       = (gross - netBase) + discShare
         const isMedicine = li.inventoryItemId || li.itemType === 'medicine'
         if (isMedicine) {
           invRevenue += net; invDiscount += disc; invUnits += li.quantity || 0
@@ -434,16 +457,21 @@ export default function ReportsPage() {
       map[item.id] = { id: item.id, name: item.name, category: item.category || '', purchasePrice: Number(item.mrp) || 0, billingPrice: Number(item.billingPrice) || 0, unitsSold: 0, grossRevenue: 0, discountAmt: 0, netRevenue: 0 }
     })
     revInvoices.forEach(inv => {
-      ;(inv.lineItems || []).forEach(li => {
+      const lineItems = inv.lineItems || []
+      const subtotal  = lineItems.reduce((s, li) => s + (li.total != null ? li.total : (li.unitPrice || 0) * (li.quantity || 0)), 0)
+      const invoiceDiscount = inv.discount ?? 0
+      lineItems.forEach(li => {
         if (!li.inventoryItemId || !map[li.inventoryItemId]) return
         const s = map[li.inventoryItemId]
-        const qty   = li.quantity  || 0
-        const gross = (li.unitPrice || 0) * qty
-        const net   = li.total != null ? li.total : gross
+        const qty      = li.quantity  || 0
+        const gross    = (li.unitPrice || 0) * qty
+        const net      = li.total != null ? li.total : gross
+        const share    = subtotal > 0 ? net / subtotal : 0
+        const discShare = invoiceDiscount * share
         s.unitsSold    += qty
         s.grossRevenue += gross
-        s.discountAmt  += gross - net
-        s.netRevenue   += net
+        s.discountAmt  += (gross - net) + discShare
+        s.netRevenue   += net - discShare
       })
     })
     return Object.values(map)

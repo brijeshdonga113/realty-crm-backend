@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { dataStore } from '@/lib/dataStore'
+import { visitService } from '@/services/visitService'
 import { useAuth } from '@/context/AuthContext'
 import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
 
@@ -45,18 +46,19 @@ function computeStats({ patients, appointments, invoices, followups, visits }) {
     todayRevenue:  paid.filter(i => i.issueDate === today).reduce((s, i) => s + i.total, 0),
   }
 
-  // Visits
-  const sortedVisits = [...visits].sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
+  // Visits — exclude drafts, they aren't real completed visits yet
+  const completedVisits = visits.filter(v => v.status !== 'draft')
+  const sortedVisits = [...completedVisits].sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   const visitStats = {
-    todayCount:       visits.filter(v => v.visitDate?.slice(0, 10) === today).length,
-    followupToday:    visits.filter(v => v.followUpDate === today).length,
-    followupTomorrow: visits.filter(v => v.followUpDate === tomorrow).length,
+    todayCount:       completedVisits.filter(v => v.visitDate?.slice(0, 10) === today).length,
+    followupToday:    completedVisits.filter(v => v.followUpDate === today).length,
+    followupTomorrow: completedVisits.filter(v => v.followUpDate === tomorrow).length,
     recent:           sortedVisits.slice(0, 5),
   }
 
   // Follow-ups — merge standalone (pending) + visit-based followUpDates
   const pendingFU = followups.filter(f => f.status === 'pending')
-  const visitFUDates = visits.filter(v => v.followUpDate).map(v => v.followUpDate)
+  const visitFUDates = completedVisits.filter(v => v.followUpDate).map(v => v.followUpDate)
   const allDates = [...pendingFU.map(f => f.dueDate), ...visitFUDates]
   const followupStats = {
     todayCount:    allDates.filter(d => d === today).length,
@@ -161,9 +163,13 @@ export function useReports() {
     ready.current = { patients: false, appointments: false, invoices: false, followups: false, visits: false }
     live.current  = { patients: [], appointments: [], invoices: [], followups: [], visits: [] }
 
-    // visits uses getAllGroup (one-time fetch) — subscribeGroup requires a
-    // Firestore composite index that may not exist; this avoids that requirement.
-    dataStore.getAllGroup('visits').then(d => recompute('visits', d)).catch(() => recompute('visits', []))
+    // visits uses visitService.getAll() (fetches per-patient, one-time) rather
+    // than a Firestore collection-group query — same index requirement problem
+    // dataStore.getAllGroup('visits') has, which visitService already works around.
+    visitService.getAll().then(d => recompute('visits', d)).catch(err => {
+      console.error('Failed to load visits for reports:', err)
+      recompute('visits', [])
+    })
 
     const unsubs = [
       dataStore.subscribe('patients',     d => recompute('patients',     d)),

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
+import { useProgressNotes } from '@/hooks/useProgressNotes'
 import { useAuth } from '@/context/AuthContext'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -19,6 +20,8 @@ import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
 import { useInventory } from '@/hooks/useInventory'
 import { useAppointments } from '@/hooks/useAppointments'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
+import { Modal } from '@/components/ui/Modal'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -32,7 +35,7 @@ function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { doctor, isReceptionist } = useAuth()
-  const { formatDateFull, formatCurrency } = usePreferences()
+  const { formatDate, formatDateFull, formatCurrency } = usePreferences()
   const { blockedSlots } = useBlockedSlots()
 
   useEffect(() => {
@@ -51,6 +54,7 @@ function VisitEntryForm() {
 
   const { patient, loading: patientLoading } = usePatient(patientId)
   const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
+  const { notes: progressNotes, loading: notesLoading } = useProgressNotes(patientId)
   const { items: inventoryItems } = useInventory()
   const pastVisits = (allVisits ?? []).filter(v => v.status !== 'draft')
 
@@ -209,8 +213,126 @@ function VisitEntryForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editVisitId, patientId])
 
+  // Resume an already-started draft for this appointment (e.g. the doctor attended
+  // earlier, saved as draft and left) instead of silently starting a second, blank
+  // visit for the same appointment.
+  useEffect(() => {
+    if (draftIdRef.current || editVisitId || !patientId || !appointmentId) return
+    visitService.getDraftsForPatient(patientId).then(drafts => {
+      const existing = drafts.find(d => d.appointmentId === appointmentId)
+      if (!existing) return
+      draftIdRef.current = existing.id
+      setIsDraft(true)
+      const url = new URL(window.location.href)
+      url.searchParams.set('draftId', existing.id)
+      window.history.replaceState({}, '', url.toString())
+      setForm({
+        visitDate:      existing.visitDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        chiefComplaint: existing.chiefComplaint || '',
+        history:        existing.history || '',
+        findings:       existing.examination?.findings || '',
+        diagnosis:      existing.diagnosis || [],
+        treatment:      existing.treatment || '',
+        prescriptions:  existing.prescriptions || [],
+        labOrders:      existing.labOrders || [],
+        followUpDate:   existing.followUpDate || '',
+        notes:          existing.notes || '',
+        vitalSigns:     existing.examination?.vitalSigns || { bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: '' },
+      })
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, appointmentId, editVisitId])
+
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
+
+  // Has the user entered anything worth not losing? Used to guard accidental exits.
+  const isDirty = !savedVisit && (
+    form.chiefComplaint.trim() || form.history.trim() || form.findings.trim() ||
+    form.diagnosis.length > 0 || form.treatment.trim() || form.prescriptions.length > 0 ||
+    form.labOrders.length > 0 || form.followUpDate || form.notes.trim() ||
+    Object.values(form.vitalSigns).some(v => v.trim()) ||
+    rx.medication.trim() ||
+    invoiceLines.some(l => l.description.trim() || Number(l.unitPrice) > 0) ||
+    Number(payment.amount) > 0
+  )
+
+  // Warn on tab close / refresh while there are unsaved changes
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // In-app navigation (Back / Cancel / profile link) — confirm before discarding unsaved work
+  const [pendingNav, setPendingNav] = useState(null)
+  const requestLeave = (navigate) => { isDirty ? setPendingNav(() => navigate) : navigate() }
+  const [leavingSaving, setLeavingSaving] = useState(false)
+  const saveDraftAndLeave = async () => {
+    setLeavingSaving(true)
+    try {
+      await handleSaveDraft()
+      pendingNav?.()
+    } finally {
+      setLeavingSaving(false)
+      setPendingNav(null)
+    }
+  }
+
+  // Guard against the browser's own Back/Forward button or swipe-back
+  // gesture, which requestLeave() above only covers for in-app buttons.
+  // While dirty, a real back press lands on a same-URL buffer entry instead
+  // of leaving immediately, giving us a chance to show the confirm modal.
+  const isDirtyRef   = useRef(isDirty)
+  isDirtyRef.current = isDirty
+  const bypassPopRef = useRef(false)
+  const guardedRef   = useRef(false)
+
+  useEffect(() => {
+    if (!isDirty) return
+    window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
+    guardedRef.current = true
+
+    const onPopState = () => {
+      if (bypassPopRef.current) { bypassPopRef.current = false; guardedRef.current = false; return }
+      if (!isDirtyRef.current) return
+      window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
+      requestLeave(() => {
+        bypassPopRef.current = true
+        window.history.go(-2)
+      })
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [isDirty])
+
+  // Drop-in replacement for router.back() that accounts for the buffer entry above
+  const goBack = () => requestLeave(() => {
+    if (guardedRef.current) {
+      bypassPopRef.current = true
+      window.history.go(-2)
+    } else {
+      router.back()
+    }
+  })
+
+  // Register with the app-wide navigation guard so the sidebar, global
+  // search, and logout also confirm before leaving this page. requestLeave
+  // is redefined every render (not memoized), so route through a ref to
+  // avoid the registration effect (which only runs once) capturing a stale
+  // closure that thinks isDirty is still false.
+  const requestLeaveRef = useRef(requestLeave)
+  requestLeaveRef.current = requestLeave
+  const { setGuard, clearGuard } = useNavigationGuard()
+  useEffect(() => {
+    const guard = { isDirty: () => isDirtyRef.current, requestLeave: (nav) => requestLeaveRef.current(nav) }
+    setGuard(guard)
+    return () => clearGuard(guard)
+  }, [setGuard, clearGuard])
 
   const addFollowUpDays = (days) => {
     const base = form.visitDate ? new Date(form.visitDate) : new Date()
@@ -269,12 +391,16 @@ function VisitEntryForm() {
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
-    if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
-    if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
-    if (useInvoice) {
-      if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
-    } else {
-      if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
+    // Pricing was already collected when this visit was first recorded — editing an
+    // existing visit shouldn't require re-entering (or duplicating) the invoice.
+    if (!editVisitId) {
+      if (!payment.method) { setSaveError('Please select a payment method before saving.'); return }
+      if (!payment.status) { setSaveError('Please mark the payment as Paid or Due before saving.'); return }
+      if (useInvoice) {
+        if (invoiceTotal <= 0) { setSaveError('Add at least one line item with a price before saving.'); return }
+      } else {
+        if (!payment.amount || Number(payment.amount) <= 0) { setSaveError('A payment amount is required before saving.'); return }
+      }
     }
 
     // Auto-commit any partially filled prescription before saving
@@ -297,47 +423,55 @@ function VisitEntryForm() {
     setSaveError('')
     try {
       const visitData = { ...buildVisitData(), prescriptions: finalPrescriptions }
+      const wasFreshCreate = !editVisitId && !draftIdRef.current
       const visit = editVisitId
         ? await visitService.update(editVisitId, { ...visitData, status: 'completed' }, patientId)
         : draftIdRef.current
           ? await visitService.update(draftIdRef.current, { ...visitData, status: 'completed' }, patientId)
           : await visitService.create(visitData)
+      // Remember the id immediately so a retry after a later step fails (e.g. marking the
+      // appointment complete) updates this same visit instead of creating a duplicate.
+      if (wasFreshCreate && visit?.id) draftIdRef.current = visit.id
 
       if (appointmentId) {
         await appointmentService.update(appointmentId, { status: 'completed' })
       }
 
-      if (useInvoice) {
-        const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
-        if (billableLines.length > 0) {
+      // Skip invoice creation entirely when editing — the invoice for this visit
+      // already exists from when it was first recorded.
+      if (!editVisitId) {
+        if (useInvoice) {
+          const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
+          if (billableLines.length > 0) {
+            await billingService.create({
+              patientId,
+              patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+              issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
+              lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
+              status:        payment.status,
+              paymentMethod: payment.method,
+              collectedBy:   payment.collectedBy,
+              paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
+              taxRate:       Number(payment.taxRate) / 100,
+              discount:      Number(payment.discount),
+              visitId:       visit.id,
+            })
+          }
+        } else if (Number(payment.amount) > 0) {
           await billingService.create({
             patientId,
             patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
             issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-            lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
+            lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
             status:        payment.status,
             paymentMethod: payment.method,
             collectedBy:   payment.collectedBy,
             paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-            taxRate:       Number(payment.taxRate) / 100,
-            discount:      Number(payment.discount),
+            taxRate:       0,
+            discount:      0,
             visitId:       visit.id,
           })
         }
-      } else if (Number(payment.amount) > 0) {
-        await billingService.create({
-          patientId,
-          patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
-          issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
-          lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
-          status:        payment.status,
-          paymentMethod: payment.method,
-          collectedBy:   payment.collectedBy,
-          paymentDate:   payment.status === 'paid' ? (form.visitDate || new Date().toISOString().slice(0, 10)) : null,
-          taxRate:       0,
-          discount:      0,
-          visitId:       visit.id,
-        })
       }
 
       setSavedVisit(visit)
@@ -426,7 +560,7 @@ function VisitEntryForm() {
       title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
         <div className="flex items-center gap-2">
-          <button onClick={() => router.back()}
+          <button onClick={goBack}
             className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
             ← Back
           </button>
@@ -442,7 +576,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft' : 'Save Draft'}
           </button>
           <button type="button" onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (!editVisitId && (!payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))))}
             className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5">
             {saving && (
               <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
@@ -450,7 +584,7 @@ function VisitEntryForm() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
             )}
-            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+            {saving ? 'Saving…' : editVisitId ? 'Update Visit' : isDraft ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
       }
@@ -487,7 +621,7 @@ function VisitEntryForm() {
                 {patient.chronicConditions?.length > 0 && ` · ${patient.chronicConditions.join(', ')}`}
               </p>
             </div>
-            <button onClick={() => router.push(`/patients/${patientId}`)}
+            <button onClick={() => requestLeave(() => router.push(`/patients/${patientId}`))}
               className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium flex-shrink-0">
               View Profile →
             </button>
@@ -763,7 +897,9 @@ function VisitEntryForm() {
           })()}
         </div>
 
-        {/* Payment / Invoice */}
+        {/* Payment / Invoice — pricing was already set when the visit was first recorded;
+            editing an existing visit only touches clinical details, not billing. */}
+        {!editVisitId && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
           {/* Header */}
           <div className="mb-4">
@@ -1114,6 +1250,7 @@ function VisitEntryForm() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Actions */}
         {saveError && (
@@ -1122,7 +1259,7 @@ function VisitEntryForm() {
           </div>
         )}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.back()}
+          <button type="button" onClick={goBack}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
@@ -1138,7 +1275,7 @@ function VisitEntryForm() {
             {savingDraft ? 'Saving…' : draftSaved ? '✓ Draft Saved' : 'Save as Draft'}
           </button>
           <button onClick={handleSave}
-            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || !payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))}
+            disabled={saving || !form.chiefComplaint.trim() || !patientId || !form.followUpDate || (!editVisitId && (!payment.method || !payment.status || (useInvoice ? invoiceTotal <= 0 : (!payment.amount || Number(payment.amount) <= 0))))}
             className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
             {saving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -1146,7 +1283,7 @@ function VisitEntryForm() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
             )}
-            {saving ? 'Saving…' : isDraft ? 'Complete Visit' : 'Save Visit'}
+            {saving ? 'Saving…' : editVisitId ? 'Update Visit' : isDraft ? 'Complete Visit' : 'Save Visit'}
           </button>
         </div>
       </div>{/* end form column */}
@@ -1349,10 +1486,73 @@ function VisitEntryForm() {
             </div>
           )}
         </div>
+
+        {/* ── Progress Notes ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Progress Notes</h3>
+            {!notesLoading && progressNotes.length > 0 && (
+              <span className="text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                {progressNotes.length}
+              </span>
+            )}
+          </div>
+
+          {!patientId ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500 p-4 text-center">Select a patient to see notes</p>
+          ) : notesLoading ? (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700">
+              {[1,2].map(i => (
+                <div key={i} className="p-4 space-y-2 animate-pulse">
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-20"/>
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-36"/>
+                </div>
+              ))}
+            </div>
+          ) : progressNotes.length === 0 ? (
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-base">📝</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">No progress notes</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700 max-h-64 overflow-y-auto">
+              {progressNotes.map(n => (
+                <div key={n.id} className="p-4">
+                  <p className="text-xs font-semibold text-primary-600 dark:text-primary-400 mb-1">
+                    {formatDate(n.noteDate)}
+                  </p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{n.note}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       </div>{/* end grid */}
       </div>{/* end max-w-6xl */}
+
+      <Modal open={!!pendingNav} onClose={() => setPendingNav(null)} title="Leave without finishing?" size="sm">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+          This visit hasn't been saved yet. Save it as a draft so you can pick up where you left off, or discard your changes.
+        </p>
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={saveDraftAndLeave} disabled={leavingSaving}
+            className="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+            {leavingSaving ? 'Saving…' : 'Save as Draft & Leave'}
+          </button>
+          <button type="button" onClick={() => { pendingNav?.(); setPendingNav(null) }} disabled={leavingSaving}
+            className="px-4 py-2.5 border border-red-200 dark:border-red-800 text-sm font-medium text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors">
+            Discard Changes
+          </button>
+          <button type="button" onClick={() => setPendingNav(null)} disabled={leavingSaving}
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-60 transition-colors">
+            Keep Editing
+          </button>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }

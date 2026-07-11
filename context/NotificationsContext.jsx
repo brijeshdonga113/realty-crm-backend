@@ -1,9 +1,21 @@
 'use client'
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { notificationService } from '@/services/notificationService'
+import { dataStore } from '@/lib/dataStore'
+import { getNotificationMeta } from '@/models/Notification'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/components/ui/Toast'
 
 const NotificationsContext = createContext(null)
+
+// Only pop an alert for these groups — patient/system notifications stay silent in the bell.
+const POPUP_GROUPS = new Set(['Appointments', 'Visits', 'Billing'])
+
+function toastVariantFor(type) {
+  if (type === 'appointment_cancelled' || type === 'invoice_overdue') return 'error'
+  if (type === 'invoice_paid') return 'success'
+  return 'info'
+}
 
 export function NotificationsProvider({ children }) {
   const { doctor } = useAuth()
@@ -13,26 +25,48 @@ export function NotificationsProvider({ children }) {
   const [unreadCount, setUnreadCount]     = useState(0)
   const [loading, setLoading]             = useState(true)
 
-  const load = useCallback(async () => {
+  // useToast() returns a fresh object every render — keep it in a ref so it
+  // doesn't force the subscription effect below to re-run on every render.
+  const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+
+  // Tracks ids already seen so we only alert on notifications that arrive
+  // *after* the initial snapshot, not the whole backlog on first load.
+  const seenIdsRef = useRef(null)
+
+  useEffect(() => {
     if (!doctor) return
     setLoading(true)
-    try {
-      const all = await notificationService.getAll()
+    seenIdsRef.current = null
+
+    const unsub = dataStore.subscribe('notifications', (all) => {
+      const sorted = all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       const visible = isReceptionist
-        ? all.filter(n =>
+        ? sorted.filter(n =>
             (doctor._receptionistUid && n.createdByUid === doctor._receptionistUid) ||
             n.createdByRole === 'patient'
           )
-        : all
+        : sorted
+
+      if (seenIdsRef.current) {
+        for (const n of visible) {
+          if (seenIdsRef.current.has(n.id)) continue
+          const meta = getNotificationMeta(n.type)
+          if (POPUP_GROUPS.has(meta.group) && !n.read) {
+            toastRef.current.notify(`${meta.icon} ${n.title}`, toastVariantFor(n.type))
+          }
+        }
+      }
+      seenIdsRef.current = new Set(visible.map(n => n.id))
+
       setNotifications(visible)
       setUnreadCount(visible.filter(n => !n.read).length)
-    } finally {
       setLoading(false)
-    }
-  }, [doctor, isReceptionist])
+    })
 
-  // Fetch once when the doctor session is established
-  useEffect(() => { load() }, [load])
+    return () => unsub()
+  }, [doctor, isReceptionist])
 
   const markRead = useCallback(async (id) => {
     await notificationService.markRead(id)
@@ -56,8 +90,12 @@ export function NotificationsProvider({ children }) {
     })
   }, [])
 
+  // No-op — notifications now stream live via dataStore.subscribe(); kept so
+  // any existing useNotifications().reload() callers don't break.
+  const reload = useCallback(async () => {}, [])
+
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, loading, markRead, markAllRead, remove, reload: load }}>
+    <NotificationsContext.Provider value={{ notifications, unreadCount, loading, markRead, markAllRead, remove, reload }}>
       {children}
     </NotificationsContext.Provider>
   )

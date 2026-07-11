@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 import { dataStore } from '@/lib/dataStore'
 import { formatCurrency as fmtCurrencyLib } from '@/lib/preferences'
 
@@ -48,7 +49,7 @@ const navSections = [
         icon: <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>,
       },
       {
-        href: '/appointments', label: 'Appointments',
+        href: '/appointments', label: 'Appointments', badgeKey: 'appointments',
         icon: <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>,
       },
       {
@@ -82,7 +83,7 @@ const navSections = [
         icon: <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>,
       },
       {
-        href: '/notifications', label: 'Notifications', badge: true,
+        href: '/notifications', label: 'Notifications', badgeKey: 'all',
         icon: <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
       },
     ],
@@ -118,9 +119,11 @@ const navSections = [
   },
 ]
 
-export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
+export default function Sidebar({ unreadCount = 0, appointmentUnreadCount = 0, open = false, onClose }) {
   const pathname = usePathname()
   const router   = useRouter()
+  const { guardedNavigate } = useNavigationGuard()
+  const badgeCounts = { all: unreadCount, appointments: appointmentUnreadCount }
   const { doctor, logout, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor } = useAuth()
   const searchParams   = useSearchParams()
   const todayRevenue   = useTodayRevenue(doctor)
@@ -128,7 +131,10 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const [managedOpen,  setManagedOpen] = useState(false)
   const [branchErr,    setBranchErr]   = useState('')
 
-  const handleLogout = () => { logout(); router.push('/login') }
+  const handleLogout = () => {
+    const doLogout = () => { logout(); router.push('/login') }
+    if (guardedNavigate(null, doLogout)) doLogout()
+  }
 
   // Always show the logged-in user in the footer — not the managed doctor being viewed
   const footerDoctor = doctor?._isManagedView ? baseDoctor : doctor
@@ -151,7 +157,8 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
     return true
   }
 
-  const handleNavClick = () => {
+  const handleNavClick = (e, href) => {
+    if (!guardedNavigate(e, () => router.push(href))) return
     if (onClose) onClose()
   }
 
@@ -331,8 +338,9 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
                 <div className="space-y-0.5">
                   {visibleItems.map(item => {
                     const active = isActive(item.href)
+                    const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0
                     return (
-                      <Link key={item.href} href={item.href} onClick={handleNavClick}
+                      <Link key={item.href} href={item.href} onClick={e => handleNavClick(e, item.href)}
                         className={active
                           ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-600 text-white font-semibold text-sm'
                           : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/75 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
@@ -340,9 +348,9 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
                       >
                         {item.icon}
                         <span className="flex-1 truncate">{item.label}</span>
-                        {item.badge && unreadCount > 0 && (
+                        {badgeCount > 0 && (
                           <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
-                            {unreadCount > 99 ? '99+' : unreadCount}
+                            {badgeCount > 99 ? '99+' : badgeCount}
                           </span>
                         )}
                       </Link>
@@ -357,7 +365,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
         {/* Profile footer */}
         <div className="px-4 py-4 border-t border-primary-800">
           <div className="flex items-center gap-3">
-            <Link href="/profile" onClick={handleNavClick}
+            <Link href="/profile" onClick={e => handleNavClick(e, '/profile')}
               className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-primary-700/60 transition-colors -mx-2 px-2 py-1">
               <div className="w-9 h-9 bg-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-primary-100 font-bold text-sm">{initials}</span>

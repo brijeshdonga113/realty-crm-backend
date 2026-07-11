@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
 import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
+import { useProgressNotes } from '@/hooks/useProgressNotes'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
@@ -21,7 +22,7 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
-import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -596,7 +597,7 @@ function Section({ title, subtitle, action, accentClass, className = '', childre
 }
 
 /* ─────────────── Main Page ─────────────── */
-function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency }) {
+function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency, effectiveLayout }) {
   const spec = doctor?.specialization ?? ''
   const isHom = isHomeopathy(spec)
   const age = patient.dateOfBirth
@@ -623,6 +624,203 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
   )
 
   const sortedVisits = [...(visits ?? [])].filter(v => v.status !== 'draft').sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? '')).slice(0, 15)
+
+  // Mirrors the Overview tab's renderSection() so print follows the same doctor-customized
+  // section order (effectiveLayout) instead of a separate hardcoded sequence.
+  const renderPrintSection = (sectionId) => {
+    switch (sectionId) {
+      case 'personal': {
+        const fields = [
+          { label: 'National ID',       value: patient.nationalId },
+          { label: 'Registration Date', value: patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null },
+          { label: 'Patient / Case No.', value: patient.patientNumber ? `#${patient.patientNumber}` : null },
+          { label: 'Alt Phone',         value: patient.alternatePhone },
+          { label: 'Education',         value: patient.education },
+          { label: 'Occupation',        value: patient.occupation },
+          { label: 'Marital Status',    value: patient.maritalStatus ? patient.maritalStatus.charAt(0).toUpperCase() + patient.maritalStatus.slice(1) : null },
+        ].filter(f => f.value)
+        if (!fields.length) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Personal Details"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {fields.map(f => <Field key={f.label} label={f.label} value={f.value}/>)}
+            </div>
+          </div>
+        )
+      }
+
+      case 'medical_summary':
+        if (!(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Medical Summary"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
+              {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
+              {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
+            </div>
+          </div>
+        )
+
+      case 'insurance':
+        if (!patient.insuranceProvider) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Insurance"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Field label="Provider" value={patient.insuranceProvider}/>
+              <Field label="Policy #" value={patient.insurancePolicyNumber}/>
+              <Field label="Group #" value={patient.insuranceGroupNumber}/>
+              <Field label="Expiry" value={patient.insuranceExpiry}/>
+            </div>
+          </div>
+        )
+
+      case 'emergency_contact':
+        if (!patient.emergencyContact?.name) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Emergency Contact"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Field label="Name" value={patient.emergencyContact.name}/>
+              <Field label="Phone" value={patient.emergencyContact.phone}/>
+              <Field label="Relationship" value={patient.emergencyContact.relationship}/>
+            </div>
+          </div>
+        )
+
+      case 'history_ho':
+        if (!(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="History (H/o)"/>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {patient.observation   && <Field label="Observation" value={patient.observation}/>}
+              {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
+              {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
+              {patient.notes         && <Field label="Notes" value={patient.notes}/>}
+              {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
+              {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
+            </div>
+          </div>
+        )
+
+      case 'generals': {
+        const rows = [
+          ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
+          ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
+          ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
+        ].filter(([key]) => patient.generals?.[key])
+        const customRows = (patient.customGenerals ?? []).filter(g => g.label && g.value)
+        if (!rows.length && !customRows.length) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Generals"/>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {rows.map(([key, label]) => (
+                  <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '6px 8px', width: 140, fontWeight: 700, color: '#374151' }}>{label}</td>
+                    <td style={{ padding: '6px 8px' }}>{patient.generals[key]}</td>
+                  </tr>
+                ))}
+                {customRows.map(field => (
+                  <tr key={field.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '6px 8px', width: 140, fontWeight: 700, color: '#374151' }}>{field.label}</td>
+                    <td style={{ padding: '6px 8px' }}>{field.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      case 'chief_complaints':
+        if (!patient.chiefComplaints?.some(c => c.complaint)) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Chief Complaints (C/o)"/>
+            {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
+              <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
+                  {row.location    && <span><b>Location:</b> {row.location}</span>}
+                  {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
+                  {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
+                  {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+
+      case 'prescription_details':
+        if (!patient.prescriptionDetails) return null
+        return (
+          <div key={sectionId}>
+            <SectionHeader title="Prescription Details"/>
+            <RichVal val={patient.prescriptionDetails}/>
+          </div>
+        )
+
+      default: {
+        if (isHom) return null
+
+        if (sectionId.startsWith('preset__')) {
+          const secTitle = sectionId.slice('preset__'.length)
+          const sec = getIntakeSections(spec).find(s => s.title === secTitle)
+          if (!sec) return null
+          const fields = sec.fields.filter(f => {
+            const v = patient.specialtyData?.[f.key]
+            return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+          })
+          if (!fields.length) return null
+          return (
+            <div key={sectionId}>
+              <SectionHeader title={sec.title}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.key} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
+                    ? patient.specialtyData[f.key].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.key]} / 10`
+                      : String(patient.specialtyData[f.key] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        }
+
+        if (sectionId.startsWith('section__')) {
+          const secName = sectionId.slice('section__'.length)
+          const fields = (doctor?.patientFormFields ?? []).filter(f => (f.section || 'Additional Info') === secName)
+            .filter(f => {
+              const v = patient.specialtyData?.[f.id]
+              return v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && v.length === 0)
+            })
+          if (!fields.length) return null
+          return (
+            <div key={sectionId}>
+              <SectionHeader title={secName}/>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {fields.map(f => <Field key={f.id} label={f.label} value={
+                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.id])
+                    ? patient.specialtyData[f.id].join(', ')
+                    : f.type === 'scale'
+                      ? `${patient.specialtyData[f.id]} / 10`
+                      : String(patient.specialtyData[f.id] ?? '')
+                }/>)}
+              </div>
+            </div>
+          )
+        }
+
+        return null
+      }
+    }
+  }
 
   return (
     <div id="patient-print" style={{ display: 'none', fontFamily: 'Arial, sans-serif', color: '#111827', padding: '32px 40px', maxWidth: 800, margin: '0 auto', fontSize: 13 }}>
@@ -655,108 +853,8 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency 
         {patient.address && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}><b>Address:</b> {patient.address}</div>}
       </div>
 
-      {/* Medical Background */}
-      {(patient.chronicConditions?.length || patient.allergies?.length || patient.currentMedications?.length) ? (
-        <>
-          <SectionHeader title="Medical Background"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {patient.chronicConditions?.length > 0 && <Field label="Chronic Conditions" value={patient.chronicConditions.join(', ')}/>}
-            {patient.allergies?.length > 0 && <Field label="Allergies" value={patient.allergies.join(', ')}/>}
-            {patient.currentMedications?.length > 0 && <Field label="Current Medications" value={patient.currentMedications.join(', ')}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Emergency Contact */}
-      {(patient.emergencyName || patient.emergencyPhone) ? (
-        <>
-          <SectionHeader title="Emergency Contact"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {patient.emergencyName && <Field label="Name" value={patient.emergencyName}/>}
-            {patient.emergencyPhone && <Field label="Phone" value={patient.emergencyPhone}/>}
-            {patient.emergencyRelation && <Field label="Relationship" value={patient.emergencyRelation}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Homeopathy: History */}
-      {isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan) ? (
-        <>
-          <SectionHeader title="History (H/o)"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
-            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
-            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
-            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
-            {patient.historyOf     && <Field label="Female / Male H/o" value={patient.historyOf}/>}
-            {patient.lifeSpan      && <Field label="Life Span" value={patient.lifeSpan}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Non-homeopathy: Other Medical History */}
-      {!isHom && (patient.observation || patient.pastHistory || patient.familyHistory || patient.notes) ? (
-        <>
-          <SectionHeader title="Other Medical History"/>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {patient.observation   && <Field label="Observation" value={patient.observation}/>}
-            {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
-            {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
-            {patient.notes         && <Field label="Notes" value={patient.notes}/>}
-          </div>
-        </>
-      ) : null}
-
-      {/* Homeopathy: Chief Complaints */}
-      {isHom && patient.chiefComplaints?.some(c => c.complaint) ? (
-        <>
-          <SectionHeader title="Chief Complaints (C/o)"/>
-          {patient.chiefComplaints.filter(c => c.complaint).map((row, i) => (
-            <div key={i} style={{ marginBottom: 10, paddingLeft: 8, borderLeft: '3px solid #3b82f6' }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{i + 1}. {row.complaint}</div>
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 11, color: '#6b7280' }}>
-                {row.location    && <span><b>Location:</b> {row.location}</span>}
-                {row.sensation   && <span><b>Sensation:</b> {row.sensation}</span>}
-                {row.modality    && <span><b>Modality:</b> {row.modality}</span>}
-                {row.concomitant && <span><b>Concomitant:</b> {row.concomitant}</span>}
-              </div>
-            </div>
-          ))}
-        </>
-      ) : null}
-
-      {/* Homeopathy: Prescription Details */}
-      {isHom && patient.prescriptionDetails ? (
-        <>
-          <SectionHeader title="Prescription Details"/>
-          <RichVal val={patient.prescriptionDetails}/>
-        </>
-      ) : null}
-
-      {/* Non-homeopathy: Specialty Preset Sections */}
-      {!isHom && (() => {
-        const sections = getIntakeSections(spec)
-        const hasData = sections.some(sec => sec.fields.some(f => patient.specialtyData?.[f.key]))
-        if (!hasData) return null
-        return sections.map(sec => {
-          const fields = sec.fields.filter(f => patient.specialtyData?.[f.key] != null && patient.specialtyData?.[f.key] !== '')
-          if (!fields.length) return null
-          return (
-            <div key={sec.title}>
-              <SectionHeader title={sec.title}/>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {fields.map(f => <Field key={f.key} label={f.label} value={
-                  f.type === 'chips' && Array.isArray(patient.specialtyData[f.key])
-                    ? patient.specialtyData[f.key].join(', ')
-                    : f.type === 'scale'
-                      ? `${patient.specialtyData[f.key]} / 10`
-                      : String(patient.specialtyData[f.key] ?? '')
-                }/>)}
-              </div>
-            </div>
-          )
-        })
-      })()}
+      {/* Ordered sections — same order as the doctor-customized Overview tab layout */}
+      {(effectiveLayout ?? []).filter(item => item.visible).map(item => renderPrintSection(item.id))}
 
       {/* Visit History */}
       {sortedVisits.length > 0 ? (
@@ -802,6 +900,7 @@ export default function PatientProfilePage() {
   const INV_COLORS       = buildStatusColorMap(billingStatuses)
   const { patient, loading, update } = usePatient(id)
   const { visits, update: updateVisit, add: addVisit, remove: removeVisit } = useVisits(id)
+  const { notes: progressNotes, add: addProgressNote, remove: removeProgressNote } = useProgressNotes(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
   const { followups, markDone } = useFollowUps()
@@ -878,32 +977,56 @@ export default function PatientProfilePage() {
   const [payCollectedBy, setPayCollectedBy] = useState('doctor')
   const [payMarking,    setPayMarking]    = useState(false)
 
+  const [showNoteModal, setShowNoteModal] = useState(false)
+  const [noteDate,      setNoteDate]      = useState(() => localDateStr())
+  const [noteText,      setNoteText]      = useState('')
+  const [savingNote,    setSavingNote]    = useState(false)
+
+  const handleAddProgressNote = async () => {
+    if (!noteText.trim()) return
+    setSavingNote(true)
+    try {
+      await addProgressNote({
+        patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
+        noteDate,
+        note: noteText.trim(),
+      })
+      setNoteText('')
+      setNoteDate(localDateStr())
+      setShowNoteModal(false)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Delete this progress note?')) return
+    await removeProgressNote(noteId)
+  }
+
+  // History (H/o) / Generals / Chief Complaints / Prescription Details are
+  // editable for every doctor on the Edit page regardless of specialization —
+  // show them for every doctor here too, so nothing entered in Edit mode
+  // silently disappears from View just because the doctor isn't tagged
+  // "homeopathy". Specialty-preset and custom fields remain additive extras
+  // for non-homeopathy doctors, since Edit mode has no UI for those at all.
   const sectionDefs = useMemo(() => {
     const base = [
-      { id: 'personal',          label: 'Personal Details',   icon: '👤' },
-      { id: 'medical_summary',   label: 'Medical Summary',    icon: '🏥' },
-      { id: 'insurance',         label: 'Insurance',          icon: '🛡️' },
-      { id: 'emergency_contact', label: 'Emergency Contact',  icon: '🚨' },
+      { id: 'personal',             label: 'Personal Details',       icon: '👤' },
+      { id: 'medical_summary',      label: 'Medical Summary',        icon: '🏥' },
+      { id: 'insurance',            label: 'Insurance',              icon: '🛡️' },
+      { id: 'emergency_contact',    label: 'Emergency Contact',      icon: '🚨' },
+      { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
+      { id: 'generals',             label: 'Generals',               icon: '🔬' },
+      { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
+      { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
     ]
-    if (isHomeopathy(specialization)) {
-      return [
-        ...base,
-        { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
-        { id: 'generals',             label: 'Generals',               icon: '🔬' },
-        { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
-        { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
-      ]
-    }
+    if (isHomeopathy(specialization)) return base
     const presetSecs = getIntakeSections(specialization)
       .map(s => ({ id: `preset__${s.title}`, label: s.title, icon: '📋' }))
     const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
       .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
-    return [
-      ...base,
-      { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
-      ...presetSecs,
-      ...customSecs,
-    ]
+    return [...base, ...presetSecs, ...customSecs]
   }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [sectionLayout,      setSectionLayout]      = useState([])
@@ -1239,7 +1362,6 @@ export default function PatientProfilePage() {
         )
 
       case 'history_ho': {
-        if (!isHomeopathy(specialization)) return null
         const hoFields = [
           { key: 'observation',   label: 'Observation',       value: patient.observation   },
           { key: 'pastHistory',   label: 'Past History',      value: patient.pastHistory   },
@@ -1267,7 +1389,6 @@ export default function PatientProfilePage() {
       }
 
       case 'generals':
-        if (!isHomeopathy(specialization)) return null
         return (
           <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
             <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -1304,7 +1425,7 @@ export default function PatientProfilePage() {
         )
 
       case 'chief_complaints':
-        if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
+        if (!(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
         return (
           <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -1335,7 +1456,7 @@ export default function PatientProfilePage() {
         )
 
       case 'prescription_details':
-        if (!isHomeopathy(specialization) || !patient.prescriptionDetails) return null
+        if (!patient.prescriptionDetails) return null
         return (
           <Section key="prescription_details" title="Prescription Details" accentClass="border-l-teal-500">
             <div className="p-6">
@@ -1346,34 +1467,6 @@ export default function PatientProfilePage() {
             </div>
           </Section>
         )
-
-      case 'other_medical_history': {
-        if (isHomeopathy(specialization)) return null
-        const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
-        if (!hasMedHistory) return null
-        return (
-          <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: 'Observation',    value: patient.observation   },
-                { label: 'Past History',   value: patient.pastHistory   },
-                { label: 'Family History', value: patient.familyHistory },
-                { label: 'Notes',          value: patient.notes         },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="form-label">{label}</p>
-                  {value
-                    ? (/<[a-z][\s\S]*>/i.test(value)
-                        ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300 mt-0.5" dangerouslySetInnerHTML={{ __html: value }}/>
-                        : <p className="text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{value}</p>)
-                    : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
-                  }
-                </div>
-              ))}
-            </div>
-          </Section>
-        )
-      }
 
       default: {
         // ── Preset specialty section ─────────────────────────────────────────
@@ -1736,6 +1829,19 @@ export default function PatientProfilePage() {
       {/* Tab 2: Visits */}
       {tab === 2 && (
         <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Visit History</h3>
+            {!doctor?.viewOnly && (
+              <button onClick={() => setShowNoteModal(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-3 py-1.5 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Progress Note
+              </button>
+            )}
+          </div>
+
           {/* Draft visits */}
           {visits.filter(v => v.status === 'draft').map(draft => (
             <div key={draft.id} className="mb-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center gap-4">
@@ -1762,54 +1868,101 @@ export default function PatientProfilePage() {
             </div>
           ))}
 
-          {/* Completed visits — timeline */}
+          {/* Completed visits + progress notes — merged timeline */}
           {(() => {
             const completedVisits = visits.filter(v => v.status !== 'draft')
             const draftCount = visits.filter(v => v.status === 'draft').length
-            if (completedVisits.length === 0 && draftCount === 0) {
+            const timelineItems = [
+              ...completedVisits.map(v => ({ type: 'visit', date: v.visitDate, data: v })),
+              ...progressNotes.map(n => ({ type: 'note', date: n.noteDate, data: n })),
+            ].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+
+            if (timelineItems.length === 0 && draftCount === 0) {
               return (
                 <EmptyState title="No visits recorded" description="Record a visit to start tracking this patient's medical history."
                   action={() => router.push(`/visits/new?patientId=${id}`)} actionLabel="Record Visit"/>
               )
             }
-            if (completedVisits.length === 0) {
+            if (timelineItems.length === 0) {
               return <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No completed visits yet.</p>
             }
+            const firstVisitIdx = timelineItems.findIndex(t => t.type === 'visit')
+            let visitNumber = completedVisits.length
             return (
               <div className="relative">
                 {/* Timeline spine */}
                 <div className="absolute left-5 top-10 bottom-6 w-0.5 bg-gradient-to-b from-primary-300 via-gray-200 to-transparent dark:from-primary-700 dark:via-gray-700 dark:to-transparent"/>
 
                 <div className="space-y-3">
-                  {completedVisits.map((visit, idx) => (
-                    <div key={visit.id} className="relative flex gap-4 items-start">
-                      {/* Timeline node */}
-                      <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-gray-900 shadow-sm ${
-                          idx === 0
-                            ? 'bg-primary-500 dark:bg-primary-500 text-white'
-                            : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
-                        }`}>
-                          {completedVisits.length - idx}
+                  {timelineItems.map((item, idx) => {
+                    if (item.type === 'note') {
+                      const noteItem = item.data
+                      return (
+                        <div key={`note-${noteItem.id}`} className="relative flex gap-4 items-start group">
+                          {/* Timeline node */}
+                          <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm ring-2 ring-white dark:ring-gray-900 shadow-sm bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-200 dark:border-blue-700">
+                              📝
+                            </div>
+                          </div>
+
+                          {/* Card */}
+                          <div className="flex-1 min-w-0 bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                  Progress Note · {formatDate(noteItem.noteDate)}
+                                  {noteItem.createdAt && ` · ${new Date(noteItem.createdAt).toLocaleTimeString('en-US', { timeStyle: 'short' })}`}
+                                </p>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{noteItem.note}</p>
+                              </div>
+                              {!doctor?.viewOnly && (
+                                <button onClick={() => handleDeleteNote(noteItem.id)} title="Delete note"
+                                  className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition-all">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    const visit = item.data
+                    const number = visitNumber
+                    visitNumber -= 1
+                    return (
+                      <div key={visit.id} className="relative flex gap-4 items-start">
+                        {/* Timeline node */}
+                        <div className="relative z-10 flex-shrink-0 flex flex-col items-center pt-2.5" style={{ width: 40 }}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-gray-900 shadow-sm ${
+                            idx === firstVisitIdx
+                              ? 'bg-primary-500 dark:bg-primary-500 text-white'
+                              : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                          }`}>
+                            {number}
+                          </div>
+                        </div>
+
+                        {/* Card */}
+                        <div className="flex-1 min-w-0">
+                          <VisitCard
+                            visit={visit}
+                            onUpdate={updateVisit}
+                            onDelete={removeVisit}
+                            patientId={id}
+                            patientName={`${patient.firstName} ${patient.lastName}`}
+                            linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
+                            blockedSlots={blockedSlots}
+                            linkedFollowUp={followupByVisitId[visit.id] ?? null}
+                            defaultExpanded={idx === firstVisitIdx}
+                          />
                         </div>
                       </div>
-
-                      {/* Card */}
-                      <div className="flex-1 min-w-0">
-                        <VisitCard
-                          visit={visit}
-                          onUpdate={updateVisit}
-                          onDelete={removeVisit}
-                          patientId={id}
-                          patientName={`${patient.firstName} ${patient.lastName}`}
-                          linkedInvoice={invoices.find(inv => inv.visitId === visit.id) ?? null}
-                          blockedSlots={blockedSlots}
-                          linkedFollowUp={followupByVisitId[visit.id] ?? null}
-                          defaultExpanded={idx === 0}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -2153,12 +2306,39 @@ export default function PatientProfilePage() {
         </div>
       </Modal>
 
+      <Modal open={showNoteModal} onClose={() => setShowNoteModal(false)} title="Add Progress Note" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Date</label>
+            <input type="date" value={noteDate} max={localDateStr()}
+              onChange={e => setNoteDate(e.target.value)} className="input-field"/>
+          </div>
+          <div>
+            <label className="form-label">Note</label>
+            <AutoTextarea value={noteText} onChange={e => setNoteText(e.target.value)}
+              placeholder="Quick update — e.g. Called patient, feeling better, continuing current meds."
+              className="input-field" rows={2}/>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end mt-6">
+          <button type="button" onClick={() => setShowNoteModal(false)}
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button type="button" disabled={savingNote || !noteText.trim()} onClick={handleAddProgressNote}
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+            {savingNote ? 'Saving…' : 'Save Note'}
+          </button>
+        </div>
+      </Modal>
+
       <PatientPrintView
         patient={patient}
         visits={visits}
         doctor={doctor}
         formatDate={formatDate}
         formatCurrency={formatCurrency}
+        effectiveLayout={effectiveLayout}
       />
     </AppLayout>
   )

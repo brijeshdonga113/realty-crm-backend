@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { auth, db } from '@/lib/firebase'
 
 const SPECIALIZATIONS = [
+  { value: 'homeopathy',    label: 'Homeopathy / Homoeopathy' },
   { value: 'general',       label: 'General Practitioner' },
   { value: 'cardiology',    label: 'Cardiology' },
   { value: 'dermatology',   label: 'Dermatology' },

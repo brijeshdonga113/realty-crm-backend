@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { visitService } from '@/services/visitService'
@@ -7,6 +7,8 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import { getDiagnosisSuggestions } from '@/lib/specialtyPresets'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
+import { Modal } from '@/components/ui/Modal'
 
 function EditVisitForm() {
   const router = useRouter()
@@ -22,13 +24,17 @@ function EditVisitForm() {
   const [labInput,  setLabInput]  = useState('')
   const [customDays, setCustomDays] = useState('')
   const [rx, setRx] = useState({ medication: '', dosage: '', frequency: '', duration: '', instructions: '' })
+  const [leavingSaving, setLeavingSaving] = useState(false)
+
+  // Snapshot of the form as loaded from the server — used to detect real edits.
+  const initialFormRef = useRef(null)
 
   useEffect(() => {
     if (!id) return
     visitService.getById(id).then(v => {
       setVisit(v)
       if (v) {
-        setForm({
+        const initial = {
           chiefComplaint: v.chiefComplaint || '',
           history:        v.history || '',
           findings:       v.examination?.findings || '',
@@ -41,7 +47,9 @@ function EditVisitForm() {
           vitalSigns:     v.examination?.vitalSigns || {
             bloodPressure: '', heartRate: '', temperature: '', weight: '', height: '', oxygenSat: ''
           },
-        })
+        }
+        initialFormRef.current = initial
+        setForm(initial)
       }
       setLoading(false)
     })
@@ -49,6 +57,15 @@ function EditVisitForm() {
 
   const set      = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
+
+  // Has anything changed since the visit was loaded, or is there an
+  // uncommitted prescription/lab-order draft the user typed but didn't add?
+  const isDirty = !!form && !!initialFormRef.current && (
+    JSON.stringify(form) !== JSON.stringify(initialFormRef.current) ||
+    rx.medication.trim() || diagInput.trim() || labInput.trim()
+  )
+
+  const { pendingNav, confirmLeave, cancelLeave, guardedBack } = useUnsavedChangesGuard(isDirty)
 
   const addFollowUpDays = (days) => {
     const d = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
@@ -70,9 +87,21 @@ function EditVisitForm() {
         followUpDate:   form.followUpDate || null,
         notes:          form.notes,
       })
+      initialFormRef.current = form
       router.push(visit?.patientId ? `/patients/${visit.patientId}` : '/patients')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveAndLeave = async () => {
+    if (!form?.chiefComplaint?.trim()) return
+    setLeavingSaving(true)
+    try {
+      await handleSave()
+    } finally {
+      setLeavingSaving(false)
+      cancelLeave()
     }
   }
 
@@ -92,7 +121,7 @@ function EditVisitForm() {
     <AppLayout title="Visit Not Found">
       <div className="text-center py-20">
         <p className="text-gray-500 dark:text-gray-400">Visit not found.</p>
-        <button onClick={() => router.back()} className="mt-4 text-primary-600 hover:underline text-sm">Go back</button>
+        <button onClick={guardedBack} className="mt-4 text-primary-600 hover:underline text-sm">Go back</button>
       </div>
     </AppLayout>
   )
@@ -101,7 +130,7 @@ function EditVisitForm() {
     <AppLayout
       title={`Edit Visit — ${visit.patientName}`}
       action={
-        <button onClick={() => router.back()}
+        <button onClick={guardedBack}
           className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
           ← Back
         </button>
@@ -297,7 +326,7 @@ function EditVisitForm() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.back()}
+          <button type="button" onClick={guardedBack}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
@@ -314,6 +343,26 @@ function EditVisitForm() {
           </button>
         </div>
       </div>
+
+      <Modal open={!!pendingNav} onClose={cancelLeave} title="Leave without saving?" size="sm">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+          You have unsaved changes to this visit. Save them before leaving, or discard your changes.
+        </p>
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={saveAndLeave} disabled={leavingSaving || !form.chiefComplaint.trim()}
+            className="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+            {leavingSaving ? 'Saving…' : 'Save Changes & Leave'}
+          </button>
+          <button type="button" onClick={confirmLeave} disabled={leavingSaving}
+            className="px-4 py-2.5 border border-red-200 dark:border-red-800 text-sm font-medium text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors">
+            Discard Changes
+          </button>
+          <button type="button" onClick={cancelLeave} disabled={leavingSaving}
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-60 transition-colors">
+            Keep Editing
+          </button>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }

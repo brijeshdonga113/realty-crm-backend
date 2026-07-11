@@ -204,7 +204,6 @@ export default function EditPatientPage() {
         ageManual:     form.ageManual !== '' ? Number(form.ageManual) : null,
       })
       toast.success('Patient updated.')
-      router.push(`/patients/${id}`)
     } catch {
       toast.error('Failed to save. Please try again.')
     } finally {
@@ -216,7 +215,7 @@ export default function EditPatientPage() {
     <div className={`flex items-center ${bottom ? 'justify-between pt-2 border-t border-gray-100 dark:border-gray-700' : 'gap-2'}`}>
       <button type="button" onClick={() => router.push(`/patients/${id}`)}
         className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-        ← Cancel
+        ← Back
       </button>
       <button type="button" onClick={handleSave} disabled={saving}
         className="px-5 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">

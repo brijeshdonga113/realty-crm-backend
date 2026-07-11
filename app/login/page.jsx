@@ -39,14 +39,31 @@ function friendlyAuthError(err) {
   return 'Something went wrong. Please try again.'
 }
 
+function friendlyResetError(err) {
+  const code = err?.code ?? ''
+  if (code === 'auth/network-request-failed') return 'No internet connection. Please check your network and try again.'
+  if (code === 'auth/invalid-email') return 'Please enter a valid email address.'
+  if (code === 'auth/too-many-requests') return 'Too many attempts. Please wait a moment and try again.'
+  return 'Something went wrong. Please try again.'
+}
+
 export default function LoginPage() {
-  const { login, doctor, loading: authLoading } = useAuth()
+  const { login, resetPassword, doctor, loading: authLoading } = useAuth()
   const router = useRouter()
+
+  // 'login' | 'forgot' — swaps only the right-hand panel; the left marketing
+  // panel and outer layout stay exactly the same.
+  const [mode, setMode] = useState('login')
 
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  const [resetEmail, setResetEmail]     = useState('')
+  const [resetError, setResetError]     = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSent, setResetSent]       = useState(false)
 
   // Already logged in — redirect appropriately
   useEffect(() => {
@@ -72,6 +89,34 @@ export default function LoginPage() {
       setError(friendlyAuthError(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const backToSignIn = () => {
+    setMode('login')
+    setResetEmail('')
+    setResetError('')
+    setResetSent(false)
+  }
+
+  const handleResetSubmit = async (e) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) { setResetError('Please enter your email address.'); return }
+    setResetLoading(true)
+    setResetError('')
+    try {
+      await resetPassword(resetEmail.trim())
+      setResetSent(true)
+    } catch (err) {
+      // auth/user-not-found is deliberately treated the same as success in
+      // the UI — avoids confirming or denying whether an email has an account.
+      if (err?.code === 'auth/user-not-found') {
+        setResetSent(true)
+      } else {
+        setResetError(friendlyResetError(err))
+      }
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -163,87 +208,153 @@ export default function LoginPage() {
             <span className="text-primary-700 text-lg font-bold">Cliniwayz</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back, Doctor</h2>
-          <p className="text-gray-500 text-sm mb-8">Sign in to access your clinic dashboard</p>
+          {mode === 'login' ? (
+            <>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back, Doctor</h2>
+              <p className="text-gray-500 text-sm mb-8">Sign in to access your clinic dashboard</p>
 
-          {error && (
-            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="form-label">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="doctor@clinic.com"
-                className="input-field"
-                autoComplete="email"
-              />
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <button type="button" className="text-xs text-primary-600 hover:underline">
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Enter your password"
-                  className="input-field pr-10"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              {error && (
+                <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
-                  Signing in...
-                </span>
-              ) : 'Sign In'}
-            </button>
-          </form>
+                  {error}
+                </div>
+              )}
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            New to Cliniwayz?{' '}
-            <Link href="/signup" className="text-primary-600 font-medium hover:underline">
-              Create an account
-            </Link>
-          </p>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="doctor@clinic.com"
+                    className="input-field"
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-sm font-medium text-gray-700">Password</label>
+                    <button type="button" onClick={() => setMode('forgot')} className="text-xs text-primary-600 hover:underline">
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="Enter your password"
+                      className="input-field pr-10"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(p => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Signing in...
+                    </span>
+                  ) : 'Sign In'}
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-gray-500">
+                New to Cliniwayz?{' '}
+                <Link href="/signup" className="text-primary-600 font-medium hover:underline">
+                  Create an account
+                </Link>
+              </p>
+            </>
+          ) : resetSent ? (
+            <>
+              <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Check your email</h2>
+              <p className="text-gray-500 text-sm mb-8">
+                If an account exists for <span className="font-medium text-gray-700">{resetEmail.trim()}</span>, we've sent a link to reset the password.
+              </p>
+              <button type="button" onClick={backToSignIn} className="text-primary-600 font-medium hover:underline text-sm">
+                ← Back to Sign In
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Forgot password?</h2>
+              <p className="text-gray-500 text-sm mb-8">Enter your email and we'll send you a link to reset it.</p>
+
+              {resetError && (
+                <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {resetError}
+                </div>
+              )}
+
+              <form onSubmit={handleResetSubmit} className="space-y-5">
+                <div>
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={e => { setResetEmail(e.target.value); setResetError('') }}
+                    placeholder="doctor@clinic.com"
+                    className="input-field"
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
+
+                <button type="submit" className="btn-primary" disabled={resetLoading}>
+                  {resetLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Sending...
+                    </span>
+                  ) : 'Send Reset Link'}
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-gray-500">
+                <button type="button" onClick={backToSignIn} className="text-primary-600 font-medium hover:underline">
+                  ← Back to Sign In
+                </button>
+              </p>
+            </>
+          )}
 
         </div>
       </div>
