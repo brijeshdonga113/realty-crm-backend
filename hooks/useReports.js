@@ -56,10 +56,15 @@ function computeStats({ patients, appointments, invoices, followups, visits }) {
     recent:           sortedVisits.slice(0, 5),
   }
 
-  // Follow-ups — merge standalone (pending) + visit-based followUpDates
+  // Follow-ups — the `followups` collection is the single source of truth:
+  // visitService already creates/syncs a linked followup record whenever a
+  // visit's followUpDate is set, and markDone() flips its status there. Pulling
+  // followUpDate straight off visit records too (as this used to) double-counted
+  // pending ones and, worse, never excluded follow-ups already marked done —
+  // since visits are never retroactively cleared — so every past follow-up
+  // date on any visit stayed "overdue" forever.
   const pendingFU = followups.filter(f => f.status === 'pending')
-  const visitFUDates = completedVisits.filter(v => v.followUpDate).map(v => v.followUpDate)
-  const allDates = [...pendingFU.map(f => f.dueDate), ...visitFUDates]
+  const allDates = pendingFU.map(f => f.dueDate)
   const followupStats = {
     todayCount:    allDates.filter(d => d === today).length,
     tomorrowCount: allDates.filter(d => d === tomorrow).length,
