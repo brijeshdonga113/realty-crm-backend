@@ -691,7 +691,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
         )
 
       case 'history_ho':
-        if (!isHom || !(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan)) return null
+        if (!(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes || patient.historyOf || patient.lifeSpan)) return null
         return (
           <div key={sectionId}>
             <SectionHeader title="History (H/o)"/>
@@ -706,22 +706,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
           </div>
         )
 
-      case 'other_medical_history':
-        if (isHom || !(patient.observation || patient.pastHistory || patient.familyHistory || patient.notes)) return null
-        return (
-          <div key={sectionId}>
-            <SectionHeader title="Other Medical History"/>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {patient.observation   && <Field label="Observation" value={patient.observation}/>}
-              {patient.pastHistory   && <Field label="Past History" value={patient.pastHistory}/>}
-              {patient.familyHistory && <Field label="Family History" value={patient.familyHistory}/>}
-              {patient.notes         && <Field label="Notes" value={patient.notes}/>}
-            </div>
-          </div>
-        )
-
       case 'generals': {
-        if (!isHom) return null
         const rows = [
           ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
           ['stool','Stool'],['thermal','Thermal'],['perspiration','Perspiration'],
@@ -753,7 +738,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
       }
 
       case 'chief_complaints':
-        if (!isHom || !patient.chiefComplaints?.some(c => c.complaint)) return null
+        if (!patient.chiefComplaints?.some(c => c.complaint)) return null
         return (
           <div key={sectionId}>
             <SectionHeader title="Chief Complaints (C/o)"/>
@@ -772,7 +757,7 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
         )
 
       case 'prescription_details':
-        if (!isHom || !patient.prescriptionDetails) return null
+        if (!patient.prescriptionDetails) return null
         return (
           <div key={sectionId}>
             <SectionHeader title="Prescription Details"/>
@@ -1019,32 +1004,29 @@ export default function PatientProfilePage() {
     await removeProgressNote(noteId)
   }
 
+  // History (H/o) / Generals / Chief Complaints / Prescription Details are
+  // editable for every doctor on the Edit page regardless of specialization —
+  // show them for every doctor here too, so nothing entered in Edit mode
+  // silently disappears from View just because the doctor isn't tagged
+  // "homeopathy". Specialty-preset and custom fields remain additive extras
+  // for non-homeopathy doctors, since Edit mode has no UI for those at all.
   const sectionDefs = useMemo(() => {
     const base = [
-      { id: 'personal',          label: 'Personal Details',   icon: '👤' },
-      { id: 'medical_summary',   label: 'Medical Summary',    icon: '🏥' },
-      { id: 'insurance',         label: 'Insurance',          icon: '🛡️' },
-      { id: 'emergency_contact', label: 'Emergency Contact',  icon: '🚨' },
+      { id: 'personal',             label: 'Personal Details',       icon: '👤' },
+      { id: 'medical_summary',      label: 'Medical Summary',        icon: '🏥' },
+      { id: 'insurance',            label: 'Insurance',              icon: '🛡️' },
+      { id: 'emergency_contact',    label: 'Emergency Contact',      icon: '🚨' },
+      { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
+      { id: 'generals',             label: 'Generals',               icon: '🔬' },
+      { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
+      { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
     ]
-    if (isHomeopathy(specialization)) {
-      return [
-        ...base,
-        { id: 'history_ho',           label: 'History (H/o)',          icon: '📖' },
-        { id: 'generals',             label: 'Generals',               icon: '🔬' },
-        { id: 'chief_complaints',     label: 'Chief Complaints (C/o)', icon: '📋' },
-        { id: 'prescription_details', label: 'Prescription Details',   icon: '💊' },
-      ]
-    }
+    if (isHomeopathy(specialization)) return base
     const presetSecs = getIntakeSections(specialization)
       .map(s => ({ id: `preset__${s.title}`, label: s.title, icon: '📋' }))
     const customSecs = [...new Set((doctor?.patientFormFields ?? []).map(f => f.section || 'Additional Info'))]
       .map(s => ({ id: `section__${s}`, label: s, icon: '📋' }))
-    return [
-      ...base,
-      { id: 'other_medical_history', label: 'Other Medical History', icon: '📋' },
-      ...presetSecs,
-      ...customSecs,
-    ]
+    return [...base, ...presetSecs, ...customSecs]
   }, [doctor?.id, specialization]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [sectionLayout,      setSectionLayout]      = useState([])
@@ -1380,7 +1362,6 @@ export default function PatientProfilePage() {
         )
 
       case 'history_ho': {
-        if (!isHomeopathy(specialization)) return null
         const hoFields = [
           { key: 'observation',   label: 'Observation',       value: patient.observation   },
           { key: 'pastHistory',   label: 'Past History',      value: patient.pastHistory   },
@@ -1408,7 +1389,6 @@ export default function PatientProfilePage() {
       }
 
       case 'generals':
-        if (!isHomeopathy(specialization)) return null
         return (
           <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
             <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -1445,7 +1425,7 @@ export default function PatientProfilePage() {
         )
 
       case 'chief_complaints':
-        if (!isHomeopathy(specialization) || !(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
+        if (!(patient.chiefComplaints ?? []).some(c => c.complaint)) return null
         return (
           <Section key="chief_complaints" title="Chief Complaints (C/o)" accentClass="border-l-blue-500">
             <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -1476,7 +1456,7 @@ export default function PatientProfilePage() {
         )
 
       case 'prescription_details':
-        if (!isHomeopathy(specialization) || !patient.prescriptionDetails) return null
+        if (!patient.prescriptionDetails) return null
         return (
           <Section key="prescription_details" title="Prescription Details" accentClass="border-l-teal-500">
             <div className="p-6">
@@ -1487,34 +1467,6 @@ export default function PatientProfilePage() {
             </div>
           </Section>
         )
-
-      case 'other_medical_history': {
-        if (isHomeopathy(specialization)) return null
-        const hasMedHistory = patient.observation || patient.pastHistory || patient.familyHistory || patient.notes
-        if (!hasMedHistory) return null
-        return (
-          <Section key="other_medical_history" title="Other Medical History" accentClass="border-l-blue-500">
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: 'Observation',    value: patient.observation   },
-                { label: 'Past History',   value: patient.pastHistory   },
-                { label: 'Family History', value: patient.familyHistory },
-                { label: 'Notes',          value: patient.notes         },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="form-label">{label}</p>
-                  {value
-                    ? (/<[a-z][\s\S]*>/i.test(value)
-                        ? <div className="rich-text-view text-sm text-gray-700 dark:text-gray-300 mt-0.5" dangerouslySetInnerHTML={{ __html: value }}/>
-                        : <p className="text-sm mt-0.5 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{value}</p>)
-                    : <p className="text-sm mt-0.5 text-gray-400 dark:text-gray-500 italic">—</p>
-                  }
-                </div>
-              ))}
-            </div>
-          </Section>
-        )
-      }
 
       default: {
         // ── Preset specialty section ─────────────────────────────────────────
