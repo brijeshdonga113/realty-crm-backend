@@ -24,11 +24,11 @@ export default function RootLayout({ children }) {
       </head>
       <body className="bg-gray-50 dark:bg-gray-900 min-h-screen font-sans">
         <AuthProvider>
-          <NotificationsProvider>
-            <ToastProvider>
+          <ToastProvider>
+            <NotificationsProvider>
               {children}
-            </ToastProvider>
-          </NotificationsProvider>
+            </NotificationsProvider>
+          </ToastProvider>
         </AuthProvider>
         <Analytics />
         <SpeedInsights />
