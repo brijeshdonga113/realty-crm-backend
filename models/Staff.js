@@ -18,6 +18,18 @@ export const STAFF_STATUSES = [
   { value: 'terminated', label: 'Terminated', color: 'red' },
 ]
 
+// Per-module access toggles for staff/receptionist LOGIN accounts (not the
+// HR-style staff record above). Default is "no access" — a doctor opts a
+// staff member into each module explicitly. Used by
+// app/api/staff/receptionists/route.js, context/AuthContext.jsx,
+// components/Sidebar.jsx, and app/staff/page.jsx's Login Accounts section.
+export const STAFF_MODULES = [
+  { value: 'inventory', label: 'Inventory' },
+  { value: 'billing',   label: 'Billing' },
+  { value: 'expenses',  label: 'Expenses' },
+  { value: 'reports',   label: 'Reports' },
+]
+
 export function createStaff(data = {}) {
   const now = new Date().toISOString()
   return {

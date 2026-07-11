@@ -1,4 +1,11 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { STAFF_MODULES } from '@/models/Staff'
+
+function sanitizePermissions(input) {
+  const perms = {}
+  for (const { value } of STAFF_MODULES) perms[value] = !!input?.[value]
+  return perms
+}
 
 async function verifyAdmin(request) {
   const idToken = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
@@ -25,7 +32,15 @@ export async function GET(request) {
   const staff = []
   snap.forEach(doc => {
     const d = doc.data()
-    staff.push({ uid: doc.id, name: d.name, email: d.email, createdAt: d.createdAt ?? null })
+    staff.push({
+      uid:         doc.id,
+      name:        d.name,
+      email:       d.email,
+      role:        d.role ?? 'receptionist',
+      viewOnly:    d.viewOnly ?? false,
+      permissions: sanitizePermissions(d.permissions),
+      createdAt:   d.createdAt ?? null,
+    })
   })
 
   staff.sort((a, b) => (a.createdAt ?? '') > (b.createdAt ?? '') ? -1 : 1)

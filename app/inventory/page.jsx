@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 import { useInventory } from '@/hooks/useInventory'
 import { useAuth } from '@/context/AuthContext'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { dataStore } from '@/lib/dataStore'
 
 // ─── CSV import helper ────────────────────────────────────────────────────────
@@ -267,6 +268,7 @@ function ItemFormModal({ open, onClose, initial, onSave, title, customFieldDefs 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
   const router = useRouter()
+  useRequireModuleAccess('inventory')
   const { items, loading, create, update, adjustQty, remove, bulkCreate } = useInventory()
   const { doctor } = useAuth()
   const customFieldDefs = doctor?.inventoryCustomFields ?? []

@@ -102,7 +102,7 @@ async function loadReceptionistSession(uid, userEmail) {
   const { doc, getDoc } = await import('firebase/firestore')
   const recSnap = await getDoc(doc(db, 'receptionists', uid))
   if (!recSnap.exists()) return null
-  const { name, email, doctorId, viewOnly: recViewOnly, ...recData } = recSnap.data()
+  const { name, email, doctorId, viewOnly: recViewOnly, permissions: recPermissions, ...recData } = recSnap.data()
   const doctorProfile = await loadFirebaseProfile(doctorId)
   if (!doctorProfile) return null
 
@@ -117,6 +117,9 @@ async function loadReceptionistSession(uid, userEmail) {
     ...ownPrefs,
     // Per-receptionist viewOnly overrides the clinic-level flag
     viewOnly: recViewOnly ?? doctorProfile.viewOnly ?? false,
+    // Per-module access toggles (Inventory/Billing/Expenses/Reports). Missing
+    // key = no access — accounts created before this feature default closed.
+    permissions: recPermissions ?? {},
     _role: 'receptionist',
     _receptionistUid: uid,
     _receptionistName: name,
