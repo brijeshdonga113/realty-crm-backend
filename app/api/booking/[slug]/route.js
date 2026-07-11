@@ -1,5 +1,6 @@
 import { getAdminDb } from '@/lib/firebaseAdmin'
 import { normalizeWorkingHours, generateSlotsFromWorkingHours } from '@/lib/booking'
+import { DEFAULT_THEME } from '@/lib/themes'
 
 async function resolveBooking(db, slug) {
   const slugSnap = await db.collection('bookingSlugs').doc(slug).get()
@@ -33,6 +34,8 @@ function doctorInfo(profile) {
     clinicName:     profile.clinicName     ?? '',
     specialization: profile.specialization ?? '',
     logoUrl:        profile.logoUrl        ?? '',
+    paymentQrUrl:   profile.paymentQrUrl   ?? '',
+    colorTheme:     profile.colorTheme     ?? DEFAULT_THEME,
   }
 }
 
