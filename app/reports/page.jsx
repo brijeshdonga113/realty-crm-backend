@@ -9,6 +9,7 @@ import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { useInventory } from '@/hooks/useInventory'
 import { useBilling } from '@/hooks/useBilling'
 import { useExpenses } from '@/hooks/useExpenses'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { EXPENSE_CATEGORIES } from '@/app/expenses/page'
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
@@ -241,6 +242,7 @@ const TABS = [
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  useRequireModuleAccess('reports')
   const { formatCurrency } = usePreferences()
   const { doctor }         = useAuth()
   const { stats, rawInvoices, rawPatients, rawAppointments, rawVisits, loading } = useReports()

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
+import { STAFF_MODULES, getStaffRoleLabel } from '@/models/Staff'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -627,6 +628,10 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
   const [err,     setErr]     = useState('')
   const [tab,     setTab]     = useState('overview')
 
+  // Staff/receptionist accounts for this clinic
+  const [staff,        setStaff]        = useState([])
+  const [staffLoading, setStaffLoading] = useState(true)
+
   // Plan edit
   const [editPlan,    setEditPlan]    = useState(false)
   const [planStatus,  setPlanStatus]  = useState('')
@@ -656,6 +661,16 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
       })
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
+  }, [uid])
+
+  useEffect(() => {
+    if (!uid) return
+    setStaffLoading(true)
+    adminFetch(`/api/admin/staff?doctorId=${uid}`)
+      .then(r => r.json())
+      .then(d => setStaff(d.staff ?? []))
+      .catch(() => setStaff([]))
+      .finally(() => setStaffLoading(false))
   }, [uid])
 
   const handlePlanSave = async () => {
@@ -812,7 +827,7 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
 
             {/* Sub-tabs */}
             <div className="flex gap-1 px-6 pt-4 pb-0 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-              {['overview', 'financials', 'patients'].map(t => (
+              {['overview', 'financials', 'patients', 'staff'].map(t => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 transition-colors -mb-px ${
                     tab === t
@@ -820,6 +835,11 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}>
                   {t}
+                  {t === 'staff' && staff.length > 0 && (
+                    <span className="ml-1.5 text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
+                      {staff.length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1290,6 +1310,62 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                     )}
                   </div>
                 </>
+              )}
+
+              {/* ── Staff ── */}
+              {tab === 'staff' && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                  <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-4">Staff / Receptionist Login Accounts</h4>
+                  {staffLoading ? (
+                    <div className="flex items-center gap-2 py-4 text-gray-400 text-sm">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Loading…
+                    </div>
+                  ) : staff.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No staff login accounts added yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {staff.map(s => (
+                        <div key={s.uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3 space-y-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-purple-700 dark:text-purple-300">
+                              {s.name?.[0]?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{s.name}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{s.email}</p>
+                            </div>
+                            <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                              {getStaffRoleLabel(s.role ?? 'receptionist')}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                              s.viewOnly
+                                ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                                : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                            }`}>
+                              {s.viewOnly ? 'View Only' : 'Full Access'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 pl-11">
+                            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mr-0.5">Access:</span>
+                            {STAFF_MODULES.map(m => (
+                              <span key={m.value} className={`text-[11px] font-medium px-2 py-0.5 rounded-md border ${
+                                s.permissions?.[m.value]
+                                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-300 dark:text-gray-600'
+                              }`}>
+                                {m.label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
             </div>

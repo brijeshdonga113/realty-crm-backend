@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useExpenses } from '@/hooks/useExpenses'
 import { usePreferences } from '@/hooks/usePreferences'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 
 export const EXPENSE_CATEGORIES = [
   { value: 'rent',      label: 'Rent / Lease' },
@@ -37,6 +38,7 @@ const today = new Date().toISOString().slice(0, 10)
 const EMPTY = { description: '', category: 'other', amount: '', date: today, paymentMethod: '', notes: '' }
 
 export default function ExpensesPage() {
+  useRequireModuleAccess('expenses')
   const { expenses, loading, add, update, remove } = useExpenses()
   const { formatCurrency } = usePreferences()
 

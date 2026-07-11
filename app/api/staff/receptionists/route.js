@@ -1,4 +1,11 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { STAFF_MODULES } from '@/models/Staff'
+
+function sanitizePermissions(input) {
+  const perms = {}
+  for (const { value } of STAFF_MODULES) perms[value] = !!input?.[value]
+  return perms
+}
 
 async function verifyDoctor(request) {
   const idToken = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
@@ -43,12 +50,13 @@ export async function GET(request) {
   snap.forEach(doc => {
     const d = doc.data()
     receptionists.push({
-      uid:       doc.id,
-      name:      d.name,
-      email:     d.email,
-      role:      d.role ?? 'receptionist',
-      viewOnly:  d.viewOnly ?? false,
-      createdAt: d.createdAt ?? null,
+      uid:         doc.id,
+      name:        d.name,
+      email:       d.email,
+      role:        d.role ?? 'receptionist',
+      viewOnly:    d.viewOnly ?? false,
+      permissions: sanitizePermissions(d.permissions),
+      createdAt:   d.createdAt ?? null,
     })
   })
   receptionists.sort((a, b) => (a.createdAt ?? '') > (b.createdAt ?? '') ? -1 : 1)
@@ -60,7 +68,7 @@ export async function POST(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { name, email, password, role, branchUid } = await request.json()
+  const { name, email, password, role, permissions, branchUid } = await request.json()
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
     return Response.json({ error: 'name, email and password are required.' }, { status: 400 })
   }
@@ -82,12 +90,13 @@ export async function POST(request) {
     })
 
     await db.collection('receptionists').doc(userRecord.uid).set({
-      name:      name.trim(),
-      email:     email.trim(),
+      name:        name.trim(),
+      email:       email.trim(),
       doctorId,
-      role:      role ?? 'receptionist',
-      viewOnly:  false,
-      createdAt: new Date().toISOString(),
+      role:        role ?? 'receptionist',
+      viewOnly:    false,
+      permissions: sanitizePermissions(permissions),
+      createdAt:   new Date().toISOString(),
     })
 
     return Response.json({ uid: userRecord.uid, email: userRecord.email })
@@ -99,13 +108,18 @@ export async function POST(request) {
   }
 }
 
-// PATCH — toggle viewOnly for a receptionist (must belong to the active branch)
+// PATCH — toggle viewOnly and/or per-module permissions for a receptionist
+// (must belong to the active branch). `permissions` is merged with the
+// account's existing permissions, so a caller can flip a single module
+// without resetting the others.
 export async function PATCH(request) {
   const caller = await verifyDoctor(request)
   if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { uid, viewOnly, branchUid } = await request.json()
-  if (!uid || viewOnly === undefined) return Response.json({ error: 'uid and viewOnly required' }, { status: 400 })
+  const { uid, viewOnly, permissions, branchUid } = await request.json()
+  if (!uid || (viewOnly === undefined && permissions === undefined)) {
+    return Response.json({ error: 'uid and (viewOnly or permissions) required' }, { status: 400 })
+  }
 
   const doctorId = await resolveTargetUid(caller, branchUid)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -116,8 +130,15 @@ export async function PATCH(request) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  await db.collection('receptionists').doc(uid).update({ viewOnly: !!viewOnly })
-  return Response.json({ ok: true })
+  const update = {}
+  if (viewOnly !== undefined) update.viewOnly = !!viewOnly
+  if (permissions !== undefined) {
+    const current = sanitizePermissions(snap.data()?.permissions)
+    update.permissions = sanitizePermissions({ ...current, ...permissions })
+  }
+
+  await db.collection('receptionists').doc(uid).update(update)
+  return Response.json({ ok: true, ...update })
 }
 
 // DELETE — remove a receptionist (must belong to the active branch)

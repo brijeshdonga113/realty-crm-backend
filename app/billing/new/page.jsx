@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
 import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { useInventory } from '@/hooks/useInventory'
 import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { inventoryService } from '@/services/inventoryService'
@@ -27,6 +28,7 @@ function StockBadge({ invItem, qty }) {
 }
 
 function NewInvoiceForm() {
+  useRequireModuleAccess('billing')
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { add }                    = useBilling()

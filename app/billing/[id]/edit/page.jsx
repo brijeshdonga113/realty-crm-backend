@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { useInventory } from '@/hooks/useInventory'
 import { createLineItem, PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { billingService } from '@/services/billingService'
@@ -34,6 +35,7 @@ function lineEffect(item) {
 }
 
 function EditInvoiceForm() {
+  useRequireModuleAccess('billing')
   const router = useRouter()
   const { id }  = useParams()
   const { update } = useBilling()

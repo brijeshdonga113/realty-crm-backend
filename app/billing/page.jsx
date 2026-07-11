@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
+import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -107,6 +108,7 @@ function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
 }
 
 function BillingPageInner() {
+  useRequireModuleAccess('billing')
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { doctor, isReceptionist } = useAuth()

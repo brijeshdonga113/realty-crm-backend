@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useStaff } from '@/hooks/useStaff'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
-import { STAFF_ROLES, STAFF_STATUSES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
+import { STAFF_ROLES, STAFF_STATUSES, STAFF_MODULES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
 
 const LOGIN_ROLES = STAFF_ROLES
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -34,7 +34,8 @@ const emptyForm = {
   schedule: { workDays: ['Monday','Tuesday','Wednesday','Thursday','Friday'], startTime: '09:00', endTime: '17:00' },
 }
 
-const emptyLoginForm = { name: '', email: '', password: '', role: 'receptionist' }
+const emptyPermissions = Object.fromEntries(STAFF_MODULES.map(m => [m.value, false]))
+const emptyLoginForm = { name: '', email: '', password: '', role: 'receptionist', permissions: emptyPermissions }
 
 function getRoleColor(role) {
   const idx = STAFF_ROLES.findIndex(r => r.value === role)
@@ -430,11 +431,18 @@ function useReceptionists() {
     setReceptionists(prev => prev.map(r => r.uid === uid ? { ...r, viewOnly: !current } : r))
   }, [apiFetch, branchUid])
 
-  return { receptionists, loading, error, create, remove, toggleViewOnly, reload: load }
+  const togglePermission = useCallback(async (uid, moduleKey, current) => {
+    const res  = await apiFetch('/api/staff/receptionists', { method: 'PATCH', body: JSON.stringify({ uid, permissions: { [moduleKey]: !current }, branchUid }) })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error)
+    setReceptionists(prev => prev.map(r => r.uid === uid ? { ...r, permissions: data.permissions ?? { ...r.permissions, [moduleKey]: !current } } : r))
+  }, [apiFetch, branchUid])
+
+  return { receptionists, loading, error, create, remove, toggleViewOnly, togglePermission, reload: load }
 }
 
 function LoginAccountsSection() {
-  const { receptionists, loading, error, create, remove, toggleViewOnly } = useReceptionists()
+  const { receptionists, loading, error, create, remove, toggleViewOnly, togglePermission } = useReceptionists()
   const { doctor } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm]         = useState(emptyLoginForm)
@@ -443,8 +451,11 @@ function LoginAccountsSection() {
   const [done, setDone]         = useState(null)
   const [deleting, setDeleting] = useState({})
   const [toggling, setToggling] = useState({})
+  const [togglingPerm, setTogglingPerm] = useState({})
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setFormErr('') }
+  const setFormPermission = (moduleKey, value) =>
+    setForm(f => ({ ...f, permissions: { ...f.permissions, [moduleKey]: value } }))
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -474,6 +485,14 @@ function LoginAccountsSection() {
     try { await toggleViewOnly(uid, current) }
     catch (err) { alert(err.message) }
     finally { setToggling(t => { const n = { ...t }; delete n[uid]; return n }) }
+  }
+
+  const handleTogglePermission = async (uid, moduleKey, current) => {
+    const key = `${uid}:${moduleKey}`
+    setTogglingPerm(t => ({ ...t, [key]: true }))
+    try { await togglePermission(uid, moduleKey, current) }
+    catch (err) { alert(err.message) }
+    finally { setTogglingPerm(t => { const n = { ...t }; delete n[key]; return n }) }
   }
 
   return (
@@ -533,6 +552,27 @@ function LoginAccountsSection() {
                 required minLength={6} placeholder="Min 6 characters" className="input-field font-mono"/>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">They should change this after first login.</p>
             </div>
+            <div>
+              <label className="form-label">Module Access</label>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Off by default — turn on only what this person needs.</p>
+              <div className="flex flex-wrap gap-2">
+                {STAFF_MODULES.map(m => (
+                  <button key={m.value} type="button" onClick={() => setFormPermission(m.value, !form.permissions[m.value])}
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+                      form.permissions[m.value]
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+                        : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400'
+                    }`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {form.permissions[m.value]
+                        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>}
+                    </svg>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {formErr && <p className="text-sm text-red-600 dark:text-red-400">{formErr}</p>}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => { setShowForm(false); setForm(emptyLoginForm); setFormErr('') }}
@@ -564,66 +604,102 @@ function LoginAccountsSection() {
         ) : (
           <div className="space-y-2">
             {receptionists.map(r => (
-              <div key={r.uid} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-purple-700 dark:text-purple-300">
-                    {r.name?.[0]?.toUpperCase() ?? '?'}
+              <div key={r.uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3 space-y-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-purple-700 dark:text-purple-300">
+                      {r.name?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{r.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.email}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{r.name}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{r.email}</p>
-                  </div>
+
+                  <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                    {getStaffRoleLabel(r.role ?? 'receptionist')}
+                  </span>
+
+                  {/* View Only toggle */}
+                  {!doctor?.viewOnly && (
+                    <button
+                      onClick={() => handleToggleViewOnly(r.uid, r.viewOnly)}
+                      disabled={toggling[r.uid]}
+                      title={r.viewOnly ? 'Click to give full access' : 'Click to restrict to view only'}
+                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all disabled:opacity-50 flex-shrink-0 ${
+                        r.viewOnly
+                          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
+                          : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+                      }`}>
+                      {toggling[r.uid] ? (
+                        <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                      ) : r.viewOnly ? (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                      )}
+                      {r.viewOnly ? 'View Only' : 'Full Access'}
+                    </button>
+                  )}
+
+                  {/* Delete */}
+                  {!doctor?.viewOnly && (
+                    <button onClick={() => handleDelete(r.uid)} disabled={deleting[r.uid]}
+                      className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 flex-shrink-0 disabled:opacity-50">
+                      {deleting[r.uid] ? (
+                        <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
 
-                <span className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                  {getStaffRoleLabel(r.role ?? 'receptionist')}
-                </span>
-
-                {/* View Only toggle */}
-                {!doctor?.viewOnly && (
-                  <button
-                    onClick={() => handleToggleViewOnly(r.uid, r.viewOnly)}
-                    disabled={toggling[r.uid]}
-                    title={r.viewOnly ? 'Click to give full access' : 'Click to restrict to view only'}
-                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all disabled:opacity-50 flex-shrink-0 ${
-                      r.viewOnly
-                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
-                        : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
-                    }`}>
-                    {toggling[r.uid] ? (
-                      <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                    ) : r.viewOnly ? (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                      </svg>
-                    ) : (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                      </svg>
-                    )}
-                    {r.viewOnly ? 'View Only' : 'Full Access'}
-                  </button>
-                )}
-
-                {/* Delete */}
-                {!doctor?.viewOnly && (
-                  <button onClick={() => handleDelete(r.uid)} disabled={deleting[r.uid]}
-                    className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 flex-shrink-0 disabled:opacity-50">
-                    {deleting[r.uid] ? (
-                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                    )}
-                  </button>
-                )}
+                {/* Module access toggles */}
+                <div className="flex flex-wrap items-center gap-1.5 pl-11">
+                  <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mr-0.5">Access:</span>
+                  {STAFF_MODULES.map(m => {
+                    const has = r.permissions?.[m.value] === true
+                    const key = `${r.uid}:${m.value}`
+                    return (
+                      <button key={m.value}
+                        onClick={() => handleTogglePermission(r.uid, m.value, has)}
+                        disabled={doctor?.viewOnly || togglingPerm[key]}
+                        title={has ? `Click to remove ${m.label} access` : `Click to grant ${m.label} access`}
+                        className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-all disabled:opacity-50 ${
+                          has
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-400'
+                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500'
+                        }`}>
+                        {togglingPerm[key] ? (
+                          <svg className="animate-spin w-2.5 h-2.5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {has
+                              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>}
+                          </svg>
+                        )}
+                        {m.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             ))}
           </div>
