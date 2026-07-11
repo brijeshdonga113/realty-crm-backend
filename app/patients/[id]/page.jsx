@@ -1960,6 +1960,7 @@ export default function PatientProfilePage() {
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
                                   Progress Note · {formatDate(noteItem.noteDate)}
+                                  {noteItem.createdAt && ` · ${new Date(noteItem.createdAt).toLocaleTimeString('en-US', { timeStyle: 'short' })}`}
                                 </p>
                                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{noteItem.note}</p>
                               </div>
