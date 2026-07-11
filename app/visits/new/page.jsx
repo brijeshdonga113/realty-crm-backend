@@ -280,6 +280,43 @@ function VisitEntryForm() {
     }
   }
 
+  // Guard against the browser's own Back/Forward button or swipe-back
+  // gesture, which requestLeave() above only covers for in-app buttons.
+  // While dirty, a real back press lands on a same-URL buffer entry instead
+  // of leaving immediately, giving us a chance to show the confirm modal.
+  const isDirtyRef   = useRef(isDirty)
+  isDirtyRef.current = isDirty
+  const bypassPopRef = useRef(false)
+  const guardedRef   = useRef(false)
+
+  useEffect(() => {
+    if (!isDirty) return
+    window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
+    guardedRef.current = true
+
+    const onPopState = () => {
+      if (bypassPopRef.current) { bypassPopRef.current = false; guardedRef.current = false; return }
+      if (!isDirtyRef.current) return
+      window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
+      requestLeave(() => {
+        bypassPopRef.current = true
+        window.history.go(-2)
+      })
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [isDirty])
+
+  // Drop-in replacement for router.back() that accounts for the buffer entry above
+  const goBack = () => requestLeave(() => {
+    if (guardedRef.current) {
+      bypassPopRef.current = true
+      window.history.go(-2)
+    } else {
+      router.back()
+    }
+  })
+
   const addFollowUpDays = (days) => {
     const base = form.visitDate ? new Date(form.visitDate) : new Date()
     const d = new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10)
@@ -506,7 +543,7 @@ function VisitEntryForm() {
       title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
         <div className="flex items-center gap-2">
-          <button onClick={() => requestLeave(() => router.back())}
+          <button onClick={goBack}
             className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
             ← Back
           </button>
@@ -1205,7 +1242,7 @@ function VisitEntryForm() {
           </div>
         )}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => requestLeave(() => router.back())}
+          <button type="button" onClick={goBack}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>

@@ -22,7 +22,7 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
-import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -993,7 +993,7 @@ export default function PatientProfilePage() {
   const [payMarking,    setPayMarking]    = useState(false)
 
   const [showNoteModal, setShowNoteModal] = useState(false)
-  const [noteDate,      setNoteDate]      = useState(() => new Date().toISOString().slice(0, 10))
+  const [noteDate,      setNoteDate]      = useState(() => localDateStr())
   const [noteText,      setNoteText]      = useState('')
   const [savingNote,    setSavingNote]    = useState(false)
 
@@ -1007,7 +1007,7 @@ export default function PatientProfilePage() {
         note: noteText.trim(),
       })
       setNoteText('')
-      setNoteDate(new Date().toISOString().slice(0, 10))
+      setNoteDate(localDateStr())
       setShowNoteModal(false)
     } finally {
       setSavingNote(false)
@@ -2357,7 +2357,7 @@ export default function PatientProfilePage() {
         <div className="space-y-4">
           <div>
             <label className="form-label">Date</label>
-            <input type="date" value={noteDate} max={new Date().toISOString().slice(0, 10)}
+            <input type="date" value={noteDate} max={localDateStr()}
               onChange={e => setNoteDate(e.target.value)} className="input-field"/>
           </div>
           <div>

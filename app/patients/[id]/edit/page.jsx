@@ -204,7 +204,6 @@ export default function EditPatientPage() {
         ageManual:     form.ageManual !== '' ? Number(form.ageManual) : null,
       })
       toast.success('Patient updated.')
-      router.push(`/patients/${id}`)
     } catch {
       toast.error('Failed to save. Please try again.')
     } finally {
