@@ -320,16 +320,14 @@ function BillingPageInner() {
                           Edit
                         </button>
                       )}
-                      {!doctor?.viewOnly && (
-                        <button onClick={() => router.push(`/billing/new?duplicateId=${inv.id}`)}
-                          className="text-xs text-gray-600 dark:text-gray-400 hover:underline font-medium"
-                          title="Start a new invoice prefilled from this one — useful for refunds">
-                          Duplicate
-                        </button>
-                      )}
                       <button onClick={() => setPrintInvoice(inv)}
                         className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
                         Print
+                      </button>
+                      <button onClick={() => handlePrint(inv)}
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:underline font-medium"
+                        title="Download this invoice as a PDF via your browser's print dialog">
+                        Download
                       </button>
                       {inv.patientPhone && (
                         <a

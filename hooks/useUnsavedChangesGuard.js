@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 
 // Confirms with the user before leaving a page with unsaved changes.
 // Covers in-app navigation (via requestLeave/guardedBack), tab close/refresh
@@ -15,6 +16,7 @@ import { useRouter } from 'next/navigation'
 // entries (past the buffer) to actually leave.
 export function useUnsavedChangesGuard(isDirty) {
   const router = useRouter()
+  const { setGuard, clearGuard } = useNavigationGuard()
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
 
@@ -25,6 +27,15 @@ export function useUnsavedChangesGuard(isDirty) {
   const requestLeave = useCallback((navigate) => {
     isDirtyRef.current ? setPendingNav(() => navigate) : navigate()
   }, [])
+
+  // Register with the app-wide navigation guard so the sidebar, global
+  // search, and logout also confirm before leaving this page — not just its
+  // own Back/Cancel buttons.
+  useEffect(() => {
+    const guard = { isDirty: () => isDirtyRef.current, requestLeave }
+    setGuard(guard)
+    return () => clearGuard(guard)
+  }, [setGuard, clearGuard, requestLeave])
 
   const confirmLeave = useCallback(() => {
     pendingNav?.()

@@ -471,10 +471,17 @@ export function AuthProvider({ children }) {
     setDoctor(null)
   }
 
+  // Works for doctor and receptionist accounts alike — both are real Firebase
+  // Auth email/password users, so there's no role branching needed here.
+  const resetPassword = async (email) => {
+    const { sendPasswordResetEmail } = await import('firebase/auth')
+    await sendPasswordResetEmail(auth, email)
+  }
+
   const isReceptionist = doctor?._role === 'receptionist'
 
   return (
-    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor, refreshManagedDoctors }}>
+    <AuthContext.Provider value={{ doctor, loading, signup, signupReceptionist, login, logout, resetPassword, updateProfile, generateReceptionistCode, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor, refreshManagedDoctors }}>
       {children}
     </AuthContext.Provider>
   )

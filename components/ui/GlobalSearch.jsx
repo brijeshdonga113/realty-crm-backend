@@ -3,10 +3,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { dataStore } from '@/lib/dataStore'
 import { useAuth } from '@/context/AuthContext'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 
 export function GlobalSearch() {
   const router = useRouter()
   const { doctor } = useAuth()
+  const { guardedNavigate } = useNavigationGuard()
   const [open, setOpen]           = useState(false)
   const [query, setQuery]         = useState('')
   const [patients, setPatients]   = useState([])
@@ -96,7 +98,10 @@ export function GlobalSearch() {
     ...matchedInventory.map(i => ({ type: 'inventory', item: i })),
   ]
 
-  const navigate = (href) => { closeSearch(); router.push(href) }
+  const navigate = (href) => {
+    const go = () => { closeSearch(); router.push(href) }
+    if (guardedNavigate(null, go)) go()
+  }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') { closeSearch(); return }

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { usePatient } from '@/hooks/usePatients'
 import { useVisits } from '@/hooks/useVisits'
+import { useProgressNotes } from '@/hooks/useProgressNotes'
 import { useAuth } from '@/context/AuthContext'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { usePreferences } from '@/hooks/usePreferences'
@@ -20,6 +21,7 @@ import { useInventory } from '@/hooks/useInventory'
 import { useAppointments } from '@/hooks/useAppointments'
 import ServiceSuggest from '@/components/ui/ServiceSuggest'
 import { Modal } from '@/components/ui/Modal'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -33,7 +35,7 @@ function VisitEntryForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { doctor, isReceptionist } = useAuth()
-  const { formatDateFull, formatCurrency } = usePreferences()
+  const { formatDate, formatDateFull, formatCurrency } = usePreferences()
   const { blockedSlots } = useBlockedSlots()
 
   useEffect(() => {
@@ -52,6 +54,7 @@ function VisitEntryForm() {
 
   const { patient, loading: patientLoading } = usePatient(patientId)
   const { visits: allVisits, loading: visitsLoading } = useVisits(patientId)
+  const { notes: progressNotes, loading: notesLoading } = useProgressNotes(patientId)
   const { items: inventoryItems } = useInventory()
   const pastVisits = (allVisits ?? []).filter(v => v.status !== 'draft')
 
@@ -316,6 +319,20 @@ function VisitEntryForm() {
       router.back()
     }
   })
+
+  // Register with the app-wide navigation guard so the sidebar, global
+  // search, and logout also confirm before leaving this page. requestLeave
+  // is redefined every render (not memoized), so route through a ref to
+  // avoid the registration effect (which only runs once) capturing a stale
+  // closure that thinks isDirty is still false.
+  const requestLeaveRef = useRef(requestLeave)
+  requestLeaveRef.current = requestLeave
+  const { setGuard, clearGuard } = useNavigationGuard()
+  useEffect(() => {
+    const guard = { isDirty: () => isDirtyRef.current, requestLeave: (nav) => requestLeaveRef.current(nav) }
+    setGuard(guard)
+    return () => clearGuard(guard)
+  }, [setGuard, clearGuard])
 
   const addFollowUpDays = (days) => {
     const base = form.visitDate ? new Date(form.visitDate) : new Date()
@@ -1466,6 +1483,49 @@ function VisitEntryForm() {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Progress Notes ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Progress Notes</h3>
+            {!notesLoading && progressNotes.length > 0 && (
+              <span className="text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                {progressNotes.length}
+              </span>
+            )}
+          </div>
+
+          {!patientId ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500 p-4 text-center">Select a patient to see notes</p>
+          ) : notesLoading ? (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700">
+              {[1,2].map(i => (
+                <div key={i} className="p-4 space-y-2 animate-pulse">
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-20"/>
+                  <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-36"/>
+                </div>
+              ))}
+            </div>
+          ) : progressNotes.length === 0 ? (
+            <div className="p-6 text-center">
+              <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-base">📝</span>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">No progress notes</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700 max-h-64 overflow-y-auto">
+              {progressNotes.map(n => (
+                <div key={n.id} className="p-4">
+                  <p className="text-xs font-semibold text-primary-600 dark:text-primary-400 mb-1">
+                    {formatDate(n.noteDate)}
+                  </p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{n.note}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>

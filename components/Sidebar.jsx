@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { useNavigationGuard } from '@/context/NavigationGuardContext'
 import { dataStore } from '@/lib/dataStore'
 import { formatCurrency as fmtCurrencyLib } from '@/lib/preferences'
 
@@ -121,6 +122,7 @@ const navSections = [
 export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const pathname = usePathname()
   const router   = useRouter()
+  const { guardedNavigate } = useNavigationGuard()
   const { doctor, logout, isReceptionist, org, activeBranch, switchBranch, baseDoctor, managedDoctors, activeManagedDoctor, switchManagedDoctor } = useAuth()
   const searchParams   = useSearchParams()
   const todayRevenue   = useTodayRevenue(doctor)
@@ -128,7 +130,10 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
   const [managedOpen,  setManagedOpen] = useState(false)
   const [branchErr,    setBranchErr]   = useState('')
 
-  const handleLogout = () => { logout(); router.push('/login') }
+  const handleLogout = () => {
+    const doLogout = () => { logout(); router.push('/login') }
+    if (guardedNavigate(null, doLogout)) doLogout()
+  }
 
   // Always show the logged-in user in the footer — not the managed doctor being viewed
   const footerDoctor = doctor?._isManagedView ? baseDoctor : doctor
@@ -151,7 +156,8 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
     return true
   }
 
-  const handleNavClick = () => {
+  const handleNavClick = (e, href) => {
+    if (!guardedNavigate(e, () => router.push(href))) return
     if (onClose) onClose()
   }
 
@@ -332,7 +338,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
                   {visibleItems.map(item => {
                     const active = isActive(item.href)
                     return (
-                      <Link key={item.href} href={item.href} onClick={handleNavClick}
+                      <Link key={item.href} href={item.href} onClick={e => handleNavClick(e, item.href)}
                         className={active
                           ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-600 text-white font-semibold text-sm'
                           : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/75 hover:bg-primary-700 hover:text-white font-medium text-sm transition-colors'
@@ -357,7 +363,7 @@ export default function Sidebar({ unreadCount = 0, open = false, onClose }) {
         {/* Profile footer */}
         <div className="px-4 py-4 border-t border-primary-800">
           <div className="flex items-center gap-3">
-            <Link href="/profile" onClick={handleNavClick}
+            <Link href="/profile" onClick={e => handleNavClick(e, '/profile')}
               className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-primary-700/60 transition-colors -mx-2 px-2 py-1">
               <div className="w-9 h-9 bg-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-primary-100 font-bold text-sm">{initials}</span>
