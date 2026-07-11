@@ -54,7 +54,7 @@ export function NotificationsProvider({ children }) {
           if (seenIdsRef.current.has(n.id)) continue
           const meta = getNotificationMeta(n.type)
           if (POPUP_GROUPS.has(meta.group) && !n.read) {
-            toastRef.current[toastVariantFor(n.type)](`${meta.icon} ${n.title}`)
+            toastRef.current.notify(`${meta.icon} ${n.title}`, toastVariantFor(n.type))
           }
         }
       }
