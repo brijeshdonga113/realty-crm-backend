@@ -35,7 +35,8 @@ export function AppLayout({ children, title, action }) {
   const { doctor, loading } = useAuth()
   const router   = useRouter()
   const pathname = usePathname()
-  const { unreadCount } = useNotifications()
+  const { notifications, unreadCount } = useNotifications()
+  const appointmentUnreadCount = notifications.filter(n => !n.read && n.type?.startsWith('appointment')).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Swap favicon to clinic logo when available
@@ -76,6 +77,7 @@ export function AppLayout({ children, title, action }) {
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <Sidebar
         unreadCount={unreadCount}
+        appointmentUnreadCount={appointmentUnreadCount}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -89,12 +91,17 @@ export function AppLayout({ children, title, action }) {
               {/* Hamburger — mobile only */}
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                className="lg:hidden relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
                 aria-label="Open menu"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
               <h1 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white truncate">{title}</h1>
             </div>
