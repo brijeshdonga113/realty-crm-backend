@@ -1,7 +1,5 @@
 import { dataStore } from '@/lib/dataStore'
 import { createFollowUp } from '@/models/FollowUp'
-import { notificationService } from './notificationService'
-import { NOTIFICATION_TYPES } from '@/models/Notification'
 import {
   isGoogleCalendarEnabled,
   isGoogleCalendarConnected,
@@ -33,13 +31,6 @@ export const followupService = {
   async create(data) {
     const followup = createFollowUp(data)
     const saved = await dataStore.create(COLLECTION, followup)
-
-    notificationService.create({
-      type:  NOTIFICATION_TYPES.FOLLOW_UP_DUE,
-      title: `Follow-up: ${saved.patientName}`,
-      body:  `${saved.note || 'Scheduled follow-up'} — due on ${saved.dueDate}`,
-      relatedEntity: { type: 'followup', id: saved.id },
-    }).catch(() => {})
 
     // Sync to Google Calendar
     gcalSync(async () => {

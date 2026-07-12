@@ -90,15 +90,6 @@ export const appointmentService = {
     const existing = await dataStore.getById(COLLECTION, id)
     const updated  = await dataStore.update(COLLECTION, id, patch)
 
-    if (patch.status === 'cancelled') {
-      notificationService.create({
-        type:  NOTIFICATION_TYPES.APPOINTMENT_CANCELLED,
-        title: 'Appointment cancelled',
-        body:  `${updated.patientName} — ${updated.date} at ${updated.time}`,
-        relatedEntity: { type: 'appointment', id: updated.id },
-      }).catch(() => {})
-    }
-
     // Sync update to Google Calendar
     gcalSync(async () => {
       if (updated.googleEventId) await updateCalendarEvent(updated.googleEventId, updated)

@@ -63,7 +63,7 @@ export function NotificationsProvider({ children }) {
       setNotifications(visible)
       setUnreadCount(visible.filter(n => !n.read).length)
       setLoading(false)
-    })
+    }, { limit: 50 })
 
     return () => unsub()
   }, [doctor, isReceptionist])

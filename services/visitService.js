@@ -1,7 +1,5 @@
 import { dataStore } from '@/lib/dataStore'
 import { createVisitRecord } from '@/models/VisitRecord'
-import { notificationService } from './notificationService'
-import { NOTIFICATION_TYPES } from '@/models/Notification'
 import { followupService } from './followupService'
 
 // Visits are stored as a subcollection: patients/{patientId}/visits
@@ -48,14 +46,6 @@ export const visitService = {
   async create(data) {
     const visit = createVisitRecord(data)
     const saved = await dataStore.create(visitPath(visit.patientId), visit)
-
-    // Fire-and-forget — never let notification failures block visit creation
-    notificationService.create({
-      type:  NOTIFICATION_TYPES.VISIT_COMPLETED,
-      title: 'Visit recorded',
-      body:  `Visit for ${saved.patientName} has been saved.`,
-      relatedEntity: { type: 'visit', id: saved.id },
-    }).catch(() => {})
 
     if (saved.followUpDate) {
       followupService.create({
