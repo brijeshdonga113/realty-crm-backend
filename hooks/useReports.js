@@ -168,22 +168,27 @@ export function useReports() {
     ready.current = { patients: false, appointments: false, invoices: false, followups: false, visits: false }
     live.current  = { patients: [], appointments: [], invoices: [], followups: [], visits: [] }
 
-    // visits uses visitService.getAll() (fetches per-patient, one-time) rather
-    // than a Firestore collection-group query — same index requirement problem
-    // dataStore.getAllGroup('visits') has, which visitService already works around.
+    // One-time fetches, not live subscriptions — several of these stats (total
+    // revenue, total patients, overdue follow-ups) are genuine all-time totals
+    // that can't be date-windowed without becoming wrong, so the collections
+    // have to be read in full. Keeping them live would mean re-reading each
+    // one whenever *anyone* in the clinic writes to it, for as long as this
+    // tab stays open — reading once per visit instead bounds the cost to that
+    // visit. Stats refresh again next time the page is opened/navigated to.
+    const load = (collection) =>
+      dataStore.getAll(collection).then(d => recompute(collection, d)).catch(err => {
+        console.error(`Failed to load ${collection} for reports:`, err)
+        recompute(collection, [])
+      })
+
     visitService.getAll().then(d => recompute('visits', d)).catch(err => {
       console.error('Failed to load visits for reports:', err)
       recompute('visits', [])
     })
-
-    const unsubs = [
-      dataStore.subscribe('patients',     d => recompute('patients',     d)),
-      dataStore.subscribe('appointments', d => recompute('appointments', d)),
-      dataStore.subscribe('invoices',     d => recompute('invoices',     d)),
-      dataStore.subscribe('followups',    d => recompute('followups',    d)),
-    ]
-
-    return () => unsubs.forEach(u => u())
+    load('patients')
+    load('appointments')
+    load('invoices')
+    load('followups')
   }, [doctor, recompute])
 
   return { stats, monthlyRevenue, yearlyRevenue, patientGrowth, referralBreakdown, rawInvoices, rawPatients, rawAppointments, rawVisits, rawFollowups, loading }

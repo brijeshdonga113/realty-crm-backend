@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatTime, toDateStr } from '@/lib/booking'
+import { applyTheme, DEFAULT_THEME } from '@/lib/themes'
 import AutoTextarea from '@/components/ui/AutoTextarea'
 
 const DAYS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -42,7 +43,7 @@ function groupByPeriod(slots) {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-primary-50">
       <div className="flex flex-col items-center gap-4 text-gray-400">
         <div className="w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center">
           <Spinner size={6} />
@@ -55,7 +56,7 @@ function LoadingScreen() {
 
 function ErrorScreen({ status }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-primary-50 p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-sm w-full text-center">
         <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
           <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,7 +79,7 @@ function ErrorScreen({ status }) {
 function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
   const dateLabel = `${DAYS_FULL[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50">
       <div className="flex items-center justify-center p-4 py-12">
       <div className="bg-white rounded-3xl shadow-lg border border-gray-100 max-w-md w-full overflow-hidden">
         {/* Top gradient band */}
@@ -107,8 +108,8 @@ function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
                   <img src={doctor.logoUrl} alt="" className="w-full h-full object-contain" />
                 </div>
               ) : (
-                <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-11 h-11 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/>
                   </svg>
                 </div>
@@ -129,7 +130,7 @@ function ConfirmedScreen({ doctor, selectedDate, selectedTime, patientName }) {
             ].map(({ icon, label, value }) => (
               <div key={label} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
                 <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={icon}/>
                   </svg>
                 </div>
@@ -166,7 +167,7 @@ function BookingHero({ doctor, step }) {
   ]
 
   return (
-    <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 border-b border-blue-900/20">
+    <div className="bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 border-b border-primary-900/20">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
         {/* Doctor logo / initials */}
         {doctor.logoUrl ? (
@@ -185,7 +186,7 @@ function BookingHero({ doctor, step }) {
           <p className="text-white font-bold text-sm truncate leading-tight">
             {doctor.clinicName || `Dr. ${doctor.name}`}
           </p>
-          <p className="text-blue-200 text-xs truncate leading-tight">
+          <p className="text-primary-200 text-xs truncate leading-tight">
             {doctor.clinicName && doctor.name ? `Dr. ${doctor.name}` : 'Online Appointment Booking'}
             {doctor.specialization && ` · ${doctor.specialization.replace(/_/g, ' ')}`}
           </p>
@@ -197,7 +198,7 @@ function BookingHero({ doctor, step }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
           <span className="text-xs text-white font-semibold whitespace-nowrap leading-none">Verified Clinic</span>
-          <span className="text-blue-300 text-xs">by</span>
+          <span className="text-primary-300 text-xs">by</span>
           <span className="text-xs font-bold text-white whitespace-nowrap leading-none">Cliniwayz</span>
         </div>
 
@@ -210,12 +211,12 @@ function BookingHero({ doctor, step }) {
               <div key={s.n} className="flex items-center gap-1.5">
                 <div className={`flex items-center gap-1.5 ${active ? 'opacity-100' : done ? 'opacity-90' : 'opacity-40'}`}>
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all
-                    ${done ? 'bg-green-400 text-white' : active ? 'bg-white text-blue-700' : 'bg-white/20 text-white'}`}>
+                    ${done ? 'bg-green-400 text-white' : active ? 'bg-white text-primary-700' : 'bg-white/20 text-white'}`}>
                     {done
                       ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
                       : s.n}
                   </div>
-                  <span className={`text-xs font-medium hidden md:block whitespace-nowrap ${active ? 'text-white' : 'text-blue-200'}`}>
+                  <span className={`text-xs font-medium hidden md:block whitespace-nowrap ${active ? 'text-white' : 'text-primary-200'}`}>
                     {s.label}
                   </span>
                 </div>
@@ -307,11 +308,11 @@ function DatePicker({ today, workingHours, selectedDate, onSelect }) {
                 className={`
                   aspect-square flex items-center justify-center rounded-xl text-sm font-medium transition-all
                   ${selected
-                    ? 'bg-blue-600 text-white shadow-md scale-105'
+                    ? 'bg-primary-600 text-white shadow-md scale-105'
                     : isToday && available
-                      ? 'ring-2 ring-blue-400 ring-offset-1 text-blue-600 font-bold hover:bg-blue-50'
+                      ? 'ring-2 ring-primary-400 ring-offset-1 text-primary-600 font-bold hover:bg-primary-50'
                       : available
-                        ? 'text-gray-800 hover:bg-blue-50 hover:text-blue-600'
+                        ? 'text-gray-800 hover:bg-primary-50 hover:text-primary-600'
                         : 'text-gray-300 cursor-not-allowed'
                   }
                 `}
@@ -397,7 +398,7 @@ function TimeSlotGrid({ selectedDate, slots, loading, onSelect, blockedReasons =
                       className={`py-2.5 rounded-xl text-sm font-semibold transition-all border
                         ${!available
                           ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed line-through'
-                          : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 hover:shadow-sm'
                         }`}
                     >
                       {formatTime(time)}
@@ -415,7 +416,7 @@ function TimeSlotGrid({ selectedDate, slots, loading, onSelect, blockedReasons =
 
 // ── Booking form ───────────────────────────────────────────────────────────────
 
-function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submitting, error }) {
+function BookingForm({ doctor, selectedDate, selectedTime, onSubmit, onChangeTime, submitting, error }) {
   const [form, setForm] = useState({ name: '', phone: '', reason: '' })
   const [phoneError, setPhoneError] = useState('')
   const dateLabel = `${DAYS_FULL[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}`
@@ -438,16 +439,16 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Selected slot summary */}
-      <div className="bg-blue-600 px-4 py-3">
+      <div className="bg-primary-600 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider">Selected slot</p>
+            <p className="text-primary-100 text-xs font-semibold uppercase tracking-wider">Selected slot</p>
             <p className="text-white font-bold text-base leading-tight">{formatTime(selectedTime)}</p>
-            <p className="text-blue-200 text-xs">{dateLabel}</p>
+            <p className="text-primary-200 text-xs">{dateLabel}</p>
           </div>
           <button
             onClick={onChangeTime}
-            className="flex items-center gap-1.5 text-xs font-semibold text-blue-200 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all"
+            className="flex items-center gap-1.5 text-xs font-semibold text-primary-200 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
@@ -470,7 +471,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
               type="text" required value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Enter your full name"
-              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
             />
           </div>
         </div>
@@ -488,7 +489,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
               value={form.phone} onChange={handlePhoneChange}
               maxLength={10} placeholder="10-digit mobile number"
               className={`w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all
-                ${phoneError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-blue-400 focus:ring-blue-100'}`}
+                ${phoneError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-primary-400 focus:ring-primary-100'}`}
             />
           </div>
           {phoneError
@@ -504,9 +505,25 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
           <AutoTextarea
             value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
             placeholder="Briefly describe your concern…"
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize"
           />
         </div>
+
+        {doctor?.paymentQrUrl && (
+          <div className="bg-primary-50 border border-primary-100 rounded-xl px-4 py-3.5 flex items-center gap-3.5">
+            <img
+              src={doctor.paymentQrUrl}
+              alt="Payment QR code"
+              className="w-16 h-16 rounded-lg border border-primary-100 bg-white object-contain p-1 flex-shrink-0"
+            />
+            <div>
+              <p className="text-xs font-bold text-primary-700 uppercase tracking-wider">Pay Online (Optional)</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Scan this code to pay while booking, or pay at the clinic.
+              </p>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -520,7 +537,7 @@ function BookingForm({ selectedDate, selectedTime, onSubmit, onChangeTime, submi
         <button
           type="submit"
           disabled={submitting || !form.name.trim() || !form.phone.trim()}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
+          className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
         >
           {submitting ? <><Spinner size={4} /> Confirming…</> : (
             <>
@@ -575,6 +592,7 @@ export default function BookingPage({ params }) {
         setDoctor(data.doctor)
         setWorkingHours(data.workingHours)
         setPageState('booking')
+        applyTheme(data.doctor?.colorTheme || DEFAULT_THEME)
         if (data.doctor?.logoUrl) {
           let link = document.querySelector("link[rel~='icon']")
           if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
@@ -646,7 +664,7 @@ export default function BookingPage({ params }) {
   const step = !selectedDate ? 1 : !selectedTime ? 2 : 3
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
+    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-primary-50/20 to-primary-100/30">
       <BookingHero doctor={doctor} step={step} />
 
       <div className="flex-1 overflow-hidden">
@@ -668,7 +686,7 @@ export default function BookingPage({ params }) {
             {selectedDate && (
               <button
                 onClick={() => { setSelectedDate(null); setSelectedTime(null); setSlots([]); setBlockedReasons([]) }}
-                className="lg:hidden flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 self-start"
+                className="lg:hidden flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 self-start"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
@@ -679,8 +697,8 @@ export default function BookingPage({ params }) {
 
             {!selectedDate ? (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-12 px-6 text-center h-full">
-                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
-                  <svg className="w-7 h-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center mb-3">
+                  <svg className="w-7 h-7 text-primary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>
                 </div>
@@ -689,6 +707,7 @@ export default function BookingPage({ params }) {
               </div>
             ) : selectedTime ? (
               <BookingForm
+                doctor={doctor}
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
                 onSubmit={handleSubmit}

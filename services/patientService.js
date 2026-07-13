@@ -1,7 +1,5 @@
 import { dataStore } from '@/lib/dataStore'
-import { createPatient, getPatientFullName } from '@/models/Patient'
-import { notificationService } from './notificationService'
-import { NOTIFICATION_TYPES } from '@/models/Notification'
+import { createPatient } from '@/models/Patient'
 
 const COLLECTION   = 'patients'
 const COUNTER_KEY  = 'patientCounter'
@@ -53,14 +51,6 @@ export const patientService = {
     }
     const patient = createPatient({ ...data, patientNumber })
     const saved = await dataStore.create(COLLECTION, patient)
-
-    // Fire-and-forget — never let notification failure block patient creation
-    notificationService.create({
-      type:  NOTIFICATION_TYPES.PATIENT_NEW,
-      title: 'New patient registered',
-      body:  `${getPatientFullName(saved)} has been added to your patient list.`,
-      relatedEntity: { type: 'patient', id: saved.id },
-    }).catch(() => {})
 
     return saved
   },

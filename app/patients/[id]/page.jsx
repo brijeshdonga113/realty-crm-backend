@@ -597,7 +597,7 @@ function Section({ title, subtitle, action, accentClass, className = '', childre
 }
 
 /* ─────────────── Main Page ─────────────── */
-function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency, effectiveLayout }) {
+function PatientPrintView({ patient, visits, progressNotes, doctor, formatDate, formatCurrency, effectiveLayout }) {
   const spec = doctor?.specialization ?? ''
   const isHom = isHomeopathy(spec)
   const age = patient.dateOfBirth
@@ -623,7 +623,12 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
     </div>
   )
 
-  const sortedVisits = [...(visits ?? [])].filter(v => v.status !== 'draft').sort((a, b) => (b.visitDate ?? '').localeCompare(a.visitDate ?? '')).slice(0, 15)
+  // Visits + progress notes merged into one chronological timeline, matching the
+  // Visits tab in the live UI — so the printed history reads the same way.
+  const timelineItems = [
+    ...(visits ?? []).filter(v => v.status !== 'draft').map(v => ({ type: 'visit', date: v.visitDate, data: v })),
+    ...(progressNotes ?? []).map(n => ({ type: 'note', date: n.noteDate, data: n })),
+  ].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).slice(0, 15)
 
   // Mirrors the Overview tab's renderSection() so print follows the same doctor-customized
   // section order (effectiveLayout) instead of a separate hardcoded sequence.
@@ -857,26 +862,41 @@ function PatientPrintView({ patient, visits, doctor, formatDate, formatCurrency,
       {(effectiveLayout ?? []).filter(item => item.visible).map(item => renderPrintSection(item.id))}
 
       {/* Visit History */}
-      {sortedVisits.length > 0 ? (
+      {timelineItems.length > 0 ? (
         <>
-          <SectionHeader title={`Visit History (${sortedVisits.length} shown)`}/>
-          {sortedVisits.map((v, i) => (
-            <div key={v.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < sortedVisits.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 13 }}>{v.visitDate ? formatDate(v.visitDate) : '—'}</span>
-                {v.followUpDate && <span style={{ fontSize: 11, color: '#6b7280' }}>Follow-up: {formatDate(v.followUpDate)}</span>}
-              </div>
-              {v.chiefComplaint && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Chief Complaint:</b> {v.chiefComplaint}</div>}
-              {v.diagnosis?.length > 0 && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Diagnosis:</b> {v.diagnosis.join(', ')}</div>}
-              {v.treatment && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Treatment:</b> <RichVal val={v.treatment}/></div>}
-              {v.prescriptions?.length > 0 && (
-                <div style={{ fontSize: 12, marginBottom: 3 }}>
-                  <b>Prescriptions:</b> {v.prescriptions.map(rx => `${rx.medication} ${rx.dosage} ${rx.frequency}`).join('; ')}
+          <SectionHeader title={`Visit History (${timelineItems.length} shown)`}/>
+          {timelineItems.map((item, i) => {
+            if (item.type === 'note') {
+              const n = item.data
+              return (
+                <div key={n.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < timelineItems.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>{n.noteDate ? formatDate(n.noteDate) : '—'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress Note</span>
+                  </div>
+                  <div style={{ fontSize: 12 }}><RichVal val={n.note}/></div>
                 </div>
-              )}
-              {v.payment?.amount > 0 && <div style={{ fontSize: 12, color: '#059669' }}><b>Payment:</b> {formatCurrency(v.payment.amount)} ({v.payment.status})</div>}
-            </div>
-          ))}
+              )
+            }
+            const v = item.data
+            return (
+              <div key={v.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < timelineItems.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{v.visitDate ? formatDate(v.visitDate) : '—'}</span>
+                  {v.followUpDate && <span style={{ fontSize: 11, color: '#6b7280' }}>Follow-up: {formatDate(v.followUpDate)}</span>}
+                </div>
+                {v.chiefComplaint && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Chief Complaint:</b> {v.chiefComplaint}</div>}
+                {v.diagnosis?.length > 0 && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Diagnosis:</b> {v.diagnosis.join(', ')}</div>}
+                {v.treatment && <div style={{ fontSize: 12, marginBottom: 3 }}><b>Treatment:</b> <RichVal val={v.treatment}/></div>}
+                {v.prescriptions?.length > 0 && (
+                  <div style={{ fontSize: 12, marginBottom: 3 }}>
+                    <b>Prescriptions:</b> {v.prescriptions.map(rx => `${rx.medication} ${rx.dosage} ${rx.frequency}`).join('; ')}
+                  </div>
+                )}
+                {v.payment?.amount > 0 && <div style={{ fontSize: 12, color: '#059669' }}><b>Payment:</b> {formatCurrency(v.payment.amount)} ({v.payment.status})</div>}
+              </div>
+            )
+          })}
         </>
       ) : null}
 
@@ -2335,6 +2355,7 @@ export default function PatientProfilePage() {
       <PatientPrintView
         patient={patient}
         visits={visits}
+        progressNotes={progressNotes}
         doctor={doctor}
         formatDate={formatDate}
         formatCurrency={formatCurrency}
