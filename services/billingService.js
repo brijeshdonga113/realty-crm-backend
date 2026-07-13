@@ -24,7 +24,7 @@ export const billingService = {
   },
 
   async getForPatient(patientId) {
-    return dataStore.query(COLLECTION, inv => inv.patientId === patientId)
+    return dataStore.getWhere(COLLECTION, 'patientId', '==', patientId)
   },
 
   async create(data) {

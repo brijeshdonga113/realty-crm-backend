@@ -38,11 +38,11 @@ export const appointmentService = {
   },
 
   async getForPatient(patientId) {
-    return dataStore.query(COLLECTION, a => a.patientId === patientId)
+    return dataStore.getWhere(COLLECTION, 'patientId', '==', patientId)
   },
 
   async getForDate(dateStr) {
-    return dataStore.query(COLLECTION, a => a.date === dateStr)
+    return dataStore.getWhere(COLLECTION, 'date', '==', dateStr)
   },
 
   async getForMonth(year, month) {
@@ -62,7 +62,7 @@ export const appointmentService = {
 
   async getTodayCount() {
     const today = new Date().toISOString().slice(0, 10)
-    const list = await dataStore.query(COLLECTION, a => a.date === today)
+    const list = await dataStore.getWhere(COLLECTION, 'date', '==', today)
     return list.length
   },
 

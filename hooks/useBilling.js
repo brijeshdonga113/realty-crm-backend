@@ -49,11 +49,9 @@ export function usePatientInvoices(patientId) {
     if (!patientId || !doctor) return
     setLoading(true)
     // Use live subscription so new invoices appear immediately
-    const unsub = dataStore.subscribe('invoices', (data) => {
-      const filtered = data
-        .filter(inv => inv.patientId === patientId)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      setInvoices(filtered)
+    const unsub = dataStore.subscribeWhere('invoices', 'patientId', '==', patientId, (data) => {
+      const sorted = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      setInvoices(sorted)
       setLoading(false)
     })
     return () => unsub()

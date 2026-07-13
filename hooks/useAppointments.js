@@ -48,15 +48,13 @@ export function usePatientAppointments(patientId) {
     if (!patientId) return
     setLoading(true)
     // Use real-time subscription so status changes (e.g. completed) reflect immediately
-    const unsub = dataStore.subscribe('appointments', (all) => {
-      const filtered = all
-        .filter(a => a.patientId === patientId)
-        .sort((a, b) => {
-          const da = new Date(`${a.date}T${a.time || '00:00'}`)
-          const db = new Date(`${b.date}T${b.time || '00:00'}`)
-          return db - da
-        })
-      setAppointments(filtered)
+    const unsub = dataStore.subscribeWhere('appointments', 'patientId', '==', patientId, (data) => {
+      const sorted = data.sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time || '00:00'}`)
+        const db = new Date(`${b.date}T${b.time || '00:00'}`)
+        return db - da
+      })
+      setAppointments(sorted)
       setLoading(false)
     })
     return () => unsub()

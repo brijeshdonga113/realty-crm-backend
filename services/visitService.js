@@ -11,12 +11,7 @@ function visitPath(patientId) {
 
 export const visitService = {
   async getAll() {
-    // Fetch per-patient to avoid the collectionGroup index requirement on visits/doctorId
-    const patients = await dataStore.getAll('patients')
-    const perPatient = await Promise.all(
-      patients.map(p => dataStore.getAll(`patients/${p.id}/visits`).catch(() => []))
-    )
-    const visits = perPatient.flat()
+    const visits = await dataStore.getAllGroup('visits')
     return visits.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate))
   },
 
