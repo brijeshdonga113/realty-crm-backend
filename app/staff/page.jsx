@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useStaff } from '@/hooks/useStaff'
 import { useAuth } from '@/context/AuthContext'
 import { auth } from '@/lib/firebase'
+import { getAuthToken } from '@/lib/clientAuth'
 import { STAFF_ROLES, STAFF_STATUSES, STAFF_MODULES, getStaffFullName, getStaffRoleLabel } from '@/models/Staff'
 
 const LOGIN_ROLES = STAFF_ROLES
@@ -375,25 +376,23 @@ function DoctorAccountsSection() {
 // ── Login Accounts (receptionists with Firebase Auth) ─────────────────────────
 
 function useReceptionists() {
-  const { loading: authLoading, activeBranch } = useAuth()
+  const { doctor, loading: authLoading, activeBranch } = useAuth()
   const [receptionists, setReceptionists] = useState([])
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState('')
 
   const branchUid = activeBranch?.uid ?? null
 
-  const getToken = async () => auth.currentUser?.getIdToken() ?? null
-
   const apiFetch = useCallback(async (path, opts = {}) => {
-    const token = await getToken()
+    const token = await getAuthToken(doctor)
     return fetch(path, {
       ...opts,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers ?? {}) },
     })
-  }, [])
+  }, [doctor])
 
   const load = useCallback(async () => {
-    if (authLoading || !auth.currentUser) return
+    if (authLoading || !doctor) return
     setLoading(true)
     setError('')
     try {
@@ -407,7 +406,7 @@ function useReceptionists() {
     } finally {
       setLoading(false)
     }
-  }, [apiFetch, authLoading, branchUid])
+  }, [apiFetch, authLoading, doctor, branchUid])
 
   useEffect(() => { load() }, [load])
 

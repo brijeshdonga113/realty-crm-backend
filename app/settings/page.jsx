@@ -4,6 +4,7 @@ import { useState, useEffect, useId } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth, db } from '@/lib/firebase'
+import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES } from '@/lib/themes'
 import { DATE_FORMATS, CURRENCIES, formatDate as fmtDatePreview, formatCurrency as fmtCurrencyPreview } from '@/lib/preferences'
@@ -79,18 +80,28 @@ function BookingSettings({ doctor, updateProfile }) {
     ? `${window.location.origin}/book/${bookingSlug}`
     : ''
 
-  // Write directly to Firestore from the client — Firestore rules allow
-  // authenticated doctors to write their own slug to bookingSlugs.
+  // Writes directly to Firestore/Supabase from the client — security
+  // rules/RLS allow authenticated doctors to write their own slug to the
+  // reverse-mapping table.
   const registerSlug = async () => {
-    if (!doctor?.id || !auth.currentUser) return
+    if (!doctor?.id) return
     setSlugError(false)
     try {
-      const { doc, setDoc } = await import('firebase/firestore')
       const slug = generateSlug()
-      await setDoc(doc(db, 'bookingSlugs', slug), {
-        doctorId:  doctor.id,
-        createdAt: new Date().toISOString(),
-      })
+      if (doctor.backend === 'SB') {
+        if (!supabase) throw new Error('Supabase is not configured.')
+        const { error } = await supabase.from('booking_slugs').insert({
+          slug, doctor_id: doctor.id, created_at: new Date().toISOString(),
+        })
+        if (error) throw error
+      } else {
+        if (!auth.currentUser) return
+        const { doc, setDoc } = await import('firebase/firestore')
+        await setDoc(doc(db, 'bookingSlugs', slug), {
+          doctorId:  doctor.id,
+          createdAt: new Date().toISOString(),
+        })
+      }
       await updateProfile({ bookingSlug: slug })
     } catch (err) {
       console.error('Failed to generate booking slug:', err)

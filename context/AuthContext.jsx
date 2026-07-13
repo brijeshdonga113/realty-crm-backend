@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { auth, db } from '@/lib/firebase'
+import { supabase } from '@/lib/supabase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 import { initTrial } from '@/lib/subscription'
 import { setActiveBranchUid } from '@/lib/dataStore'
@@ -127,6 +128,112 @@ async function loadReceptionistSession(uid, userEmail) {
   }
 }
 
+// ── Supabase (SB) equivalents ────────────────────────────────────────────────
+// Mirror buildDoctorProfile/loadFirebaseProfile/loadReceptionistSession above,
+// reading from Postgres instead of Firestore, so `doctor` has the identical
+// shape regardless of which backend an account uses. Org/branch/clinic-admin
+// fields are carried through for schema parity but those FEATURES are not
+// wired up for SB accounts yet (see plan's scope boundary).
+function buildDoctorProfileFromRow(row) {
+  return {
+    id:             row.id,
+    firstName:      row.first_name      ?? '',
+    lastName:       row.last_name       ?? '',
+    email:          row.email           ?? '',
+    specialization: row.specialization  ?? '',
+    licenseNumber:  row.license_number  ?? '',
+    phone:          row.phone           ?? '',
+    clinicName:     row.clinic_name     ?? '',
+    colorTheme:     row.color_theme     ?? null,
+    darkMode:       row.dark_mode       ?? null,
+    dateFormat:      row.date_format      ?? 'DD/MM/YYYY',
+    currency:        row.currency          ?? 'INR',
+    referralSources: row.referral_sources  ?? null,
+    googleCalendarConnected: false,
+    subscription:  row.subscription     ?? null,
+    inviteCode:    row.invite_code      ?? '',
+    bookingSlug:   row.booking_slug     ?? '',
+    workingHours:  row.working_hours    ?? null,
+    logoUrl:       row.logo_url         ?? '',
+    paymentQrUrl:  row.payment_qr_url   ?? '',
+    waTemplates:      row.wa_templates             ?? null,
+    serviceCharges:   row.service_charges          ?? [],
+    billingStatuses:  row.billing_statuses         ?? null,
+    inventoryCustomFields: row.inventory_custom_fields ?? [],
+    createdAt:     row.created_at       ?? new Date().toISOString(),
+    isAdmin:         row.is_admin         ?? false,
+    viewOnly:        row.view_only        ?? false,
+    organizationId:  row.organization_id  ?? null,
+    branchName:      row.branch_name      ?? '',
+    allowedWriters:  row.allowed_writers  ?? [],
+    allowedReaders:  row.allowed_readers  ?? null,
+    clinicRole:      row.clinic_role      ?? 'doctor',
+    managedBy:       row.managed_by       ?? null,
+    managedDoctors:  row.managed_doctors  ?? [],
+    backend: 'SB',
+  }
+}
+
+async function loadSupabaseProfile(uid) {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('doctors').select('*').eq('id', uid).maybeSingle()
+  if (error || !data) return null
+  return buildDoctorProfileFromRow(data)
+}
+
+async function loadSupabaseReceptionistSession(uid, userEmail) {
+  if (!supabase) return null
+  const { data: rec, error } = await supabase.from('receptionists').select('*').eq('id', uid).maybeSingle()
+  if (error || !rec) return null
+  const doctorProfile = await loadSupabaseProfile(rec.doctor_id)
+  if (!doctorProfile) return null
+
+  return {
+    ...doctorProfile,
+    colorTheme: rec.color_theme ?? doctorProfile.colorTheme,
+    darkMode:   rec.dark_mode   ?? doctorProfile.darkMode,
+    dateFormat: rec.date_format ?? doctorProfile.dateFormat,
+    currency:   rec.currency    ?? doctorProfile.currency,
+    viewOnly:    rec.view_only    ?? doctorProfile.viewOnly ?? false,
+    permissions: rec.permissions  ?? {},
+    _role: 'receptionist',
+    _receptionistUid: uid,
+    _receptionistName: rec.name,
+    _receptionistEmail: rec.email ?? userEmail,
+  }
+}
+
+// camelCase profile fields -> snake_case `doctors` table columns, for writes.
+const DOCTOR_PATCH_COLUMNS = {
+  firstName: 'first_name', lastName: 'last_name', email: 'email', specialization: 'specialization',
+  licenseNumber: 'license_number', phone: 'phone', clinicName: 'clinic_name', colorTheme: 'color_theme',
+  darkMode: 'dark_mode', dateFormat: 'date_format', currency: 'currency', referralSources: 'referral_sources',
+  subscription: 'subscription', inviteCode: 'invite_code', bookingSlug: 'booking_slug', workingHours: 'working_hours',
+  logoUrl: 'logo_url', paymentQrUrl: 'payment_qr_url', waTemplates: 'wa_templates', serviceCharges: 'service_charges',
+  billingStatuses: 'billing_statuses', inventoryCustomFields: 'inventory_custom_fields', isAdmin: 'is_admin',
+  viewOnly: 'view_only', organizationId: 'organization_id', branchName: 'branch_name',
+  allowedWriters: 'allowed_writers', allowedReaders: 'allowed_readers', clinicRole: 'clinic_role',
+  managedBy: 'managed_by', managedDoctors: 'managed_doctors',
+}
+
+function toDoctorRowPatch(patch) {
+  return Object.fromEntries(
+    Object.entries(patch)
+      .filter(([k]) => DOCTOR_PATCH_COLUMNS[k])
+      .map(([k, v]) => [DOCTOR_PATCH_COLUMNS[k], v])
+  )
+}
+
+const RECEPTIONIST_PATCH_COLUMNS = { colorTheme: 'color_theme', darkMode: 'dark_mode', dateFormat: 'date_format', currency: 'currency' }
+
+function toReceptionistRowPatch(patch) {
+  return Object.fromEntries(
+    Object.entries(patch)
+      .filter(([k]) => RECEPTIONIST_PATCH_COLUMNS[k])
+      .map(([k, v]) => [RECEPTIONIST_PATCH_COLUMNS[k], v])
+  )
+}
+
 export function AuthProvider({ children }) {
   // Hydrate from localStorage immediately so the app renders without a login flash.
   // Firebase onAuthStateChanged then validates and refreshes the session in the background.
@@ -182,7 +289,12 @@ export function AuthProvider({ children }) {
           } catch {
             setDoctor(null)
           }
-        } else {
+        } else if (getLocalSession()?.backend !== 'SB') {
+          // No Firebase user — but this browser may be authenticated via
+          // Supabase instead, which is expected/normal (Firebase's listener
+          // always fires once even for an SB-only session). Only clear the
+          // session here if it isn't an SB one; the Supabase effect below
+          // owns validating/clearing SB sessions.
           clearSessionLocally()
           setDoctor(null)
         }
@@ -190,6 +302,40 @@ export function AuthProvider({ children }) {
       })
     })
     return () => unsubscribe?.()
+  }, [])
+
+  // Parallel session-resolution for Supabase (SB) accounts — mirrors the
+  // Firebase effect above. Org/branch/clinic-admin loading is intentionally
+  // not wired up here (deferred for SB accounts, see plan).
+  useEffect(() => {
+    if (!supabase) return
+    let subscription
+    const resolveSession = async (session) => {
+      if (session?.user) {
+        try {
+          const profile = await loadSupabaseProfile(session.user.id)
+          if (profile) {
+            saveSessionLocally(profile)
+            setDoctor(profile)
+            setBaseDoctor(profile)
+          } else {
+            const recSession = await loadSupabaseReceptionistSession(session.user.id, session.user.email)
+            if (recSession) {
+              saveSessionLocally(recSession)
+              setDoctor(recSession)
+            }
+          }
+        } catch { /* leave existing hydrated state alone on a transient error */ }
+      } else if (getLocalSession()?.backend === 'SB') {
+        // Local session claimed SB but Supabase reports no active session — actually logged out
+        clearSessionLocally()
+        setDoctor(null)
+      }
+    }
+    supabase.auth.getSession().then(({ data }) => resolveSession(data.session))
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => resolveSession(session))
+    subscription = data.subscription
+    return () => subscription?.unsubscribe()
   }, [])
 
   const signup = async (doctorData) => {
@@ -219,13 +365,49 @@ export function AuthProvider({ children }) {
 
   const signupReceptionist = async (name, email, password, rawInviteCode) => {
     const code = rawInviteCode.replace(/\s/g, '').toUpperCase()
-    const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile, deleteUser } = await import('firebase/auth')
-    const { doc, getDoc, setDoc } = await import('firebase/firestore')
+    const { doc, getDoc } = await import('firebase/firestore')
 
-    // Validate invite code before touching Auth — avoids orphaned accounts
-    const inviteSnap = await getDoc(doc(db, 'inviteCodes', code))
-    if (!inviteSnap.exists()) throw new Error('Invalid invite code. Please check with your doctor.')
-    const { doctorId } = inviteSnap.data()
+    // The code alone doesn't say which backend created it — check both.
+    const [fbSnap, sbRow] = await Promise.all([
+      getDoc(doc(db, 'inviteCodes', code)),
+      supabase ? supabase.from('invite_codes').select('*').eq('code', code).maybeSingle().then(r => r.data) : Promise.resolve(null),
+    ])
+
+    if (sbRow) {
+      // Supabase's public signUp() requires email confirmation before login
+      // works, unlike Firebase's immediate-login createUserWithEmailAndPassword.
+      // A server route using the service-role key keeps the same immediate-
+      // login UX (email_confirm: true).
+      const res = await fetch('/api/join-sb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, doctorId: sbRow.doctor_id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to join.')
+
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInErr) throw signInErr
+
+      const doctorProfile = await loadSupabaseProfile(sbRow.doctor_id)
+      const sessionProfile = {
+        ...doctorProfile,
+        _role: 'receptionist',
+        _receptionistUid: data.uid,
+        _receptionistName: name,
+        _receptionistEmail: email,
+      }
+      saveSessionLocally(sessionProfile)
+      setDoctor(sessionProfile)
+      setLoading(false)
+      return sessionProfile
+    }
+
+    if (!fbSnap.exists()) throw new Error('Invalid invite code. Please check with your doctor.')
+    const { doctorId } = fbSnap.data()
+
+    const { createUserWithEmailAndPassword, updateProfile: fbUpdateProfile, deleteUser } = await import('firebase/auth')
+    const { setDoc } = await import('firebase/firestore')
 
     _suppressNextAuthEvent = true
     try {
@@ -261,7 +443,31 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const login = async (email, password) => {
+  const login = async (email, password, backend = 'FB') => {
+    if (backend === 'SB') {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+      const uid = data.user.id
+
+      const profile = await loadSupabaseProfile(uid)
+      if (profile) {
+        saveSessionLocally(profile)
+        setDoctor(profile)
+        setBaseDoctor(profile)
+        return profile
+      }
+
+      const recSession = await loadSupabaseReceptionistSession(uid, email)
+      if (recSession) {
+        saveSessionLocally(recSession)
+        setDoctor(recSession)
+        return recSession
+      }
+
+      throw new Error('No account found for this user.')
+    }
+
     const { signInWithEmailAndPassword } = await import('firebase/auth')
     const cred = await signInWithEmailAndPassword(auth, email, password)
     const uid  = cred.user.uid
@@ -304,6 +510,24 @@ export function AuthProvider({ children }) {
 
   const updateProfile = async (patch) => {
     const updated = { ...doctor, ...patch }
+
+    if (doctor.backend === 'SB') {
+      if (doctor._role === 'receptionist') {
+        const personalPatch = toReceptionistRowPatch(patch)
+        if (Object.keys(personalPatch).length > 0) {
+          await supabase.from('receptionists').update(personalPatch).eq('id', doctor._receptionistUid)
+        }
+        saveSessionLocally(updated)
+        setDoctor(updated)
+        return updated
+      }
+
+      await supabase.from('doctors').update(toDoctorRowPatch(updated)).eq('id', doctor.id)
+      saveSessionLocally(updated)
+      setDoctor(updated)
+      return updated
+    }
+
     const { doc, setDoc } = await import('firebase/firestore')
 
     if (doctor._role === 'receptionist') {
@@ -461,8 +685,12 @@ export function AuthProvider({ children }) {
   }, [baseDoctor])
 
   const logout = async () => {
-    const { signOut } = await import('firebase/auth')
-    await signOut(auth)
+    if (doctor?.backend === 'SB' && supabase) {
+      await supabase.auth.signOut()
+    } else {
+      const { signOut } = await import('firebase/auth')
+      await signOut(auth)
+    }
     clearSessionLocally()
     saveActiveBranch(null)
     setActiveBranchUid(null)
@@ -474,9 +702,15 @@ export function AuthProvider({ children }) {
     setDoctor(null)
   }
 
-  // Works for doctor and receptionist accounts alike — both are real Firebase
-  // Auth email/password users, so there's no role branching needed here.
-  const resetPassword = async (email) => {
+  // Works for doctor and receptionist accounts alike — both are real
+  // email/password users in whichever backend, so no role branching needed.
+  const resetPassword = async (email, backend = 'FB') => {
+    if (backend === 'SB') {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      if (error) throw error
+      return
+    }
     const { sendPasswordResetEmail } = await import('firebase/auth')
     await sendPasswordResetEmail(auth, email)
   }

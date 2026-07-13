@@ -1,4 +1,6 @@
 import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { createAdminClient } from '@/lib/supabase'
+import { verifyBearerToken } from '@/lib/serverAuth'
 import { STAFF_MODULES } from '@/models/Staff'
 
 function sanitizePermissions(input) {
@@ -8,20 +10,27 @@ function sanitizePermissions(input) {
 }
 
 async function verifyDoctor(request) {
-  const idToken = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
-  if (!idToken) return null
-  const adminAuth = await getAdminAuth()
-  let decoded
-  try { decoded = await adminAuth.verifyIdToken(idToken) } catch { return null }
+  const caller = await verifyBearerToken(request)
+  if (!caller) return null
+
+  if (caller.backend === 'SB') {
+    const { data } = await createAdminClient().from('doctors').select('id, organization_id').eq('id', caller.uid).maybeSingle()
+    if (!data) return null
+    return { uid: caller.uid, backend: 'SB', profile: { organizationId: data.organization_id } }
+  }
+
   const db   = getAdminDb()
-  const snap = await db.collection('users').doc(decoded.uid).collection('profile').doc('doctor').get()
+  const snap = await db.collection('users').doc(caller.uid).collection('profile').doc('doctor').get()
   if (!snap.exists) return null
-  return { uid: decoded.uid, profile: snap.data() }
+  return { uid: caller.uid, backend: 'FB', profile: snap.data() }
 }
 
-// Verify caller can act on targetUid — either it's themselves or they share an org
+// Verify caller can act on targetUid — either it's themselves or they share an
+// org. Branch-switching (targetUid !== caller.uid) is FB-only — org support
+// for SB accounts is deferred, see plan.
 async function resolveTargetUid(caller, targetUid) {
   if (!targetUid || targetUid === caller.uid) return caller.uid
+  if (caller.backend === 'SB') return null
 
   const db = getAdminDb()
   const targetSnap = await db.collection('users').doc(targetUid).collection('profile').doc('doctor').get()
@@ -42,6 +51,15 @@ export async function GET(request) {
   const branchUid = new URL(request.url).searchParams.get('branchUid')
   const doctorId  = await resolveTargetUid(caller, branchUid)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (caller.backend === 'SB') {
+    const { data: rows } = await createAdminClient().from('receptionists').select('*').eq('doctor_id', doctorId)
+    const receptionists = (rows ?? []).map(d => ({
+      uid: d.id, name: d.name, email: d.email, role: d.role ?? 'receptionist',
+      viewOnly: d.view_only ?? false, permissions: sanitizePermissions(d.permissions), createdAt: d.created_at ?? null,
+    })).sort((a, b) => (a.createdAt ?? '') > (b.createdAt ?? '') ? -1 : 1)
+    return Response.json({ receptionists })
+  }
 
   const db   = getAdminDb()
   const snap = await db.collection('receptionists').where('doctorId', '==', doctorId).get()
@@ -78,6 +96,33 @@ export async function POST(request) {
 
   const doctorId = await resolveTargetUid(caller, branchUid)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (caller.backend === 'SB') {
+    try {
+      const supabaseAdmin = createAdminClient()
+      const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email: email.trim(), password: password.trim(), email_confirm: true,
+      })
+      if (createErr) throw createErr
+
+      const { error: insertErr } = await supabaseAdmin.from('receptionists').insert({
+        id: userData.user.id, doctor_id: doctorId, name: name.trim(), email: email.trim(),
+        role: role ?? 'receptionist', view_only: false, permissions: sanitizePermissions(permissions),
+        created_at: new Date().toISOString(),
+      })
+      if (insertErr) {
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id).catch(() => {})
+        throw insertErr
+      }
+
+      return Response.json({ uid: userData.user.id, email: userData.user.email })
+    } catch (err) {
+      const msg = err.message?.includes('already been registered')
+        ? 'An account with this email already exists.'
+        : (err.message || 'Failed to create account.')
+      return Response.json({ error: msg }, { status: 400 })
+    }
+  }
 
   const adminAuth = await getAdminAuth()
   const db        = getAdminDb()
@@ -124,6 +169,21 @@ export async function PATCH(request) {
   const doctorId = await resolveTargetUid(caller, branchUid)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (caller.backend === 'SB') {
+    const supabaseAdmin = createAdminClient()
+    const { data: rec } = await supabaseAdmin.from('receptionists').select('*').eq('id', uid).maybeSingle()
+    if (!rec || rec.doctor_id !== doctorId) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    const update = {}
+    if (viewOnly !== undefined) update.view_only = !!viewOnly
+    if (permissions !== undefined) {
+      const current = sanitizePermissions(rec.permissions)
+      update.permissions = sanitizePermissions({ ...current, ...permissions })
+    }
+    await supabaseAdmin.from('receptionists').update(update).eq('id', uid)
+    return Response.json({ ok: true, viewOnly: update.view_only, permissions: update.permissions })
+  }
+
   const db   = getAdminDb()
   const snap = await db.collection('receptionists').doc(uid).get()
   if (!snap.exists || snap.data()?.doctorId !== doctorId) {
@@ -151,6 +211,15 @@ export async function DELETE(request) {
 
   const doctorId = await resolveTargetUid(caller, branchUid)
   if (!doctorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (caller.backend === 'SB') {
+    const supabaseAdmin = createAdminClient()
+    const { data: rec } = await supabaseAdmin.from('receptionists').select('doctor_id').eq('id', uid).maybeSingle()
+    if (!rec || rec.doctor_id !== doctorId) return Response.json({ error: 'Not found' }, { status: 404 })
+    await supabaseAdmin.auth.admin.deleteUser(uid).catch(() => {})
+    await supabaseAdmin.from('receptionists').delete().eq('id', uid)
+    return Response.json({ ok: true })
+  }
 
   const db   = getAdminDb()
   const snap = await db.collection('receptionists').doc(uid).get()

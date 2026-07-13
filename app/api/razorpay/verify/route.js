@@ -1,7 +1,8 @@
 import crypto from 'crypto'
+import { createAdminClient } from '@/lib/supabase'
 
 export async function POST(request) {
-  const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature, plan, doctorId } = await request.json()
+  const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature, plan, doctorId, backend } = await request.json()
 
   if (!razorpay_payment_id || !razorpay_subscription_id || !razorpay_signature || !doctorId) {
     return Response.json({ error: 'Missing required fields' }, { status: 400 })
@@ -31,7 +32,20 @@ export async function POST(request) {
     ? new Date(subData.current_end * 1000).toISOString()
     : null
 
-  // Update Firestore
+  const subscription = {
+    status:                 'active',
+    plan:                   plan || 'monthly',
+    trialEndsAt:            null,
+    currentPeriodEnd,
+    razorpaySubscriptionId: razorpay_subscription_id,
+  }
+
+  if (backend === 'SB') {
+    const { error } = await createAdminClient().from('doctors').update({ subscription }).eq('id', doctorId)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ success: true })
+  }
+
   const { initializeApp, getApps, cert } = await import('firebase-admin/app')
   const { getFirestore }                  = await import('firebase-admin/firestore')
 
@@ -46,15 +60,7 @@ export async function POST(request) {
   }
 
   const db = getFirestore()
-  await db.doc(`users/${doctorId}/profile/doctor`).update({
-    subscription: {
-      status:                 'active',
-      plan:                   plan || 'monthly',
-      trialEndsAt:            null,
-      currentPeriodEnd,
-      razorpaySubscriptionId: razorpay_subscription_id,
-    },
-  })
+  await db.doc(`users/${doctorId}/profile/doctor`).update({ subscription })
 
   return Response.json({ success: true })
 }

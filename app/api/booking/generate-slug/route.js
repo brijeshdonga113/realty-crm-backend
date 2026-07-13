@@ -1,4 +1,6 @@
-import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { getAdminDb } from '@/lib/firebaseAdmin'
+import { createAdminClient } from '@/lib/supabase'
+import { verifyBearerToken } from '@/lib/serverAuth'
 
 function generateSlug() {
   const chars = 'abcdefghijkmnpqrstuvwxyz23456789'
@@ -7,23 +9,26 @@ function generateSlug() {
 
 // POST /api/booking/generate-slug
 // Called from Settings when the doctor doesn't have a booking slug yet.
-// Uses Firebase Admin so it bypasses Firestore security rules — no rule changes needed.
+// Uses the Admin SDK / service-role client so it bypasses security rules/RLS
+// on the reverse-mapping table — no rule changes needed.
 export async function POST(request) {
-  const authHeader = request.headers.get('Authorization') ?? ''
-  const idToken    = authHeader.replace('Bearer ', '').trim()
-  if (!idToken) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const caller = await verifyBearerToken(request)
+  if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const doctorId = caller.uid
+  const slug     = generateSlug()
 
   try {
-    const adminAuth = await getAdminAuth()
-    const decoded   = await adminAuth.verifyIdToken(idToken)
-    const doctorId  = decoded.uid
+    if (caller.backend === 'SB') {
+      const supabaseAdmin = createAdminClient()
+      await Promise.all([
+        supabaseAdmin.from('booking_slugs').insert({ slug, doctor_id: doctorId, created_at: new Date().toISOString() }),
+        supabaseAdmin.from('doctors').update({ booking_slug: slug }).eq('id', doctorId),
+      ])
+      return Response.json({ slug })
+    }
 
-    const db   = getAdminDb()
-    const slug = generateSlug()
-
-    // Write reverse mapping and update doctor profile in parallel
+    const db = getAdminDb()
     await Promise.all([
       db.collection('bookingSlugs').doc(slug).set({
         doctorId,

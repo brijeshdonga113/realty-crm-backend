@@ -55,7 +55,7 @@ export default function LoginPage() {
   // panel and outer layout stay exactly the same.
   const [mode, setMode] = useState('login')
 
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '', backend: 'SB' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -83,7 +83,7 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      const profile = await login(form.email, form.password)
+      const profile = await login(form.email, form.password, form.backend)
       router.push(profile?.isAdmin ? '/admin' : '/dashboard')
     } catch (err) {
       setError(friendlyAuthError(err))
@@ -105,7 +105,7 @@ export default function LoginPage() {
     setResetLoading(true)
     setResetError('')
     try {
-      await resetPassword(resetEmail.trim())
+      await resetPassword(resetEmail.trim(), form.backend)
       setResetSent(true)
     } catch (err) {
       // auth/user-not-found is deliberately treated the same as success in
@@ -269,6 +269,20 @@ export default function LoginPage() {
                         </svg>
                       )}
                     </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Client ID</label>
+                  <div className="flex gap-2 mt-1">
+                    {[{ value: 'FB', label: 'FB' }, { value: 'SB', label: 'SB' }].map(b => (
+                      <button key={b.value} type="button" onClick={() => setForm(f => ({ ...f, backend: b.value }))}
+                        className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                          form.backend === b.value
+                            ? 'bg-primary-500 text-white border-primary-500'
+                            : 'bg-white text-gray-600 border-gray-200'
+                        }`}>{b.label}</button>
+                    ))}
                   </div>
                 </div>
 

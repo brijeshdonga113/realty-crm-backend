@@ -14,6 +14,7 @@ import { usePatientInvoices } from '@/hooks/useBilling'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
+import { getAuthToken } from '@/lib/clientAuth'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
@@ -942,7 +943,7 @@ export default function PatientProfilePage() {
     if (!doctor?.uid || !id) return
     setDocsLoading(true)
     try {
-      const token = await import('firebase/auth').then(m => m.getAuth()).then(a => a.currentUser?.getIdToken())
+      const token = await getAuthToken(doctor)
       const res   = await fetch(`/api/upload-file?patientId=${id}&doctorId=${doctor.uid}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -959,8 +960,7 @@ export default function PatientProfilePage() {
     if (!file || !doctor?.uid) return
     setUploading(true); setUploadErr('')
     try {
-      const { getAuth } = await import('firebase/auth')
-      const token  = await getAuth().currentUser?.getIdToken()
+      const token  = await getAuthToken(doctor)
       const form   = new FormData()
       form.append('file', file)
       form.append('patientId', id)
@@ -977,8 +977,7 @@ export default function PatientProfilePage() {
     if (!window.confirm(`Delete "${doc.name}"?`)) return
     setDocuments(prev => prev.filter(d => d.id !== doc.id))
     try {
-      const { getAuth } = await import('firebase/auth')
-      const token = await getAuth().currentUser?.getIdToken()
+      const token = await getAuthToken(doctor)
       await fetch('/api/upload-file', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

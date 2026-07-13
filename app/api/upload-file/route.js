@@ -1,6 +1,8 @@
 import { put, del } from '@vercel/blob'
-import { getAdminDb, getAdminAuth } from '@/lib/firebaseAdmin'
+import { getAdminDb } from '@/lib/firebaseAdmin'
 import { FieldValue } from 'firebase-admin/firestore'
+import { createAdminClient } from '@/lib/supabase'
+import { verifyBearerToken } from '@/lib/serverAuth'
 
 const ALLOWED_TYPES = new Set([
   'application/pdf',
@@ -13,25 +15,24 @@ const ALLOWED_TYPES = new Set([
 ])
 const MAX_BYTES = 20 * 1024 * 1024 // 20 MB
 
-async function verifyUser(request) {
-  const idToken = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
-  if (!idToken) return null
-  try {
-    const adminAuth = await getAdminAuth()
-    return await adminAuth.verifyIdToken(idToken)
-  } catch { return null }
-}
-
 // GET /api/upload-file?patientId=&doctorId=  — list documents
 export async function GET(request) {
-  const decoded = await verifyUser(request)
-  if (!decoded) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const caller = await verifyBearerToken(request)
+  if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
   const patientId = searchParams.get('patientId')
   const doctorId  = searchParams.get('doctorId')
   if (!patientId || !doctorId) return Response.json({ error: 'patientId and doctorId required' }, { status: 400 })
-  if (decoded.uid !== doctorId) return Response.json({ error: 'Forbidden' }, { status: 403 })
+  if (caller.uid !== doctorId) return Response.json({ error: 'Forbidden' }, { status: 403 })
+
+  if (caller.backend === 'SB') {
+    const { data: rows } = await createAdminClient().from('documents')
+      .select('id, data, uploaded_at').eq('doctor_id', doctorId).eq('patient_id', patientId)
+      .order('uploaded_at', { ascending: false })
+    const documents = (rows ?? []).map(r => ({ ...r.data, id: r.id, uploadedAt: r.uploaded_at }))
+    return Response.json({ documents })
+  }
 
   const db   = getAdminDb()
   const snap = await db.collection('users').doc(doctorId)
@@ -48,8 +49,8 @@ export async function GET(request) {
 
 // POST /api/upload-file  — upload a patient document
 export async function POST(request) {
-  const decoded = await verifyUser(request)
-  if (!decoded) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const caller = await verifyBearerToken(request)
+  if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return Response.json({ error: 'Storage not configured' }, { status: 500 })
@@ -67,7 +68,7 @@ export async function POST(request) {
   if (!file || !patientId || !doctorId) {
     return Response.json({ error: 'file, patientId and doctorId are required' }, { status: 400 })
   }
-  if (decoded.uid !== doctorId) {
+  if (caller.uid !== doctorId) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (!ALLOWED_TYPES.has(file.type)) {
@@ -81,19 +82,23 @@ export async function POST(request) {
   const path     = `patient-files/${doctorId}/${patientId}/${Date.now()}_${safeName}`
   const blob     = await put(path, file, { access: 'public', addRandomSuffix: false })
 
+  const docData = { name: file.name, url: blob.url, size: file.size, type: file.type }
+
+  if (caller.backend === 'SB') {
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    const uploadedAt = new Date().toISOString()
+    await createAdminClient().from('documents').insert({
+      doctor_id: doctorId, id, patient_id: patientId, data: docData, uploaded_at: uploadedAt,
+    })
+    return Response.json({ document: { ...docData, id, uploadedAt } })
+  }
+
   const db   = getAdminDb()
   const ref  = db.collection('users').doc(doctorId)
                .collection('patients').doc(patientId)
                .collection('documents').doc()
 
-  const doc = {
-    id:         ref.id,
-    name:       file.name,
-    url:        blob.url,
-    size:       file.size,
-    type:       file.type,
-    uploadedAt: FieldValue.serverTimestamp(),
-  }
+  const doc = { id: ref.id, ...docData, uploadedAt: FieldValue.serverTimestamp() }
   await ref.set(doc)
 
   return Response.json({ document: { ...doc, id: ref.id, uploadedAt: new Date().toISOString() } })
@@ -101,15 +106,23 @@ export async function POST(request) {
 
 // DELETE /api/upload-file  — remove a patient document
 export async function DELETE(request) {
-  const decoded = await verifyUser(request)
-  if (!decoded) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const caller = await verifyBearerToken(request)
+  if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { doctorId, patientId, docId, url } = await request.json()
   if (!doctorId || !patientId || !docId || !url) {
     return Response.json({ error: 'doctorId, patientId, docId and url required' }, { status: 400 })
   }
-  if (decoded.uid !== doctorId) {
+  if (caller.uid !== doctorId) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  if (caller.backend === 'SB') {
+    await Promise.all([
+      del(url).catch(() => {}),
+      createAdminClient().from('documents').delete().eq('doctor_id', doctorId).eq('id', docId),
+    ])
+    return Response.json({ ok: true })
   }
 
   await Promise.all([

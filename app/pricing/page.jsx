@@ -77,6 +77,7 @@ export default function PricingPage() {
               razorpay_signature:       response.razorpay_signature,
               plan,
               doctorId: doctor.id,
+              backend:  doctor.backend === 'SB' ? 'SB' : 'FB',
             }),
           })
           const { success, error: vErr } = await verifyRes.json()

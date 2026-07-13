@@ -95,9 +95,19 @@ function ClinicRow({ d, uidMap, onSelect }) {
             }`}>{initials}</div>
           )}
           <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {d.clinicName || <span className="italic text-gray-400">No clinic name</span>}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {d.clinicName || <span className="italic text-gray-400">No clinic name</span>}
+              </p>
+              <span title={d.backend === 'SB' ? 'Supabase' : 'Firebase'}
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                  d.backend === 'SB'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                }`}>
+                {d.backend === 'SB' ? 'SB' : 'FB'}
+              </span>
+            </div>
             {d.phone && <p className="text-xs text-gray-400 dark:text-gray-500">{d.phone}</p>}
           </div>
         </div>
@@ -444,7 +454,7 @@ const SPECIALIZATIONS = [
   { value: 'other',         label: 'Other' },
 ]
 
-const BLANK = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '', clinicRole: 'doctor', managedByUid: '' }
+const BLANK = { firstName: '', lastName: '', email: '', clinicName: '', specialization: '', phone: '', password: '', clinicRole: 'doctor', managedByUid: '', backend: 'SB' }
 
 function CreateClinicModal({ open, onClose, onCreated, clinicAdmins = [] }) {
   const [form,    setForm]    = useState(BLANK)
@@ -540,6 +550,20 @@ function CreateClinicModal({ open, onClose, onCreated, clinicAdmins = [] }) {
             <div>
               <label className="form-label">Email *</label>
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required className="input-field"/>
+            </div>
+            <div>
+              <label className="form-label">Client ID *</label>
+              <div className="flex gap-2 mt-1">
+                {[{ value: 'FB', label: 'FB — Firebase' }, { value: 'SB', label: 'SB — Supabase' }].map(b => (
+                  <button key={b.value} type="button" onClick={() => set('backend', b.value)}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                      form.backend === b.value
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+                    }`}>{b.label}</button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Which backend this clinic's data lives in.</p>
             </div>
             <div>
               <label className="form-label">Clinic Name</label>
@@ -802,6 +826,12 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                   Dr. {data.profile.firstName} {data.profile.lastName} · {data.profile.specialization?.replace(/_/g,' ') || 'General'}
                 </p>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span title={data.profile.backend === 'SB' ? 'Supabase' : 'Firebase'}
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      data.profile.backend === 'SB'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                    }`}>{data.profile.backend === 'SB' ? 'SB' : 'FB'}</span>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                     subColor === 'green' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                     : subColor === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { auth, db } from '@/lib/firebase'
+import { supabase } from '@/lib/supabase'
 
 const SPECIALIZATIONS = [
   { value: 'homeopathy',    label: 'Homeopathy / Homoeopathy' },
@@ -53,8 +54,14 @@ export default function ProfilePage() {
       if (!form.recName.trim()) { setError('Name is required.'); return }
       setSaving(true)
       try {
-        const { doc, setDoc } = await import('firebase/firestore')
-        await setDoc(doc(db, 'receptionists', doctor._receptionistUid), { name: form.recName.trim() }, { merge: true })
+        if (doctor.backend === 'SB') {
+          if (!supabase) throw new Error('Supabase is not configured.')
+          const { error: sbError } = await supabase.from('receptionists').update({ name: form.recName.trim() }).eq('id', doctor._receptionistUid)
+          if (sbError) throw sbError
+        } else {
+          const { doc, setDoc } = await import('firebase/firestore')
+          await setDoc(doc(db, 'receptionists', doctor._receptionistUid), { name: form.recName.trim() }, { merge: true })
+        }
         await updateProfile({ _receptionistName: form.recName.trim() })
         setSaved(true)
       } catch {
