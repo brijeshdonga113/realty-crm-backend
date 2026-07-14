@@ -220,7 +220,7 @@ create table if not exists meta (
 -- duplicated across every RLS policy.
 
 create or replace function is_authorized(target_doctor_id uuid) returns boolean
-language sql security definer as $$
+language sql security definer set search_path = public as $$
   select target_doctor_id = auth.uid()
     or exists (
       select 1 from receptionists
@@ -241,13 +241,24 @@ alter table booking_slugs enable row level security;
 -- NO insert/update policy for regular users — writes only via the service-role
 -- key (app/api/admin/create-doctor, app/api/join-sb), matching Firestore rules'
 -- "allow write: if false" pattern for admin-only collections.
+drop policy if exists doctors_read on doctors;
 create policy doctors_read on doctors for select using (is_authorized(id));
+
+-- A doctor may update their OWN row directly from the client (Settings,
+-- Profile, logo/QR upload, working hours, etc. all write via the anon-key
+-- client, not the service-role key) — without this, every profile edit
+-- would be silently blocked by RLS.
+drop policy if exists doctors_self_update on doctors;
+create policy doctors_self_update on doctors for update using (id = auth.uid()) with check (id = auth.uid());
+
+drop policy if exists receptionists_read on receptionists;
 create policy receptionists_read on receptionists for select using (is_authorized(doctor_id));
 
 -- A receptionist may update their OWN row (name, personal prefs) — this is
 -- row self-ownership (id = auth.uid()), distinct from is_authorized()'s
 -- doctor_id linkage check above. Everything else (permissions, viewOnly,
 -- creation/deletion) goes through the service-role key.
+drop policy if exists receptionists_self_update on receptionists;
 create policy receptionists_self_update on receptionists for update
   using (id = auth.uid()) with check (id = auth.uid());
 
@@ -268,42 +279,75 @@ alter table progress_notes enable row level security;
 alter table documents enable row level security;
 alter table meta enable row level security;
 
+drop policy if exists tenant_access on patients;
 create policy tenant_access on patients        for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on appointments;
 create policy tenant_access on appointments    for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on invoices;
 create policy tenant_access on invoices        for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on expenses;
 create policy tenant_access on expenses        for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on followups;
 create policy tenant_access on followups       for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on notifications;
 create policy tenant_access on notifications   for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on blocked_slots;
 create policy tenant_access on blocked_slots   for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on calendar_events;
 create policy tenant_access on calendar_events for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on chat;
 create policy tenant_access on chat            for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on leads;
 create policy tenant_access on leads           for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on staff;
 create policy tenant_access on staff           for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on inventory;
 create policy tenant_access on inventory       for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on visits;
 create policy tenant_access on visits          for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on progress_notes;
 create policy tenant_access on progress_notes  for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on documents;
 create policy tenant_access on documents       for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
+drop policy if exists tenant_access on meta;
 create policy tenant_access on meta            for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
 
 -- booking_slugs must be readable by the public (unauthenticated) booking page —
 -- it's looked up by slug before any login happens, mirroring the Firestore
 -- version's public read via the Admin SDK.
+drop policy if exists booking_slugs_public_read on booking_slugs;
 create policy booking_slugs_public_read on booking_slugs for select using (true);
 
 -- A doctor may register their OWN slug directly from the client (Settings
 -- page auto-generates one on first visit) — mirrors the existing Firestore
 -- rules, which allow an authenticated doctor to write their own bookingSlugs
 -- doc. Everything else (admin-created rows) goes through the service-role key.
+drop policy if exists booking_slugs_self_insert on booking_slugs;
 create policy booking_slugs_self_insert on booking_slugs for insert with check (doctor_id = auth.uid());
 
 -- ── Realtime ─────────────────────────────────────────────────────────────────
 -- Enables live subscribe()/subscribeWhere() support (Supabase Realtime respects
--- the RLS policies above).
+-- the RLS policies above). Wrapped in a per-table existence check so this
+-- block is safe to re-run — plain "alter publication ... add table" errors
+-- on a table that's already in the publication.
 
-alter publication supabase_realtime add table
-  patients, appointments, invoices, expenses, followups, notifications,
-  blocked_slots, calendar_events, chat, leads, staff, inventory,
-  visits, progress_notes;
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'patients','appointments','invoices','expenses','followups','notifications',
+    'blocked_slots','calendar_events','chat','leads','staff','inventory',
+    'visits','progress_notes'
+  ] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table %I', t);
+    end if;
+  end loop;
+end $$;
 
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 -- doctor_id is already the leading column of every composite primary key above,
