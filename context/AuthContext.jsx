@@ -5,7 +5,7 @@ import { auth, db } from '@/lib/firebase'
 import { supabase } from '@/lib/supabase'
 import { restoreGoogleCalendarConnection } from '@/lib/googleCalendar'
 import { initTrial } from '@/lib/subscription'
-import { setActiveBranchUid } from '@/lib/dataStore'
+import { setActiveBranchUid, clearDataStoreCache } from '@/lib/dataStore'
 
 const AuthContext = createContext(null)
 
@@ -692,6 +692,7 @@ export function AuthProvider({ children }) {
       await signOut(auth)
     }
     clearSessionLocally()
+    clearDataStoreCache()
     saveActiveBranch(null)
     setActiveBranchUid(null)
     setActiveBranchState(null)
