@@ -656,6 +656,11 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
   const [staff,        setStaff]        = useState([])
   const [staffLoading, setStaffLoading] = useState(true)
 
+  // Usage/activity metrics — lazily fetched only once the Activity tab is opened
+  const [metrics,        setMetrics]        = useState([])
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsLoaded,  setMetricsLoaded]  = useState(false)
+
   // Plan edit
   const [editPlan,    setEditPlan]    = useState(false)
   const [planStatus,  setPlanStatus]  = useState('')
@@ -696,6 +701,19 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
       .catch(() => setStaff([]))
       .finally(() => setStaffLoading(false))
   }, [uid])
+
+  // Reset activity metrics when switching to a different clinic
+  useEffect(() => { setMetrics([]); setMetricsLoaded(false) }, [uid])
+
+  useEffect(() => {
+    if (!uid || tab !== 'activity' || metricsLoaded) return
+    setMetricsLoading(true)
+    adminFetch(`/api/admin/clinic-metrics?uid=${uid}`)
+      .then(r => r.json())
+      .then(d => { setMetrics(d.metrics ?? []); setMetricsLoaded(true) })
+      .catch(() => setMetrics([]))
+      .finally(() => setMetricsLoading(false))
+  }, [uid, tab, metricsLoaded])
 
   const handlePlanSave = async () => {
     setPlanSaving(true)
@@ -857,7 +875,7 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
 
             {/* Sub-tabs */}
             <div className="flex gap-1 px-6 pt-4 pb-0 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-              {['overview', 'financials', 'patients', 'staff'].map(t => (
+              {['overview', 'financials', 'patients', 'staff', 'activity'].map(t => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 transition-colors -mb-px ${
                     tab === t
@@ -1397,6 +1415,77 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
                   )}
                 </div>
               )}
+
+              {/* ── Activity ── */}
+              {tab === 'activity' && (() => {
+                const totalReads  = metrics.reduce((s, m) => s + (m.reads ?? 0), 0)
+                const totalWrites = metrics.reduce((s, m) => s + (m.writes ?? 0), 0)
+                const totalCalls  = totalReads + totalWrites
+                const weightedAvg = metrics.reduce((s, m) => s + (m.avgDurationMs ?? 0) * ((m.reads ?? 0) + (m.writes ?? 0)), 0)
+                const avgLatency  = totalCalls > 0 ? Math.round(weightedAvg / totalCalls) : 0
+                const maxLatency  = metrics.reduce((s, m) => Math.max(s, m.maxDurationMs ?? 0), 0)
+
+                return (
+                  <div className="space-y-4">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      Aggregated client-side usage — one summary logged roughly every 60s per active session, not per individual read/write. Last {metrics.length} window{metrics.length !== 1 ? 's' : ''} shown.
+                    </p>
+
+                    {metricsLoading ? (
+                      <div className="flex items-center gap-2 py-4 text-gray-400 text-sm">
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Loading…
+                      </div>
+                    ) : metrics.length === 0 ? (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No activity recorded yet — data appears once someone from this clinic uses the app.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-4 gap-3">
+                          {[
+                            { label: 'Reads',       value: totalReads },
+                            { label: 'Writes',      value: totalWrites },
+                            { label: 'Avg Latency', value: `${avgLatency} ms` },
+                            { label: 'Max Latency',  value: `${maxLatency} ms` },
+                          ].map(s => (
+                            <div key={s.label} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl px-4 py-3">
+                              <p className="text-lg font-bold text-gray-900 dark:text-white">{s.value}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{s.label}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Window</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Reads</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Writes</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Avg ms</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Max ms</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                              {metrics.map((m, i) => (
+                                <tr key={i}>
+                                  <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{timeAgo(m.windowEnd)}</td>
+                                  <td className="px-4 py-2 text-xs text-gray-800 dark:text-gray-200">{m.reads}</td>
+                                  <td className="px-4 py-2 text-xs text-gray-800 dark:text-gray-200">{m.writes}</td>
+                                  <td className="px-4 py-2 text-xs text-gray-800 dark:text-gray-200">{m.avgDurationMs}</td>
+                                  <td className={`px-4 py-2 text-xs font-medium ${m.maxDurationMs > 1000 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'}`}>{m.maxDurationMs}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
 
             </div>
           </>

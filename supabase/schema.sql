@@ -215,6 +215,25 @@ create table if not exists meta (
   primary key (doctor_id, key)
 );
 
+-- Aggregated (not per-call) client usage telemetry — one row per ~60s window
+-- per active session, written by app/api/track-metrics and read only by the
+-- admin panel's clinic Activity tab (app/api/admin/clinic-metrics). Both
+-- routes use the service-role key exclusively, so this table has RLS enabled
+-- with no policies at all — no anon-key access is ever needed.
+create table if not exists request_metrics (
+  id               text primary key,
+  doctor_id        uuid not null references doctors(id),
+  backend          text,
+  reads            integer default 0,
+  writes           integer default 0,
+  avg_duration_ms  integer default 0,
+  max_duration_ms  integer default 0,
+  window_start     timestamptz,
+  window_end       timestamptz,
+  created_at       timestamptz default now()
+);
+create index if not exists idx_request_metrics_doctor on request_metrics (doctor_id, window_end desc);
+
 -- ── Shared authorization function ───────────────────────────────────────────
 -- Mirrors firestore.rules' isLinkedReceptionist() — written once instead of
 -- duplicated across every RLS policy.
@@ -278,6 +297,7 @@ alter table visits enable row level security;
 alter table progress_notes enable row level security;
 alter table documents enable row level security;
 alter table meta enable row level security;
+alter table request_metrics enable row level security;
 
 drop policy if exists tenant_access on patients;
 create policy tenant_access on patients        for all using (is_authorized(doctor_id)) with check (is_authorized(doctor_id));
