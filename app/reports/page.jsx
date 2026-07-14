@@ -479,6 +479,13 @@ export default function ReportsPage() {
     return Object.values(map)
   }, [items, revInvoices])
 
+  // Cost of medicines/inventory actually dispensed in the selected period —
+  // Net Profit needs this on top of logged Expenses, or medicine revenue
+  // reads as pure profit whenever a restock isn't separately expensed.
+  const revCogs = useMemo(() =>
+    revItemStats.reduce((s, i) => s + i.purchasePrice * i.unitsSold, 0),
+    [revItemStats])
+
   const filtered = useMemo(() => {
     const q    = search.toLowerCase()
     const list = q ? itemStats.filter(s => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)) : itemStats
@@ -976,7 +983,7 @@ export default function ReportsPage() {
             </div>
 
             {(() => {
-              const netProfit = revenueData.total - expenseData.total
+              const netProfit = revenueData.total - expenseData.total - revCogs
               const isProfit  = netProfit >= 0
               return (
                 <div className={`rounded-xl border p-5 ${isProfit ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800'}`}>
@@ -985,8 +992,13 @@ export default function ReportsPage() {
                     {isProfit ? '+' : ''}{fmt(netProfit)}
                   </p>
                   <p className={`text-xs mt-1 ${isProfit ? 'text-green-600/70 dark:text-green-400/70' : 'text-orange-600/70 dark:text-orange-400/70'}`}>
-                    Revenue − Expenses
+                    Revenue − Expenses − Cost of Goods
                   </p>
+                  {revCogs > 0 && (
+                    <div className={`mt-2 text-xs ${isProfit ? 'text-green-600/70 dark:text-green-400/70' : 'text-orange-600/70 dark:text-orange-400/70'}`}>
+                      Cost of goods: {fmt(revCogs)}
+                    </div>
+                  )}
                   {revenueData.total > 0 && (
                     <div className={`mt-2 text-xs font-semibold ${isProfit ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'}`}>
                       Margin: {((netProfit / revenueData.total) * 100).toFixed(1)}%
@@ -1188,8 +1200,8 @@ export default function ReportsPage() {
             {[
               { label: 'Total Expenses', value: fmt(expenseData.total), sub: `${expenseData.count} records`, color: 'text-red-600 dark:text-red-400' },
               { label: 'Total Revenue',  value: fmt(revenueData.total), sub: `${revInvoices.length} invoices`, color: 'text-green-600 dark:text-green-400' },
-              { label: 'Net Profit / Loss', value: `${revenueData.total - expenseData.total >= 0 ? '+' : ''}${fmt(revenueData.total - expenseData.total)}`, sub: 'Revenue − Expenses', color: revenueData.total - expenseData.total >= 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400' },
-              { label: 'Profit Margin', value: revenueData.total > 0 ? `${(((revenueData.total - expenseData.total) / revenueData.total) * 100).toFixed(1)}%` : '—', sub: 'Net ÷ Revenue', color: 'text-primary-600 dark:text-primary-400' },
+              { label: 'Net Profit / Loss', value: `${revenueData.total - expenseData.total - revCogs >= 0 ? '+' : ''}${fmt(revenueData.total - expenseData.total - revCogs)}`, sub: `Revenue − Expenses − Cost of Goods (${fmt(revCogs)})`, color: revenueData.total - expenseData.total - revCogs >= 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400' },
+              { label: 'Profit Margin', value: revenueData.total > 0 ? `${(((revenueData.total - expenseData.total - revCogs) / revenueData.total) * 100).toFixed(1)}%` : '—', sub: 'Net ÷ Revenue', color: 'text-primary-600 dark:text-primary-400' },
             ].map(c => (
               <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.label}</p>
