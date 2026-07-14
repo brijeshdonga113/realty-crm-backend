@@ -291,9 +291,16 @@ function VisitEntryForm() {
   isDirtyRef.current = isDirty
   const bypassPopRef = useRef(false)
   const guardedRef   = useRef(false)
+  // If this page was the first entry in the tab's history (opened via a direct
+  // link, a shared URL, or a refresh), there's no real page behind our buffer
+  // entry for go(-2) to land on — it silently no-ops and traps the user on
+  // this page. Fall back to a known-good route in that case instead.
+  const hadRealHistoryRef = useRef(true)
+  const fallbackLeave = () => router.push(patientId ? `/patients/${patientId}` : '/dashboard')
 
   useEffect(() => {
     if (!isDirty) return
+    hadRealHistoryRef.current = window.history.length > 1
     window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
     guardedRef.current = true
 
@@ -302,6 +309,7 @@ function VisitEntryForm() {
       if (!isDirtyRef.current) return
       window.history.pushState({ __unsavedGuard: true }, '', window.location.href)
       requestLeave(() => {
+        if (!hadRealHistoryRef.current) { fallbackLeave(); return }
         bypassPopRef.current = true
         window.history.go(-2)
       })
@@ -312,9 +320,11 @@ function VisitEntryForm() {
 
   // Drop-in replacement for router.back() that accounts for the buffer entry above
   const goBack = () => requestLeave(() => {
-    if (guardedRef.current) {
+    if (guardedRef.current && hadRealHistoryRef.current) {
       bypassPopRef.current = true
       window.history.go(-2)
+    } else if (guardedRef.current) {
+      fallbackLeave()
     } else {
       router.back()
     }
@@ -1474,7 +1484,9 @@ function VisitEntryForm() {
                         {v.notes && (
                           <div>
                             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Notes</p>
-                            <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.notes}</p>
+                            {v.notes.trimStart().startsWith('<')
+                              ? <div className="rich-text-view text-xs leading-snug" dangerouslySetInnerHTML={{ __html: v.notes }}/>
+                              : <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-snug">{v.notes}</p>}
                           </div>
                         )}
 
