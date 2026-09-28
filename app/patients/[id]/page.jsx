@@ -1562,7 +1562,7 @@ export default function PatientProfilePage() {
     <AppLayout
       title="Patient Profile"
       action={
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
           <button onClick={() => router.push('/patients')}
             className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1.5 transition-colors whitespace-nowrap flex-shrink-0">
             ← Back
@@ -1656,8 +1656,8 @@ export default function PatientProfilePage() {
       </div>
 
       {/* Tabs — wrap onto extra lines on mobile instead of overflowing the page. */}
-      <div className="mb-6 w-full max-w-full lg:w-fit bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
-        <div className="flex flex-wrap gap-1">
+      <div className="mb-6 w-full max-w-full lg:w-fit bg-gray-100 dark:bg-gray-700 p-1 rounded-xl min-w-0">
+        <div className="flex flex-wrap gap-1 w-full min-w-0">
         {TABS.map((t, i) => {
           if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (

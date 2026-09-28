@@ -113,9 +113,10 @@ export function AppLayout({ children, title, action }) {
               <ThemeToggle />
             </div>
           </div>
-          {/* Row 2: action buttons — mobile only, wrap onto extra lines */}
+          {/* Row 2: action buttons — mobile only. Constrain width so flex-wrap
+              on the page's action group actually wraps instead of overflowing. */}
           {action && (
-            <div className="lg:hidden flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="lg:hidden mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 w-full min-w-0">
               {action}
             </div>
           )}
