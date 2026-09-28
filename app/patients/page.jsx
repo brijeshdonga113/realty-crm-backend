@@ -330,7 +330,7 @@ Now here is the patient data to convert:
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
             <input value={query} onChange={e => handleSearch(e.target.value)}
-              placeholder="Search patients by name, phone, email…" className="input-field pl-9"/>
+              placeholder="Search name, phone, email…" className="input-field pl-9"/>
           </div>
           <div className="flex gap-2 min-w-0 w-full sm:w-auto">
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field flex-1 sm:flex-none sm:w-40 min-w-0">
@@ -510,7 +510,7 @@ Now here is the patient data to convert:
           </div>
 
           {/* Phone: one card per patient so columns never scroll off-screen */}
-          <div className="lg:hidden space-y-3">
+          <div className="lg:hidden space-y-3 pb-8">
             {filtered.map(patient => {
               const visitCount = billCountByPatient[patient.id] ?? 0
               const due = dueBillsByPatient[patient.id] ?? 0
@@ -523,7 +523,7 @@ Now here is the patient data to convert:
                   tabIndex={0}
                   onClick={() => router.push(`/patients/${patient.id}`)}
                   onKeyDown={e => { if (e.key === 'Enter') router.push(`/patients/${patient.id}`) }}
-                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 min-w-0"
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 min-w-0 scroll-mb-24"
                 >
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
