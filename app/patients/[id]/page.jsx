@@ -1656,8 +1656,9 @@ export default function PatientProfilePage() {
       </div>
 
       {/* Tabs — receptionists only see Appointments and Billing.
-          Constrained to the viewport so extra tabs scroll horizontally instead of stretching the page. */}
-      <div className="scroll-row gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-full lg:w-fit">
+          Viewport-width track so extra tabs scroll inside the pill instead of stretching the page. */}
+      <div className="mb-6 w-full lg:w-fit max-w-full bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
+        <div className="scroll-row gap-1">
         {TABS.map((t, i) => {
           if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (
@@ -1678,6 +1679,7 @@ export default function PatientProfilePage() {
           </button>
           )
         })}
+        </div>
       </div>
 
       {/* Tab 0: Overview */}
