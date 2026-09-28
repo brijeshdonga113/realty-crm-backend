@@ -82,7 +82,7 @@ export function AppLayout({ children, title, action }) {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col min-w-0">
         {/* Page header */}
         <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0 min-w-0">
           {/* Row 1: hamburger + title + theme toggle (always visible) */}
@@ -113,16 +113,16 @@ export function AppLayout({ children, title, action }) {
               <ThemeToggle />
             </div>
           </div>
-          {/* Row 2: action buttons — mobile only, scroll horizontally instead of wrapping */}
+          {/* Row 2: action buttons — mobile only, wrap onto extra lines */}
           {action && (
-            <div className="lg:hidden mobile-action-row mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 -mx-4 px-4">
+            <div className="lg:hidden flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
               {action}
             </div>
           )}
         </header>
 
         {/* Page content */}
-        <div className="flex-1 p-4 lg:p-8 min-w-0">
+        <div className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden">
           {children}
         </div>
       </main>
