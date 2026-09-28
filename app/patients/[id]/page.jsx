@@ -1656,13 +1656,13 @@ export default function PatientProfilePage() {
       </div>
 
       {/* Tabs — wrap onto extra lines on mobile instead of overflowing the page. */}
-      <div className="mb-6 w-full max-w-full lg:w-fit bg-gray-100 dark:bg-gray-700 p-1 rounded-xl min-w-0">
-        <div className="flex flex-wrap gap-1 w-full min-w-0">
+      <div className="mb-6 w-full max-w-full bg-gray-100 dark:bg-gray-700 p-1 rounded-xl min-w-0 overflow-x-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-1 w-full min-w-0">
         {TABS.map((t, i) => {
           if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (
           <button key={t} onClick={() => setTab(i)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 flex-shrink-0
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 w-full lg:w-auto lg:flex-shrink-0
               ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
             {t}
             {t === 'Follow-ups' && followUpDueCount > 0 && (

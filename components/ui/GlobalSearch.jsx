@@ -125,7 +125,7 @@ export function GlobalSearch() {
     <>
       {/* ── Trigger button ─────────────────────────────────────────────────── */}
       <button onClick={openSearch}
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-white dark:hover:bg-gray-700 transition-all flex-shrink-0"
+        className="flex items-center justify-center w-9 h-9 md:w-auto md:h-auto md:gap-2 md:px-2.5 md:py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-white dark:hover:bg-gray-700 transition-all flex-shrink-0"
         title="Search (⌘K)">
         <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>

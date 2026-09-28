@@ -55,7 +55,10 @@
 
 @layer base {
   html, body {
-    @apply antialiased max-w-full overflow-x-hidden;
+    @apply antialiased;
+    max-width: 100vw;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
   }
 }
 
@@ -223,8 +226,8 @@
 }
 
 /* ── App-wide mobile layout (< lg / 1024px) ─────────────────────────────────
-   Header actions wrap onto new lines, tables scroll inside their card,
-   and page content never forces a horizontal page scroll.
+   Flatten page action wrappers so every button is a grid item. Nested flex
+   rows cannot grow past the viewport and clip the title.
    ────────────────────────────────────────────────────────────────────────── */
 .mobile-action-slot {
   width: 100%;
@@ -238,21 +241,35 @@
 }
 
 @media (max-width: 1023px) {
-  .mobile-action-slot > * {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center;
-    gap: 0.5rem !important;
-    width: 100% !important;
-    min-width: 0 !important;
+  .mobile-action-slot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
     max-width: 100%;
   }
 
-  /* Nested filter/toggle groups (div.flex), not icon+label buttons */
-  .mobile-action-slot > * > div.flex {
-    flex-wrap: wrap !important;
-    min-width: 0;
+  /* Unwrap the typical <div class="flex gap-2"> around page actions,
+     including one nested filter/toggle group. */
+  .mobile-action-slot > div,
+  .mobile-action-slot > div > div {
+    display: contents;
+  }
+
+  .mobile-action-slot button,
+  .mobile-action-slot a,
+  .mobile-action-slot label {
+    width: 100%;
     max-width: 100%;
+    min-width: 0;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  /* Primary (filled) action — full row when it is the last control */
+  .mobile-action-slot > div > button:last-child:is(.bg-primary-500, [class*="bg-primary-"]),
+  .mobile-action-slot > button:last-child:is(.bg-primary-500, [class*="bg-primary-"]) {
+    grid-column: 1 / -1;
   }
 
   .app-content :has(> table) {
@@ -269,6 +286,21 @@
 
   .invoice-lines-wrap > .grid {
     min-width: 640px;
+  }
+
+  .mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mobile-tabs button {
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+    min-width: 0;
   }
 }
 

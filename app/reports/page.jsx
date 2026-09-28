@@ -522,10 +522,10 @@ export default function ReportsPage() {
     <AppLayout title="Reports & Analytics">
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 flex-wrap border-b border-gray-200 dark:border-gray-700 mb-6 -mx-1 px-1">
+      <div className="grid grid-cols-2 lg:flex lg:flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700 mb-6">
         {TABS.map(t => (
           <button key={t.key} onClick={() => { setActiveTab(t.key); setSearch('') }}
-            className={`px-3 sm:px-5 py-2.5 sm:py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap
+            className={`px-3 sm:px-5 py-2.5 sm:py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap text-center w-full lg:w-auto
               ${activeTab === t.key
                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
