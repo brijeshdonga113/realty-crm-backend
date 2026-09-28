@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import { DEFAULT_BILLING_WA_TEMPLATE } from '@/lib/whatsapp'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -37,9 +38,14 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent when a follow-up was overdue',
     template: 'Hello {name},\n\nWe noticed your follow-up scheduled on *{date}* was {days} day(s) ago. We care about your health.\n\nPlease visit us at {clinic} soon.\n\nThank you!',
   },
+  billing: {
+    label: 'Invoice / Billing',
+    description: 'Sent when sharing an invoice with a patient via WhatsApp',
+    template: DEFAULT_BILLING_WA_TEMPLATE,
+  },
 }
 
-const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}']
+const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}', '{invoice}', '{status}', '{total}', '{items}']
 const EMOJIS = ['😊', '👋', '🏥', '📅', '⏰', '💊', '❤️', '✅', '🙏', '📞', '💉', '🩺']
 
 function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
@@ -53,6 +59,10 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
     .replace(/\{date\}/g, sampleDate)
     .replace(/\{time\}/g, '10:30 AM')
     .replace(/\{days\}/g, '3')
+    .replace(/\{invoice\}/g, 'INV-2026-001')
+    .replace(/\{status\}/g, 'Due')
+    .replace(/\{total\}/g, '₹1,500')
+    .replace(/\{items\}/g, '• Consultation x1 — ₹1,500')
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -221,11 +231,15 @@ export default function WhatsAppTemplatesPage() {
           <p className="text-sm font-semibold text-primary-800 dark:text-primary-300 mb-1">Template Variables</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
             {[
-              ['{name}',   'Patient full name'],
-              ['{clinic}', 'Clinic / hospital name'],
-              ['{date}',   'Appointment or follow-up date'],
-              ['{time}',   'Appointment time'],
-              ['{days}',   'Number of overdue days'],
+              ['{name}',    'Patient full name'],
+              ['{clinic}',  'Clinic / hospital name'],
+              ['{date}',    'Appointment, follow-up, or invoice date'],
+              ['{time}',    'Appointment time'],
+              ['{days}',    'Number of overdue days'],
+              ['{invoice}', 'Invoice number'],
+              ['{status}',  'Billing status (Due, Paid, …)'],
+              ['{total}',   'Invoice total amount'],
+              ['{items}',   'Invoice line items'],
             ].map(([v, desc]) => (
               <div key={v} className="text-xs">
                 <span className="font-mono font-semibold text-primary-700 dark:text-primary-300">{v}</span>
