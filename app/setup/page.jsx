@@ -134,7 +134,7 @@ export default function SetupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">First Name</label>
               <input name="firstName" value={form.firstName} onChange={handleChange}

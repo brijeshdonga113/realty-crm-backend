@@ -569,7 +569,7 @@ function VisitEntryForm() {
     <AppLayout
       title={patient ? `${editVisitId ? 'Edit' : 'Visit'} — ${patient.firstName} ${patient.lastName}` : (editVisitId ? 'Edit Visit' : 'Record Visit')}
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
           <button onClick={goBack}
             className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5">
             ← Back
@@ -640,9 +640,9 @@ function VisitEntryForm() {
 
         {/* Clinical info */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-semibold text-gray-900 dark:text-white">Clinical Information</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Visit Date</label>
               <input
                 type="date"
@@ -668,7 +668,7 @@ function VisitEntryForm() {
           {/* Vitals */}
           <div>
             <p className="form-label">Vital Signs</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
                 ['bloodPressure', 'Blood Pressure', 'e.g. 120/80'],
                 ['heartRate',     'Heart Rate (bpm)', 'e.g. 72'],
@@ -956,7 +956,7 @@ function VisitEntryForm() {
               )}
 
               {/* Column headers + rows */}
-              <div className="space-y-3">
+              <div className="space-y-3 invoice-lines-wrap">
                 <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3">
                   <span className="col-span-4">Description / Medicine</span>
                   <span className="col-span-1 text-center">Tax</span>
@@ -1268,7 +1268,7 @@ function VisitEntryForm() {
             {saveError}
           </div>
         )}
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-wrap justify-end gap-3">
           <button type="button" onClick={goBack}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel

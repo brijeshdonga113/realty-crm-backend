@@ -116,14 +116,14 @@ export function AppLayout({ children, title, action }) {
           {/* Row 2: action buttons — mobile only. Constrain width so flex-wrap
               on the page's action group actually wraps instead of overflowing. */}
           {action && (
-            <div className="lg:hidden mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 w-full min-w-0">
+            <div className="lg:hidden mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 w-full min-w-0 mobile-action-slot">
               {action}
             </div>
           )}
         </header>
 
-        {/* Page content */}
-        <div className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden">
+        {/* Page content — extra bottom padding so the chat FAB does not cover CTAs */}
+        <div className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden app-content pb-20 lg:pb-8">
           {children}
         </div>
       </main>

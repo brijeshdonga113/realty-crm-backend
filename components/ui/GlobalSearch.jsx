@@ -306,7 +306,7 @@ export function GlobalSearch() {
             </div>
 
             {/* Footer hint */}
-            <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700 flex items-center gap-4 text-[11px] text-gray-400 dark:text-gray-500">
+            <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] text-gray-400 dark:text-gray-500">
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-medium">↑↓</kbd> navigate
               </span>

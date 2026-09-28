@@ -522,10 +522,10 @@ export default function ReportsPage() {
     <AppLayout title="Reports & Analytics">
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="flex gap-1 flex-wrap border-b border-gray-200 dark:border-gray-700 mb-6 -mx-1 px-1">
         {TABS.map(t => (
           <button key={t.key} onClick={() => { setActiveTab(t.key); setSearch('') }}
-            className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors
+            className={`px-3 sm:px-5 py-2.5 sm:py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap
               ${activeTab === t.key
                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
@@ -777,8 +777,8 @@ export default function ReportsPage() {
 
           <div>
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Purchase vs Billing Price — All Items</p>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
                     {['Item', 'Category', 'Purchase ₹', 'Billing ₹', 'Margin', 'Stock'].map((h, i) => (
@@ -1059,11 +1059,11 @@ export default function ReportsPage() {
 
           {/* Top services */}
           {revenueData.topServices.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden overflow-x-auto">
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Top Services by Revenue</p>
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-700/40">
                     {['Service','Billed','Discount','Net Revenue','Revenue Bar'].map((h, i) => (
@@ -1096,11 +1096,11 @@ export default function ReportsPage() {
 
           {/* Top inventory items */}
           {revItemStats.some(s => s.unitsSold > 0) && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden overflow-x-auto">
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Top Medicine Items by Revenue</p>
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-700/40">
                     {['Item','Qty Sold','Discount','Net Revenue','Revenue Bar'].map((h, i) => (

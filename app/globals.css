@@ -54,8 +54,8 @@
 }
 
 @layer base {
-  body {
-    @apply antialiased;
+  html, body {
+    @apply antialiased max-w-full overflow-x-hidden;
   }
 }
 
@@ -219,5 +219,65 @@
 
   .stat-card {
     @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-shadow;
+  }
+}
+
+/* ── App-wide mobile layout (< lg / 1024px) ─────────────────────────────────
+   Header actions wrap onto new lines, tables scroll inside their card,
+   and page content never forces a horizontal page scroll.
+   ────────────────────────────────────────────────────────────────────────── */
+.mobile-action-slot {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .mobile-action-slot > * {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center;
+    gap: 0.5rem !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  /* Nested filter/toggle groups (div.flex), not icon+label buttons */
+  .mobile-action-slot > * > div.flex {
+    flex-wrap: wrap !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-content :has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .invoice-lines-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .invoice-lines-wrap > .grid {
+    min-width: 640px;
+  }
+}
+
+@media (max-width: 639px) {
+  .app-content .p-6 {
+    padding: 1rem;
+  }
+  .app-content .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }

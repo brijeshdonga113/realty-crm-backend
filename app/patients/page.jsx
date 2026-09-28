@@ -276,7 +276,7 @@ Now here is the patient data to convert:
     <AppLayout
       title="Patients"
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
           {/* Hidden file input — triggered by label to avoid programmatic .click() which Chrome intercepts */}
           <input id="patient-csv-import" ref={importRef} type="file" accept=".csv" className="hidden" onChange={handleImportFile}/>
 

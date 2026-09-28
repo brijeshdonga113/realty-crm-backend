@@ -303,7 +303,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
           {hasVitals && (
             <div>
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Vital Signs</p>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
                 {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
                   <div key={k}>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
@@ -458,7 +458,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payment</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="form-label">Amount</label>
                     <input
@@ -546,7 +546,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   }
 
   return (
-    <div className={`flex items-start sm:items-center gap-3 sm:gap-4 px-4 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
+    <div className={`flex flex-wrap items-start sm:items-center gap-3 sm:gap-4 px-4 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
       ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
@@ -561,7 +561,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
         </div>
         {entry.note && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{entry.note}</p>}
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
         <button onClick={sendWhatsApp}
           className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
           {WA_ICON} Remind

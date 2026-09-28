@@ -170,7 +170,7 @@ function EditVisitForm() {
           {/* Vitals */}
           <div>
             <p className="form-label">Vital Signs</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
                 ['bloodPressure', 'Blood Pressure', 'e.g. 120/80'],
                 ['heartRate',     'Heart Rate (bpm)', 'e.g. 72'],
@@ -325,7 +325,7 @@ function EditVisitForm() {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-wrap justify-end gap-3">
           <button type="button" onClick={guardedBack}
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
