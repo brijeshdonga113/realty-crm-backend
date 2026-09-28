@@ -168,7 +168,7 @@ function BookingHero({ doctor, step }) {
 
   return (
     <div className="bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 border-b border-primary-900/20">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
+      <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
         {/* Doctor logo / initials */}
         {doctor.logoUrl ? (
           <div className="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center p-1 overflow-hidden flex-shrink-0">
@@ -203,7 +203,7 @@ function BookingHero({ doctor, step }) {
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0 w-full sm:w-auto justify-start">
           {steps.map((s, i) => {
             const done   = step > s.n
             const active = step === s.n

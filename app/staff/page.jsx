@@ -82,7 +82,7 @@ function StaffForm({ initial, onSave, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">First Name *</label>
           <input value={form.firstName} onChange={e => set('firstName', e.target.value)} className="input-field" required/>
@@ -92,7 +92,7 @@ function StaffForm({ initial, onSave, onCancel }) {
           <input value={form.lastName} onChange={e => set('lastName', e.target.value)} className="input-field" required/>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Role</label>
           <select value={form.role} onChange={e => set('role', e.target.value)} className="input-field">
@@ -106,7 +106,7 @@ function StaffForm({ initial, onSave, onCancel }) {
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Email</label>
           <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className="input-field"/>
@@ -135,7 +135,7 @@ function StaffForm({ initial, onSave, onCancel }) {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Start Time</label>
           <input type="time" value={form.schedule.startTime} onChange={e => setSched('startTime', e.target.value)} className="input-field"/>

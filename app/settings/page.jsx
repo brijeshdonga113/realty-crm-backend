@@ -702,7 +702,7 @@ export default function SettingsPage() {
             {/* Color palette */}
             <div>
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Accent Color</p>
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
                 {THEMES.map(t => (
                   <button
                     key={t.key}
@@ -1194,7 +1194,7 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
-            <div className="flex gap-2 items-end">
+            <div className="flex flex-wrap gap-2 items-end">
               <div className="flex-1">
                 <label htmlFor={`${cfUid}-label`} className="form-label">Field Label</label>
                 <input id={`${cfUid}-label`} value={cfLabel}
@@ -1202,7 +1202,7 @@ export default function SettingsPage() {
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCfField() } }}
                   placeholder="e.g. Location, Barcode…" className="input-field"/>
               </div>
-              <div className="w-32">
+              <div className="w-full sm:w-32">
                 <label htmlFor={`${cfUid}-type`} className="form-label">Type</label>
                 <select id={`${cfUid}-type`} value={cfType} onChange={e => setCfType(e.target.value)} className="input-field">
                   <option value="text">Text</option>
@@ -1297,14 +1297,14 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
-            <div className="flex gap-2 items-end">
+            <div className="flex flex-wrap gap-2 items-end">
               <div className="flex-1">
                 <label className="form-label">Service Name</label>
                 <input value={scName} onChange={e => { setScName(e.target.value); setScSaved(false) }}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addServiceCharge() } }}
                   placeholder="e.g. Consultation Fee, X-Ray…" className="input-field"/>
               </div>
-              <div className="w-32">
+              <div className="w-full sm:w-32">
                 <label className="form-label">Price (₹)</label>
                 <input type="number" min="0" value={scPrice} onChange={e => { setScPrice(e.target.value); setScSaved(false) }}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addServiceCharge() } }}

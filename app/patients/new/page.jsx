@@ -188,7 +188,7 @@ function NewCaseForm() {
   }
 
   const ActionButtons = ({ compact = false }) => (
-    <div className={`flex items-center gap-2 ${compact ? '' : 'justify-end'}`}>
+    <div className={`flex items-center gap-2 flex-wrap min-w-0 w-full ${compact ? '' : 'justify-end'}`}>
       <button type="button" onClick={() => router.back()}
         className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
         Cancel

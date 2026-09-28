@@ -299,8 +299,7 @@ export default function FollowUpsPage() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Filter by date:</label>
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
               <input type="date" value={filterDate} onChange={e => { setFilterDate(e.target.value); setViewMode('all') }}
                 className="input-field text-sm py-1.5 w-40"/>
               {filterDate && (

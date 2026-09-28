@@ -320,7 +320,7 @@ function NewInvoiceForm() {
             {errors.items && <p className="error-text mb-3">{errors.items}</p>}
 
             {/* Items */}
-            <div className="space-y-3">
+            <div className="space-y-3 invoice-lines-wrap">
               {/* Column headers */}
               <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-3">
                 <span className="col-span-4">Description / Medicine</span>

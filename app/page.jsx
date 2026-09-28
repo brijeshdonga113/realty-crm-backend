@@ -285,14 +285,14 @@ export default function LandingPage() {
           </div>
 
           {/* Dashboard mockup */}
-          <div className="rounded-t-2xl border border-b-0 border-gray-200 shadow-2xl shadow-slate-200/80 overflow-hidden">
-            <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center gap-2">
+          <div className="rounded-t-2xl border border-b-0 border-gray-200 shadow-2xl shadow-slate-200/80 overflow-x-auto">
+            <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center gap-2 min-w-[640px] sm:min-w-0">
               <span className="w-3 h-3 rounded-full bg-red-400" />
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
               <span className="w-3 h-3 rounded-full bg-green-400" />
               <div className="ml-4 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono">cliniwayz.com/dashboard</div>
             </div>
-            <div className="flex bg-white" style={{ height: '340px' }}>
+            <div className="flex bg-white min-w-[640px] sm:min-w-0" style={{ height: '340px' }}>
               {/* Sidebar */}
               <div className="w-44 bg-gray-900 flex-shrink-0 flex flex-col py-4 px-2.5 gap-0.5">
                 <div className="flex items-center gap-2 px-2 py-1.5 mb-3">

@@ -129,7 +129,7 @@ export default function PricingPage() {
 
         {/* Status banner */}
         {status === 'trial' && (
-          <div className="mb-8 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl px-6 py-4 flex items-center justify-between">
+          <div className="mb-8 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 rounded-xl px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-primary-800 dark:text-primary-300">Free Trial Active</p>
               <p className="text-sm text-primary-600 dark:text-primary-400 mt-0.5">
@@ -148,7 +148,7 @@ export default function PricingPage() {
         )}
 
         {status === 'active' && (
-          <div className="mb-8 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-6 py-4 flex items-center justify-between">
+          <div className="mb-8 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-green-800 dark:text-green-300">Active Subscription</p>
               <p className="text-sm text-green-600 dark:text-green-400 mt-0.5 capitalize">{currentPlan} plan</p>

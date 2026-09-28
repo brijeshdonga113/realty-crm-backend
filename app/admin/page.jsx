@@ -385,7 +385,7 @@ function OrgDrawer({ org, onClose, onEdit, onDelete }) {
                     <div className="h-full bg-purple-500 dark:bg-purple-400 rounded-full"
                       style={{ width: `${(b.revenue / maxRevenue) * 100}%` }}/>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { label: 'Patients',  value: b.patients.toLocaleString(),   color: 'text-blue-600 dark:text-blue-400'  },
                       { label: 'Pending',   value: fmt(b.pending),                color: 'text-amber-600 dark:text-amber-400'},
@@ -826,7 +826,7 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
             </div>
 
             {/* Sub-tabs */}
-            <div className="flex gap-1 px-6 pt-4 pb-0 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+            <div className="flex gap-1 px-4 sm:px-6 pt-4 pb-0 border-b border-gray-100 dark:border-gray-800 flex-shrink-0 overflow-x-auto">
               {['overview', 'financials', 'patients', 'staff'].map(t => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 transition-colors -mb-px ${
@@ -1233,7 +1233,7 @@ function ClinicDrawer({ uid, onClose, onUpdated, allDoctors = [] }) {
               {tab === 'financials' && (
                 <>
                   {/* Summary cards */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'Total Revenue', value: fmt(data.stats.totalRevenue), color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' },
                       { label: 'Pending',       value: fmt(data.stats.pendingAmount), color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800' },
@@ -1607,7 +1607,7 @@ export default function AdminPage() {
                     const isSelected = orgForm.branches.some(b => b.uid === d.uid)
                     const branch = orgForm.branches.find(b => b.uid === d.uid)
                     return (
-                      <div key={d.uid} className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors ${isSelected ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'}`}>
+                      <div key={d.uid} className={`flex flex-wrap items-center gap-3 px-3 py-2 rounded-lg border transition-colors ${isSelected ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'}`}>
                         <input type="checkbox" checked={isSelected}
                           onChange={e => {
                             if (e.target.checked) {
@@ -1627,7 +1627,7 @@ export default function AdminPage() {
                           <input value={branch.branchName}
                             onChange={e => setOrgForm(f => ({ ...f, branches: f.branches.map(b => b.uid === d.uid ? { ...b, branchName: e.target.value } : b) }))}
                             placeholder="Branch name"
-                            className="text-xs border border-primary-300 dark:border-primary-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-36 focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            className="text-xs border border-primary-300 dark:border-primary-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 w-full sm:w-36 focus:outline-none focus:ring-1 focus:ring-primary-400"
                             onClick={e => e.stopPropagation()}/>
                         )}
                       </div>
