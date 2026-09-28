@@ -324,44 +324,45 @@ Now here is the patient data to convert:
     >
       {/* Search + filter bar */}
       <div className="flex flex-col gap-3 mb-6">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 min-w-0">
+          <div className="relative flex-1 min-w-0">
             <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
             <input value={query} onChange={e => handleSearch(e.target.value)}
               placeholder="Search patients by name, phone, email…" className="input-field pl-9"/>
           </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field w-40">
-            <option value="all">All Patients</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="deceased">Deceased</option>
-          </select>
-          {/* Filter toggle button */}
-          <button onClick={() => setFilterOpen(o => !o)}
-            className={`relative inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
-              ${filterOpen || activeFilterCount > 0
-                ? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-            </svg>
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+          <div className="flex gap-2 min-w-0 w-full sm:w-auto">
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input-field flex-1 sm:flex-none sm:w-40 min-w-0">
+              <option value="all">All Patients</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="deceased">Deceased</option>
+            </select>
+            <button onClick={() => setFilterOpen(o => !o)}
+              className={`relative inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors shrink-0
+                ${filterOpen || activeFilterCount > 0
+                  ? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+              </svg>
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Filter panel */}
         {filterOpen && (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-5 space-y-5">
 
-            {/* Columns */}
-            <div>
+            {/* Columns — desktop table only */}
+            <div className="hidden lg:block">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Columns</p>
               <div className="flex flex-wrap gap-2">
                 {[
@@ -391,7 +392,7 @@ Now here is the patient data to convert:
               </div>
             </div>
 
-            <div className="border-t border-gray-100 dark:border-gray-700"/>
+            <div className="hidden lg:block border-t border-gray-100 dark:border-gray-700"/>
 
             {/* Field filters */}
             <div>
@@ -480,10 +481,129 @@ Now here is the patient data to convert:
         />
       ) : (
         <>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {filtered.length} patient{filtered.length !== 1 ? 's' : ''}
-          </p>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
+          <div className="flex items-center justify-between gap-3 mb-4 min-w-0">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {filtered.length} patient{filtered.length !== 1 ? 's' : ''}
+            </p>
+            <select
+              value={sortKey ? `${sortKey}-${sortDir}` : ''}
+              onChange={e => {
+                const v = e.target.value
+                if (!v) { setSortKey(null); return }
+                const [k, d] = v.split('-')
+                setSortKey(k)
+                setSortDir(d)
+              }}
+              className="lg:hidden input-field w-auto max-w-[55%] text-xs py-1.5 min-w-0"
+              aria-label="Sort patients"
+            >
+              <option value="">Default order</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+              <option value="uhid-asc">UHID ↑</option>
+              <option value="uhid-desc">UHID ↓</option>
+              <option value="age-asc">Age ↑</option>
+              <option value="age-desc">Age ↓</option>
+              <option value="visits-desc">Most visits</option>
+              <option value="visits-asc">Fewest visits</option>
+            </select>
+          </div>
+
+          {/* Phone: one card per patient so columns never scroll off-screen */}
+          <div className="lg:hidden space-y-3">
+            {filtered.map(patient => {
+              const visitCount = billCountByPatient[patient.id] ?? 0
+              const due = dueBillsByPatient[patient.id] ?? 0
+              const waPhone = patient.phone
+              const age = getPatientAge(patient)
+              return (
+                <div
+                  key={patient.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/patients/${patient.id}`)}
+                  onKeyDown={e => { if (e.key === 'Enter') router.push(`/patients/${patient.id}`) }}
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 min-w-0"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-primary-700 dark:text-primary-300 font-semibold text-sm">{getPatientInitials(patient)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {patient.firstName} {patient.lastName}
+                          </p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {patient.patientNumber && <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">#{patient.patientNumber}</span>}
+                            {age != null && <span>{age} yrs</span>}
+                            {patient.gender && <span className="capitalize">{patient.gender}</span>}
+                            {patient.phone && <span>{patient.phone}</span>}
+                          </p>
+                        </div>
+                        {!doctor?.viewOnly && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeleteId(patient.id) }}
+                            title="Delete patient"
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {patient.status && (
+                          <Badge
+                            label={patient.status}
+                            color={patient.status === 'active' ? 'green' : patient.status === 'deceased' ? 'gray' : 'yellow'}
+                            className="capitalize"
+                          />
+                        )}
+                        {patient.referralSource && (
+                          <Badge label={sourceLabelMap[patient.referralSource] ?? patient.referralSource} color="blue" />
+                        )}
+                        {visitCount > 0 && (
+                          <span className="inline-flex items-center bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-bold px-2 py-0.5 rounded-full">
+                            {visitCount} visit{visitCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {due > 0 && (
+                          <span className="inline-flex items-center bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                            {due} due
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={e => e.stopPropagation()}>
+                    {!doctor?.viewOnly && (
+                      <button
+                        onClick={() => router.push(`/billing/new?patientId=${patient.id}`)}
+                        className="inline-flex items-center justify-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2.5 py-1.5 rounded-lg transition-colors flex-1 min-w-[5.5rem]">
+                        Invoice
+                      </button>
+                    )}
+                    {waPhone && (
+                      <a href={buildWAUrl(waPhone)} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors flex-1 min-w-[5.5rem]">
+                        Chat
+                      </a>
+                    )}
+                    <button onClick={e => openFollowUp(e, patient)}
+                      className="inline-flex items-center justify-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 px-2.5 py-1.5 rounded-lg transition-colors flex-1 min-w-[5.5rem]">
+                      Follow Up
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
@@ -700,15 +820,15 @@ Now here is the patient data to convert:
             </p>
           </div>
         )}
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-col-reverse sm:flex-row flex-wrap gap-3 justify-end">
           <button onClick={() => setFollowUpPatient(null)}
-            className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full sm:w-auto">
             Cancel
           </button>
           <button
             onClick={handleFollowUpSave}
             disabled={!followUpForm.dueDate || followUpSaving}
-            className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center gap-2">
+            className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 w-full sm:w-auto">
             {followUpSaving && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -771,8 +891,8 @@ Now here is the patient data to convert:
 
           {/* ChatGPT prompt */}
           <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Convert your data with ChatGPT</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   Copy this prompt → paste into ChatGPT → add your data at the bottom → paste the output CSV here.
@@ -806,7 +926,7 @@ Now here is the patient data to convert:
             </pre>
           </div>
 
-          <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1 border-t border-gray-100 dark:border-gray-700">
             <button onClick={handleDownloadTemplate}
               className="inline-flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -814,13 +934,13 @@ Now here is the patient data to convert:
               </svg>
               Download blank template
             </button>
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row flex-wrap gap-3">
               <button onClick={() => setShowImportGuide(false)}
-                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full sm:w-auto">
                 Cancel
               </button>
               <label htmlFor="patient-csv-import" onClick={() => setShowImportGuide(false)}
-                className="cursor-pointer px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2">
+                className="cursor-pointer px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center justify-center gap-2 w-full sm:w-auto">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
@@ -835,19 +955,19 @@ Now here is the patient data to convert:
       <Modal open={!!importResult} onClose={() => setImportResult(null)} title="Import Complete" size="sm">
         {importResult && (
           <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="flex-1 bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
+            <div className="flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[6rem] bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
                 <p className="text-2xl font-bold text-green-700 dark:text-green-400">{importResult.imported}</p>
                 <p className="text-xs text-green-600 dark:text-green-500 font-medium mt-0.5">Imported</p>
               </div>
               {importResult.duplicates > 0 && (
-                <div className="flex-1 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 text-center">
+                <div className="flex-1 min-w-[6rem] bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{importResult.duplicates}</p>
                   <p className="text-xs text-yellow-600 dark:text-yellow-500 font-medium mt-0.5">Skipped (duplicate)</p>
                 </div>
               )}
               {importResult.skipped > 0 && (
-                <div className="flex-1 bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
+                <div className="flex-1 min-w-[6rem] bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-red-700 dark:text-red-400">{importResult.skipped}</p>
                   <p className="text-xs text-red-600 dark:text-red-500 font-medium mt-0.5">Failed</p>
                 </div>
@@ -876,14 +996,14 @@ Now here is the patient data to convert:
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
           Are you sure you want to remove this patient? All their records, appointments, and invoices will be deleted permanently.
         </p>
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-col-reverse sm:flex-row flex-wrap gap-3 justify-end">
           <button onClick={() => setDeleteId(null)}
-            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full sm:w-auto">
             Cancel
           </button>
           <button
             onClick={async () => { await remove(deleteId); setDeleteId(null) }}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors w-full sm:w-auto">
             Remove Patient
           </button>
         </div>
