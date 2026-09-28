@@ -84,10 +84,10 @@ export function AppLayout({ children, title, action }) {
 
       <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
         {/* Page header */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0 min-w-0">
           {/* Row 1: hamburger + title + theme toggle (always visible) */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               {/* Hamburger — mobile only */}
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -113,16 +113,16 @@ export function AppLayout({ children, title, action }) {
               <ThemeToggle />
             </div>
           </div>
-          {/* Row 2: action buttons — mobile only */}
+          {/* Row 2: action buttons — mobile only, scroll horizontally instead of wrapping */}
           {action && (
-            <div className="lg:hidden flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="lg:hidden mobile-action-row mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 -mx-4 px-4">
               {action}
             </div>
           )}
         </header>
 
         {/* Page content */}
-        <div className="flex-1 p-4 lg:p-8">
+        <div className="flex-1 p-4 lg:p-8 min-w-0">
           {children}
         </div>
       </main>

@@ -220,4 +220,45 @@
   .stat-card {
     @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-shadow;
   }
+
+  /* Horizontal chip/tab/action rows — scroll instead of wrapping or blowing out the page */
+  .scroll-row {
+    @apply flex flex-nowrap items-center overflow-x-auto overflow-y-hidden max-w-full;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .scroll-row > * {
+    flex-shrink: 0;
+  }
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile header actions: force a single scrolling row even if the page passed flex-wrap */
+.mobile-action-row {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.mobile-action-row::-webkit-scrollbar {
+  display: none;
+}
+.mobile-action-row > * {
+  display: flex;
+  flex-wrap: nowrap !important;
+  width: max-content;
+  max-width: none;
+}
+.mobile-action-row > * > * {
+  flex-shrink: 0;
 }
