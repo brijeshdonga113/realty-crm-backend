@@ -1655,31 +1655,30 @@ export default function PatientProfilePage() {
         </div>
       </div>
 
-      {/* Tabs — wrap onto extra lines on mobile instead of overflowing the page. */}
-      <div className="mb-6 w-full max-w-full bg-gray-100 dark:bg-gray-700 p-1 rounded-xl min-w-0 overflow-x-hidden">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-1 w-full min-w-0">
+      {/* Section tabs: Overview / Follow-ups / Visits / Appointments / Billing.
+          Chips wrap onto extra rows on a phone instead of scrolling off-screen. */}
+      <nav aria-label="Patient sections" className="profile-tab-bar mb-6 w-full min-w-0 max-w-full">
         {TABS.map((t, i) => {
           if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (
           <button key={t} onClick={() => setTab(i)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 w-full lg:w-auto lg:flex-shrink-0
-              ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0
+              ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
             {t}
             {t === 'Follow-ups' && followUpDueCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+              <span className="bg-red-500 text-white text-xs font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">
                 {followUpDueCount}
               </span>
             )}
-            {t === 'Billing' && invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
+            {t === 'Billing' && invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled').length > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
+                {invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled').length} due
               </span>
             )}
           </button>
           )
         })}
-        </div>
-      </div>
+      </nav>
 
       {/* Tab 0: Overview */}
       {tab === 0 && (
