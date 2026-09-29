@@ -57,7 +57,7 @@
   html, body {
     @apply antialiased;
     max-width: 100vw;
-    overflow-x: clip;
+    overflow-x: hidden;
     overscroll-behavior-x: none;
   }
 }
@@ -226,8 +226,8 @@
 }
 
 /* ── App-wide mobile layout (< lg / 1024px) ─────────────────────────────────
-   Flatten page action wrappers so every button is a grid item. Nested flex
-   rows cannot grow past the viewport and clip the title.
+   Page actions wrap in the slot below the title. Nested flex rows use
+   min-width: 0 so they cannot grow past the viewport and clip the heading.
    ────────────────────────────────────────────────────────────────────────── */
 .mobile-action-slot {
   width: 100%;
@@ -263,35 +263,35 @@
 }
 
 @media (max-width: 1023px) {
-  .mobile-action-slot {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  /* Unwrap the typical <div class="flex gap-2"> around page actions,
-     including one nested filter/toggle group. */
+  /* Keep wrappers as real boxes (Safari drops clicks on display:contents)
+     and wrap nested action rows instead of flattening them. */
+  .mobile-action-slot,
   .mobile-action-slot > div,
   .mobile-action-slot > div > div {
-    display: contents;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .mobile-action-slot button,
   .mobile-action-slot a,
   .mobile-action-slot label {
-    width: 100%;
+    flex: 1 1 calc(50% - 0.25rem);
+    width: auto;
     max-width: 100%;
     min-width: 0;
     justify-content: center;
     box-sizing: border-box;
   }
 
-  /* Primary (filled) action — full row when it is the last control */
-  .mobile-action-slot > div > button:last-child:is(.bg-primary-500, [class*="bg-primary-"]),
-  .mobile-action-slot > button:last-child:is(.bg-primary-500, [class*="bg-primary-"]) {
-    grid-column: 1 / -1;
+  .mobile-action-slot button[class*="bg-primary-"],
+  .mobile-action-slot a[class*="bg-primary-"],
+  .mobile-action-slot label[class*="bg-primary-"] {
+    flex-basis: 100%;
   }
 
   .app-content :has(> table) {

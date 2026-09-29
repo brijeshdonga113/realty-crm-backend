@@ -84,9 +84,9 @@ export function AppLayout({ children, title, action }) {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <main className="h-full w-full max-w-[100vw] overflow-y-auto overflow-x-hidden overflow-x-clip flex flex-col min-w-0 lg:flex-1 lg:max-w-none">
+      <main className="h-full w-full max-w-[100vw] overflow-y-auto overflow-x-hidden flex flex-col min-w-0 lg:flex-1 lg:max-w-none">
         {/* Title row only — actions never share this row on mobile */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0 min-w-0 overflow-x-hidden overflow-x-clip">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0 min-w-0 overflow-x-hidden">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
               <button
@@ -115,10 +115,9 @@ export function AppLayout({ children, title, action }) {
           </div>
         </header>
 
-        {/* Mobile actions live outside the title row so they cannot clip the heading.
-            Wrappers are flattened with display:contents; buttons wrap in a 2-col grid. */}
+        {/* Mobile actions live outside the title row so they cannot clip the heading. */}
         {action && (
-          <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-2 flex-shrink-0 min-w-0 overflow-x-hidden overflow-x-clip">
+          <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-2 flex-shrink-0 min-w-0 overflow-x-hidden">
             <div className="mobile-action-slot">
               {action}
             </div>

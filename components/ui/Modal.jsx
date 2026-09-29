@@ -1,15 +1,25 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export function Modal({ open, onClose, title, children, size = 'md' }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
   }, [open, onClose])
 
-  if (!open) return null
+  if (!open || !mounted) return null
 
   const sizes = {
     sm: 'max-w-md',
@@ -18,8 +28,8 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
     xl: 'max-w-4xl',
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/40 backdrop-blur-sm"
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${sizes[size] ?? sizes.md} max-h-[80vh] flex flex-col border border-gray-100 dark:border-gray-700 min-w-0`}>
@@ -38,6 +48,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -126,7 +126,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'Documents']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -584,7 +584,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
 function Section({ title, subtitle, action, accentClass, className = '', children }) {
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden ${className}`}>
-      <div className={`flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
           {subtitle && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 hidden sm:inline">{subtitle}</span>}
@@ -1850,7 +1850,7 @@ export default function PatientProfilePage() {
       {/* Tab 2: Visits */}
       {tab === 2 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4 min-w-0">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Visit History</h3>
             {!doctor?.viewOnly && (
               <button onClick={() => setShowNoteModal(true)}
@@ -2215,8 +2215,8 @@ export default function PatientProfilePage() {
       {/* Tab 5: Documents */}
       {tab === 5 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+            <div className="min-w-0">
               <h3 className="font-semibold text-gray-900 dark:text-white">Patient Documents</h3>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Reports, prescriptions, lab results, images — up to 20 MB each</p>
             </div>
@@ -2341,13 +2341,13 @@ export default function PatientProfilePage() {
               className="input-field" rows={2}/>
           </div>
         </div>
-        <div className="flex gap-3 justify-end mt-6">
+        <div className="flex flex-col-reverse sm:flex-row flex-wrap gap-3 justify-end mt-6">
           <button type="button" onClick={() => setShowNoteModal(false)}
-            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            className="px-4 py-2 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full sm:w-auto">
             Cancel
           </button>
           <button type="button" disabled={savingNote || !noteText.trim()} onClick={handleAddProgressNote}
-            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors">
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors w-full sm:w-auto">
             {savingNote ? 'Saving…' : 'Save Note'}
           </button>
         </div>
