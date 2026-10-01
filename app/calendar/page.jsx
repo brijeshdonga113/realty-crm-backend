@@ -244,11 +244,11 @@ export default function CalendarPage() {
     <AppLayout
       title="Calendar"
       action={
-        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
-          <div className="flex flex-wrap bg-gray-100 dark:bg-gray-700 p-1 rounded-lg min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
             {[['all','All'],['appointments','Appointments'],['follow_ups','Follow-ups'],['new_cases','New Cases'],['events','Events'],['birthdays','Birthdays']].map(([v,l]) => (
               <button key={v} onClick={() => setFilter(v)}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors
                   ${filter === v ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
                 {l}
               </button>
@@ -275,7 +275,7 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         <div className="xl:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
             <button onClick={prevMonth} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
               <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
@@ -291,16 +291,13 @@ export default function CalendarPage() {
 
           <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
             {DAYS.map(d => (
-              <div key={d} className="py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
-                <span className="sm:hidden">{d[0]}</span>
-                <span className="hidden sm:inline">{d}</span>
-              </div>
+              <div key={d} className="py-2 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">{d}</div>
             ))}
           </div>
 
           <div className="grid grid-cols-7">
             {Array.from({ length: firstDay }).map((_, i) => (
-              <div key={`e${i}`} className="h-12 sm:h-24 border-b border-r border-gray-50 dark:border-gray-700"/>
+              <div key={`e${i}`} className="h-24 border-b border-r border-gray-50 dark:border-gray-700"/>
             ))}
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
               const dateStr    = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
@@ -320,7 +317,7 @@ export default function CalendarPage() {
                   onDragOver={draggingAppt ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOverDate(dateStr) } : undefined}
                   onDragLeave={draggingAppt ? () => setDragOverDate(null) : undefined}
                   onDrop={draggingAppt ? (ev) => { ev.preventDefault(); setDragOverDate(null); handleReschedule(draggingAppt, dateStr); setDraggingAppt(null) } : undefined}
-                  className={`h-12 sm:h-24 border-b border-r border-gray-50 dark:border-gray-700 p-0.5 sm:p-1.5 cursor-pointer transition-colors min-w-0
+                  className={`h-24 border-b border-r border-gray-50 dark:border-gray-700 p-1.5 cursor-pointer transition-colors
                     ${isDropTarget ? 'ring-2 ring-inset ring-primary-400 bg-primary-50 dark:bg-primary-900/20' : ''}
                     ${isSel && !isDropTarget ? 'bg-primary-50 dark:bg-primary-900/20' : ''}
                     ${isBlocked && !isSel && !isDropTarget ? 'bg-red-50/60 dark:bg-red-900/10' : ''}
@@ -345,7 +342,7 @@ export default function CalendarPage() {
                       )}
                     </div>
                   </div>
-                  <div className="mt-1 space-y-0.5 hidden sm:block">
+                  <div className="mt-1 space-y-0.5">
                     {isBlocked && (
                       <div className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1 py-0.5 rounded font-medium truncate">
                         Blocked

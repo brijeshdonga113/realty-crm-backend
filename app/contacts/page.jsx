@@ -257,8 +257,8 @@ export default function LeadsPage() {
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Click "Add Lead" to add a walk-in or referral</p>
               </div>
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
-                <table className="w-full min-w-[560px]">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                <table className="w-full">
                   <thead>
                     <tr className="border-b border-purple-50 dark:border-purple-900/30 bg-purple-50/40 dark:bg-purple-900/10">
                       {['Name', 'Phone', 'Source', 'Note', 'Added', ''].map(h => (
@@ -336,8 +336,8 @@ export default function LeadsPage() {
               badge={filteredBooking.length}
               badgeColor="blue"
               subtitle="Booked via appointment link — not yet registered as patients">
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden overflow-x-auto">
-                <table className="w-full min-w-[560px]">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800 shadow-sm overflow-hidden">
+                <table className="w-full">
                   <thead>
                     <tr className="border-b border-blue-50 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-900/10">
                       {['Name', 'Phone', 'Last Booked', 'Appointments', ''].map(h => (

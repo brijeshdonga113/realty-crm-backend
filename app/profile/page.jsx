@@ -388,7 +388,7 @@ export default function ProfilePage() {
                 <input type="text" name="recName" value={form.recName} onChange={handleChange} className="input-field" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">First Name</label>
                   <input type="text" name="firstName" value={form.firstName} onChange={handleChange} className="input-field" />
@@ -414,7 +414,7 @@ export default function ProfilePage() {
 
             {/* Phone + Specialization — doctors only */}
             {!isReceptionist && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">Phone Number</label>
                   <input type="text" name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210" className="input-field" />
@@ -499,7 +499,7 @@ export default function ProfilePage() {
                 autoComplete="current-password"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="form-label">New Password</label>
                 <input

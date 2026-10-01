@@ -146,7 +146,7 @@ export default function FeaturesPage() {
             </div>
             <span className="text-sm font-bold text-gray-900">Cliniwayz</span>
           </Link>
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
+          <div className="flex items-center gap-4">
             <Link href="/#features" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Features</Link>
             <Link href="/#contact" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">Login</Link>

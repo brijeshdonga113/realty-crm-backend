@@ -74,9 +74,7 @@ export function AppLayout({ children, title, action }) {
   }
 
   return (
-    /* On phones this is a block layout (sidebar is a fixed overlay).
-       Flex row starts at lg so the drawer cannot steal width from the page. */
-    <div className="h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden max-w-[100vw] lg:flex">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <Sidebar
         unreadCount={unreadCount}
         appointmentUnreadCount={appointmentUnreadCount}
@@ -84,11 +82,13 @@ export function AppLayout({ children, title, action }) {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <main className="h-full w-full max-w-[100vw] overflow-y-auto overflow-x-hidden overflow-x-clip flex flex-col min-w-0 lg:flex-1 lg:max-w-none">
-        {/* Title row only — actions never share this row on mobile */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0 min-w-0 overflow-x-hidden overflow-x-clip">
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+      <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
+        {/* Page header */}
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 lg:px-8 py-3 lg:py-4 sticky top-0 z-10 flex-shrink-0">
+          {/* Row 1: hamburger + title + theme toggle (always visible) */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Hamburger — mobile only */}
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="lg:hidden relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
@@ -103,9 +103,9 @@ export function AppLayout({ children, title, action }) {
                   </span>
                 )}
               </button>
-              <h1 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white truncate min-w-0">{title}</h1>
+              <h1 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white truncate">{title}</h1>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <GlobalSearch />
               <div className="hidden lg:flex items-center gap-2">
                 {action}
@@ -113,19 +113,16 @@ export function AppLayout({ children, title, action }) {
               <ThemeToggle />
             </div>
           </div>
-        </header>
-
-        {/* Mobile actions live outside the title row so they cannot clip the heading.
-            Wrappers are flattened with display:contents; buttons wrap in a 2-col grid. */}
-        {action && (
-          <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-2 flex-shrink-0 min-w-0 overflow-x-hidden overflow-x-clip">
-            <div className="mobile-action-slot">
+          {/* Row 2: action buttons — mobile only */}
+          {action && (
+            <div className="lg:hidden flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
               {action}
             </div>
-          </div>
-        )}
+          )}
+        </header>
 
-        <div className="flex-1 p-4 lg:p-8 min-w-0 overflow-x-hidden app-content pb-20 lg:pb-8">
+        {/* Page content */}
+        <div className="flex-1 p-4 lg:p-8">
           {children}
         </div>
       </main>

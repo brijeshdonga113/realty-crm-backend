@@ -48,7 +48,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-gray-700">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
         <button onClick={prev} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
           <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
@@ -63,15 +63,12 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
       </div>
       <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
         {DAYS.map(d => (
-          <div key={d} className="py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-semibold text-gray-400 uppercase">
-            <span className="sm:hidden">{d[0]}</span>
-            <span className="hidden sm:inline">{d}</span>
-          </div>
+          <div key={d} className="py-2 text-center text-xs font-semibold text-gray-400 uppercase">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7">
         {Array.from({ length: firstDay }).map((_, i) => (
-          <div key={`empty-${i}`} className="h-12 sm:h-20 border-b border-r border-gray-50 dark:border-gray-700"/>
+          <div key={`empty-${i}`} className="h-20 border-b border-r border-gray-50 dark:border-gray-700"/>
         ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
           const dateStr  = `${calYear}-${String(calMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
@@ -80,7 +77,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
           const isSel    = dateStr === selectedDate
           return (
             <div key={day} onClick={() => onSelectDate(dateStr)}
-              className={`h-12 sm:h-20 border-b border-r border-gray-50 dark:border-gray-700 p-1 sm:p-1.5 cursor-pointer transition-colors min-w-0
+              className={`h-20 border-b border-r border-gray-50 dark:border-gray-700 p-1.5 cursor-pointer transition-colors
                 ${isSel ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
                 ${(firstDay + day - 1) % 7 === 6 ? 'border-r-0' : ''}
               `}
@@ -89,7 +86,7 @@ function CalendarView({ appointments, onSelectDate, selectedDate, onAttend }) {
                 ${isToday ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                 {day}
               </span>
-              <div className="mt-1 space-y-0.5 hidden sm:block">
+              <div className="mt-1 space-y-0.5">
                 {dayAppts.slice(0, 2).map(a => (
                   <div key={a.id}
                     onClick={e => { e.stopPropagation(); if (['scheduled','confirmed'].includes(a.status) && a.patientId && onAttend) onAttend(a) }}
@@ -293,8 +290,8 @@ export default function AppointmentsPage() {
     <AppLayout
       title="Appointments"
       action={
-        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
-          <div className="flex flex-wrap bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
             {['list', 'calendar'].map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1 rounded text-sm font-medium transition-colors
@@ -358,8 +355,8 @@ export default function AppointmentsPage() {
                 {formatDateFull(selectedDate)}
               </h3>
             ) : (
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Filter by date:</label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Filter by date:</label>
                 <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
                   className="input-field text-sm py-1.5 w-40"/>
                 {filterDate && (
