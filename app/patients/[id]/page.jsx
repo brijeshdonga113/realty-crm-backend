@@ -131,9 +131,9 @@ const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
 function InfoRow({ label, value }) {
   if (!value) return null
   return (
-    <div className="min-w-0">
-      <p className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide break-words leading-snug">{label}</p>
-      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5 break-words">{value}</p>
+    <div>
+      <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{value}</p>
     </div>
   )
 }
@@ -303,7 +303,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
           {hasVitals && (
             <div>
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Vital Signs</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
                 {Object.entries(visit.examination.vitalSigns).map(([k, v]) => v ? (
                   <div key={k}>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
@@ -458,7 +458,7 @@ function VisitCard({ visit, onUpdate, onDelete, patientId, patientName, linkedIn
             {linkedInvoice && (
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payment</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="form-label">Amount</label>
                     <input
@@ -546,7 +546,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
   }
 
   return (
-    <div className={`flex flex-wrap items-start sm:items-center gap-3 sm:gap-4 px-4 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
+    <div className={`flex items-center gap-4 px-4 py-3.5 group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors
       ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
@@ -561,7 +561,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
         </div>
         {entry.note && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{entry.note}</p>}
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <button onClick={sendWhatsApp}
           className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 px-2.5 py-1.5 rounded-lg transition-colors">
           {WA_ICON} Remind
@@ -584,7 +584,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
 function Section({ title, subtitle, action, accentClass, className = '', children }) {
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden ${className}`}>
-      <div className={`flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
+      <div className={`flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 ${accentClass ? `border-l-4 ${accentClass} bg-gray-50/60 dark:bg-gray-700/30` : ''}`}>
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
           {subtitle && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 hidden sm:inline">{subtitle}</span>}
@@ -1266,14 +1266,14 @@ export default function PatientProfilePage() {
 
       case 'personal':
         return (
-          <Section key="personal" title="Personal Details"><div className="p-4 sm:p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Section key="personal" title="Personal Details"><div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Date of Birth" value={patient.dateOfBirth} />
               <InfoRow label="National ID" value={patient.nationalId} />
               <InfoRow label="Registration Date" value={patient.createdAt ? formatDate(patient.createdAt.slice(0, 10)) : null} />
               {patient.patientNumber && <InfoRow label="Patient / Case No." value={`#${patient.patientNumber}`} />}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
               <InfoRow label="Phone" value={patient.phone} />
               <InfoRow label="Alt Phone" value={patient.alternatePhone} />
               <InfoRow label="Email" value={patient.email} />
@@ -1358,8 +1358,8 @@ export default function PatientProfilePage() {
 
       case 'insurance':
         return (
-          <Section key="insurance" title="Insurance"><div className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Section key="insurance" title="Insurance"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Provider" value={patient.insuranceProvider} />
               <InfoRow label="Policy #" value={patient.insurancePolicyNumber} />
               <InfoRow label="Group #" value={patient.insuranceGroupNumber} />
@@ -1372,8 +1372,8 @@ export default function PatientProfilePage() {
       case 'emergency_contact':
         if (!patient.emergencyContact?.name) return null
         return (
-          <Section key="emergency_contact" title="Emergency Contact"><div className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Section key="emergency_contact" title="Emergency Contact"><div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
               <InfoRow label="Name" value={patient.emergencyContact.name} />
               <InfoRow label="Relationship" value={patient.emergencyContact.relationship} />
               <InfoRow label="Phone" value={patient.emergencyContact.phone} />
@@ -1410,9 +1410,9 @@ export default function PatientProfilePage() {
 
       case 'generals':
         return (
-          <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-4 sm:p-6">
-            <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-x-auto">
-              <table className="w-full min-w-[280px]">
+          <Section key="generals" title="Generals" subtitle="Constitutional symptoms"><div className="p-6">
+            <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+              <table className="w-full">
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {[
                     ['appetite','Appetite'],['taste','Taste'],['thirst','Thirst'],['urine','Urine'],
@@ -1420,7 +1420,7 @@ export default function PatientProfilePage() {
                     ['speed','Speed'],['fastidious','Fastidious'],['sleep','Sleep'],['dreams','Dreams'],
                   ].map(([key, label], i) => (
                     <tr key={key} className={i % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                      <td className="px-4 py-3 w-28 sm:w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm whitespace-pre-wrap ${patient.generals?.[key] ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
                           {patient.generals?.[key] || '—'}
@@ -1430,7 +1430,7 @@ export default function PatientProfilePage() {
                   ))}
                   {(patient.customGenerals ?? []).filter(g => g.label).map((field, i) => (
                     <tr key={field.id} className={(11 + i) % 2 === 0 ? 'bg-gray-50/60 dark:bg-gray-700/20' : ''}>
-                      <td className="px-4 py-3 w-28 sm:w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
+                      <td className="px-4 py-3 w-40 text-sm font-semibold text-gray-700 dark:text-gray-300">{field.label}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm whitespace-pre-wrap ${field.value ? 'text-gray-700 dark:text-gray-200' : 'text-gray-300 dark:text-gray-600'}`}>
                           {field.value || '—'}
@@ -1562,14 +1562,14 @@ export default function PatientProfilePage() {
     <AppLayout
       title="Patient Profile"
       action={
-        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => router.push('/patients')}
-            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1.5 transition-colors whitespace-nowrap flex-shrink-0">
+            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1.5 transition-colors">
             ← Back
           </button>
           {!doctor?.viewOnly && (
             <button onClick={() => router.push(`/patients/${id}/edit`)}
-              className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+              className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
               </svg>
@@ -1577,7 +1577,7 @@ export default function PatientProfilePage() {
             </button>
           )}
           <button onClick={() => window.print()}
-            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
@@ -1585,7 +1585,7 @@ export default function PatientProfilePage() {
           </button>
           {!doctor?.viewOnly && (
             <button onClick={() => setShowDeleteModal(true)}
-              className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+              className="border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
               </svg>
@@ -1594,7 +1594,7 @@ export default function PatientProfilePage() {
           )}
           {!doctor?.viewOnly && (
             <button onClick={() => router.push(`/visits/new?patientId=${id}`)}
-              className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+              className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
               </svg>
@@ -1605,13 +1605,13 @@ export default function PatientProfilePage() {
       }
     >
       {/* Profile header */}
-      <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-4 sm:p-6 mb-6 text-white flex items-start sm:items-center gap-4 sm:gap-5 min-w-0">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
+      <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 mb-6 text-white flex items-center gap-5">
+        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
           <span className="text-white font-bold text-xl">{getPatientInitials(patient)}</span>
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-xl sm:text-2xl font-bold break-words">{patient.firstName} {patient.lastName}</h2>
+            <h2 className="text-2xl font-bold">{patient.firstName} {patient.lastName}</h2>
             <Badge label={patient.status} color={STATUS_COLORS[patient.status] ?? 'gray'} />
             {patient.patientNumber && (
               <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -1624,7 +1624,7 @@ export default function PatientProfilePage() {
               </span>
             )}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-primary-100 text-sm">
+          <div className="flex flex-wrap gap-4 mt-2 text-primary-100 text-sm">
             {age != null && <span>{age} years old</span>}
             <span className="capitalize">{patient.gender}</span>
             {patient.bloodType && <span className="font-semibold text-white">{patient.bloodType}</span>}
@@ -1655,30 +1655,29 @@ export default function PatientProfilePage() {
         </div>
       </div>
 
-      {/* Section tabs: Overview / Follow-ups / Visits / Appointments / Billing.
-          Chips wrap onto extra rows on a phone instead of scrolling off-screen. */}
-      <nav aria-label="Patient sections" className="profile-tab-bar mb-6 w-full min-w-0 max-w-full">
+      {/* Tabs — receptionists only see Appointments and Billing */}
+      <div className="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit overflow-x-auto">
         {TABS.map((t, i) => {
           if (isReceptionist && (t === 'Overview' || t === 'Follow-ups' || t === 'Visits' || t === 'Documents')) return null
           return (
           <button key={t} onClick={() => setTab(i)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0
-              ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5
+              ${tab === i ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
             {t}
             {t === 'Follow-ups' && followUpDueCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">
+              <span className="bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
                 {followUpDueCount}
               </span>
             )}
-            {t === 'Billing' && invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled').length > 0 && (
+            {t === 'Billing' && invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled').length} due
+                {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
               </span>
             )}
           </button>
           )
         })}
-      </nav>
+      </div>
 
       {/* Tab 0: Overview */}
       {tab === 0 && (
@@ -1779,7 +1778,7 @@ export default function PatientProfilePage() {
           ) : (
             <>
               {/* Summary row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 {[
                   { label: 'Overdue',  count: overdueFollowUps.length,  color: 'text-red-600 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800' },
                   { label: 'Today',    count: todayFollowUps.length,    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800' },
@@ -1998,8 +1997,8 @@ export default function PatientProfilePage() {
             <EmptyState title="No appointments" description="This patient has no appointments scheduled."
               action={() => router.push(`/appointments/new?patientId=${id}`)} actionLabel="Schedule Appointment"/>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-x-auto">
-              <table className="w-full min-w-[520px]">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                     {['Date & Time', 'Type', 'Reason', 'Status'].map(h => (
@@ -2054,8 +2053,8 @@ export default function PatientProfilePage() {
             <EmptyState title="No invoices" description={isReceptionist ? "You haven't created any invoices for this patient yet." : "No billing history for this patient."}
               action={!doctor?.viewOnly ? () => router.push(`/billing/new?patientId=${id}`) : undefined} actionLabel="Create Invoice"/>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-x-auto">
-              <table className="w-full min-w-[720px]">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                     {['Invoice #', 'Date', 'Description', 'Method', 'Amount', 'Status', 'Actions'].map(h => (

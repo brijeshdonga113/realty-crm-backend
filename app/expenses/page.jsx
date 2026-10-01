@@ -132,8 +132,8 @@ export default function ExpensesPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex flex-wrap gap-3 items-center">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search description…"
-            className="input-field py-1.5 text-sm w-full sm:w-48 flex-shrink-0"/>
-          <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="input-field py-1.5 text-sm w-full sm:w-44 flex-shrink-0">
+            className="input-field py-1.5 text-sm w-48 flex-shrink-0"/>
+          <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="input-field py-1.5 text-sm w-44 flex-shrink-0">
             <option value="all">All Categories</option>
             {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
@@ -151,7 +151,7 @@ export default function ExpensesPage() {
               Clear filters
             </button>
           )}
-          <div className="w-full sm:w-auto sm:ml-auto text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <div className="ml-auto text-sm font-semibold text-gray-700 dark:text-gray-300">
             {filtered.length} record{filtered.length !== 1 ? 's' : ''} · {formatCurrency(totalFiltered)}
           </div>
         </div>
@@ -172,8 +172,8 @@ export default function ExpensesPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
-            <table className="w-full text-sm min-w-[520px]">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>

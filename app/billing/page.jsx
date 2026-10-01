@@ -183,7 +183,7 @@ function BillingPageInner() {
       }
     >
       {/* Stats — hidden for receptionists */}
-      {!isReceptionist && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {!isReceptionist && <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Total Revenue', value: formatCurrency(stats.revenue), color: 'green', sub: 'from paid invoices' },
           { label: 'Pending',       value: formatCurrency(stats.pending), color: 'teal',  sub: 'awaiting payment' },
@@ -256,7 +256,7 @@ function BillingPageInner() {
         />
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
-          <table className="w-full min-w-[640px]">
+          <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
                 {['Invoice #', 'Patient', 'Date', 'Items', 'Total', 'Status', ...(isReceptionist ? [] : ['Created By']), 'Actions'].map(h => (

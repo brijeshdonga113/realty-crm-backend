@@ -216,7 +216,7 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {todayAppts.map(appt => (
-                <div key={appt.id} className="px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
+                <div key={appt.id} className="px-6 py-4 flex items-center gap-4">
                   <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
                       {appt.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                     </button>
                     <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time}</p>
                     <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
                     {['scheduled','confirmed'].includes(appt.status) && (
@@ -373,7 +373,7 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {twoDayFollowups.map(f => (
-              <div key={f.id} className="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
+              <div key={f.id} className="px-6 py-4 flex items-center gap-4">
                 <div className="w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                   <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -408,7 +408,7 @@ export default function DashboardPage() {
           <div className="divide-y divide-gray-50 dark:divide-gray-700">
             {stats.visits.recent.map(v => (
               <div key={v.id} onClick={() => router.push(`/patients/${v.patientId}`)}
-                className="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3 sm:gap-4 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors min-w-0">
+                className="px-6 py-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
                     {v.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || '?'}
@@ -450,7 +450,7 @@ export default function DashboardPage() {
       <AppLayout
         title={activeManagedDoctor?.clinicName || activeBranch?.branchName || doctor?.clinicName || 'Dashboard'}
         action={
-          <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
+          <div className="flex items-center gap-2">
             <button onClick={cancelCustomize}
               className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               Cancel
@@ -564,7 +564,7 @@ export default function DashboardPage() {
     <AppLayout
       title={doctor?.clinicName || 'Dashboard'}
       action={
-        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
+        <div className="flex items-center gap-2">
           {doctor?.bookingSlug && (
             <button
               onClick={() => {
@@ -612,7 +612,7 @@ export default function DashboardPage() {
       <div className="space-y-7">
 
         {/* Welcome banner — always shown */}
-        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-4 sm:p-6 text-white flex flex-wrap items-center justify-between gap-4 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-2xl p-6 text-white flex items-center justify-between gap-4 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/5 rounded-full blur-2xl" />
             <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
