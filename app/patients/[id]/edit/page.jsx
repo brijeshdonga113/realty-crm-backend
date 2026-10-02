@@ -250,7 +250,7 @@ export default function EditPatientPage() {
 
   return (
     <AppLayout title="Edit Patient" action={<ActionBar/>}>
-      <div className="max-w-5xl mx-auto pb-12 space-y-5">
+      <div className="max-w-5xl mx-auto pb-12 space-y-5" style={{ overflowAnchor: 'none' }}>
 
         {/* ── Patient Profile ───────────────────────────────────────────── */}
         <SectionCard accentColor="teal" title="Patient Profile"
