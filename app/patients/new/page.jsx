@@ -473,6 +473,7 @@ function NewCaseForm() {
                         <input
                           value={row[field]}
                           onChange={e => setComplaint(i, field, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                           placeholder="—"
                           className="input-field text-sm py-2 w-full"
                         />
@@ -519,6 +520,7 @@ function NewCaseForm() {
                 <AutoTextarea
                   value={form.generals[key]}
                   onChange={e => setGeneral(key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder={`Enter ${label.toLowerCase()}…`}
                   className="input-field flex-1 text-sm py-2 resize"
                 />
@@ -530,12 +532,14 @@ function NewCaseForm() {
                 <input
                   value={g.label}
                   onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                   placeholder="Parameter…"
                   className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"
                 />
                 <AutoTextarea
                   value={g.value}
                   onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder="Enter value…"
                   className="input-field flex-1 text-sm py-2 resize"
                 />
