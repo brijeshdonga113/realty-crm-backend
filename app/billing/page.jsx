@@ -11,7 +11,7 @@ import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
-import { buildWAUrl } from '@/lib/whatsapp'
+import { buildWAUrl, buildInvoiceWhatsAppMessage } from '@/lib/whatsapp'
 
 function InvoicePrint({ invoice, doctor }) {
   const { formatCurrency, formatDate } = usePreferences()
@@ -101,10 +101,14 @@ function InvoicePrint({ invoice, doctor }) {
   )
 }
 
-function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
-  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
+function buildWhatsAppMessage(inv, fmtCurrency, fmtDate, doctor, billingStatuses) {
   // buildWAUrl() encodes this text itself — don't pre-encode here or it gets double-encoded
-  return `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
+  return buildInvoiceWhatsAppMessage(inv, {
+    formatCurrency: fmtCurrency,
+    formatDate: fmtDate,
+    doctor,
+    billingStatuses,
+  })
 }
 
 function BillingPageInner() {
@@ -333,7 +337,7 @@ function BillingPageInner() {
                       </button>
                       {inv.patientPhone && (
                         <a
-                          href={buildWAUrl(inv.patientPhone, buildWhatsAppMessage(inv, formatCurrency, formatDate))}
+                          href={buildWAUrl(inv.patientPhone, buildWhatsAppMessage(inv, formatCurrency, formatDate, doctor, billingStatuses))}
                           target="_blank" rel="noopener noreferrer"
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
                           title="Send via WhatsApp"
@@ -403,7 +407,7 @@ function BillingPageInner() {
               <div className="flex items-center gap-2">
                 {printInvoice.patientPhone && (
                   <a
-                    href={buildWAUrl(printInvoice.patientPhone, buildWhatsAppMessage(printInvoice, formatCurrency, formatDate))}
+                    href={buildWAUrl(printInvoice.patientPhone, buildWhatsAppMessage(printInvoice, formatCurrency, formatDate, doctor, billingStatuses))}
                     target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                     title="Send invoice via WhatsApp"
