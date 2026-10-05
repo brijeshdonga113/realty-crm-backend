@@ -4,7 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import { DEFAULT_INVOICE_WA_TEMPLATE } from '@/lib/whatsapp'
+import { DEFAULT_INVOICE_WA_TEMPLATE, DEFAULT_PACKAGE_WA_TEMPLATE } from '@/lib/whatsapp'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -43,10 +43,16 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent when sharing an invoice with a patient via WhatsApp',
     template: DEFAULT_INVOICE_WA_TEMPLATE,
   },
+  package: {
+    label: 'Package / Installment Reminder',
+    description: 'Sent from Packages → Reminders when an installment is due',
+    template: DEFAULT_PACKAGE_WA_TEMPLATE,
+  },
 }
 
 const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}']
 const INVOICE_VARIABLES = ['{invoice}', '{items}', '{total}', '{status}']
+const PACKAGE_VARIABLES = ['{name}', '{clinic}', '{date}', '{days}', '{package}', '{installment}', '{amount}', '{remaining}']
 const EMOJIS = ['😊', '👋', '🏥', '📅', '⏰', '💊', '❤️', '✅', '🙏', '📞', '💉', '🩺']
 
 function TemplateCard({ id, config, value, onChange, onReset, dateFormat, extraVariables = [] }) {
@@ -65,6 +71,10 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat, extraV
     .replace(/\{items\}/g, '• Consultation x1 — ₹500')
     .replace(/\{total\}/g, '₹500')
     .replace(/\{status\}/g, 'Due')
+    .replace(/\{package\}/g, 'Hair transplant bundle')
+    .replace(/\{installment\}/g, '2')
+    .replace(/\{amount\}/g, '₹5,000')
+    .replace(/\{remaining\}/g, '₹15,000')
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -241,7 +251,11 @@ export default function WhatsAppTemplatesPage() {
               ['{invoice}', 'Invoice number'],
               ['{items}',   'Invoice line items'],
               ['{total}',   'Invoice total amount'],
-              ['{status}',  'Payment status (Due / Paid)'],
+              ['{status}',      'Payment status (Due / Paid)'],
+              ['{package}',     'Package / bundle name'],
+              ['{installment}', 'Installment number'],
+              ['{amount}',      'Amount due this installment'],
+              ['{remaining}',   'Remaining package balance'],
             ].map(([v, desc]) => (
               <div key={v} className="text-xs">
                 <span className="font-mono font-semibold text-primary-700 dark:text-primary-300">{v}</span>
@@ -261,7 +275,13 @@ export default function WhatsAppTemplatesPage() {
             onChange={handleChange}
             onReset={handleReset}
             dateFormat={dateFormat}
-            extraVariables={id === 'invoice' ? ['{name}', '{clinic}', '{date}', ...INVOICE_VARIABLES] : undefined}
+            extraVariables={
+              id === 'invoice'
+                ? ['{name}', '{clinic}', '{date}', ...INVOICE_VARIABLES]
+                : id === 'package'
+                  ? PACKAGE_VARIABLES
+                  : undefined
+            }
           />
         ))}
 

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import { createInstallments, splitInstallmentAmounts } from '@/models/Package'
+import { createInstallments, installmentDueDate, splitInstallmentAmounts } from '@/models/Package'
 import { usePreferences } from '@/hooks/usePreferences'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -32,6 +32,7 @@ export function AssignPackageModal({
     notes:            '',
   })
   const [customSplits, setCustomSplits] = useState([])
+  const [customDues, setCustomDues]     = useState([])
 
   useEffect(() => {
     if (!open) return
@@ -51,6 +52,7 @@ export function AssignPackageModal({
       notes:            tmpl?.notes ?? '',
     })
     setCustomSplits([])
+    setCustomDues([])
   }, [open, defaultPatientId, defaultTemplateId, templates])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -70,6 +72,7 @@ export function AssignPackageModal({
       notes:            tmpl.notes ?? f.notes,
     }))
     setCustomSplits([])
+    setCustomDues([])
   }
 
   const count = Math.max(1, Number(form.installmentCount) || 1)
@@ -96,6 +99,7 @@ export function AssignPackageModal({
   const handleCountChange = (value) => {
     set('installmentCount', value)
     setCustomSplits([])
+    setCustomDues([])
   }
 
   const handleTotalChange = (value) => {
@@ -103,10 +107,26 @@ export function AssignPackageModal({
     setCustomSplits([])
   }
 
+  const handleStartDateChange = (value) => {
+    set('startDate', value)
+    setCustomDues([])
+  }
+
   const handleSplitChange = (idx, value) => {
     const next = [...preview]
     next[idx] = Number(value) || 0
     setCustomSplits(next)
+  }
+
+  const duePreview = useMemo(() => {
+    if (customDues.length === count) return customDues
+    return Array.from({ length: count }, (_, i) => installmentDueDate(form.startDate || today(), i))
+  }, [customDues, count, form.startDate])
+
+  const handleDueChange = (idx, value) => {
+    const next = [...duePreview]
+    next[idx] = value
+    setCustomDues(next)
   }
 
   const splitSum = preview.reduce((s, n) => s + (Number(n) || 0), 0)
@@ -122,9 +142,11 @@ export function AssignPackageModal({
     setError('')
     try {
       const amounts = customSplits.length === count ? customSplits : splitInstallmentAmounts(total, count)
-      const installments = createInstallments(total, count).map((item, i) => ({
+      const dues = customDues.length === count ? customDues : duePreview
+      const installments = createInstallments(total, count, form.startDate).map((item, i) => ({
         ...item,
         amount: Number(amounts[i]) || 0,
+        dueDate: dues[i] || item.dueDate,
       }))
       await onSave({
         patientId:        form.patientId,
@@ -223,7 +245,7 @@ export function AssignPackageModal({
           </div>
           <div>
             <label className="form-label">Start date</label>
-            <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} className="input-field"/>
+            <input type="date" value={form.startDate} onChange={e => handleStartDateChange(e.target.value)} className="input-field"/>
           </div>
         </div>
 
@@ -236,13 +258,19 @@ export function AssignPackageModal({
         {total > 0 && (
           <div>
             <label className="form-label">Installment split</label>
-            <p className="text-xs text-gray-400 mb-2">Amounts are split evenly. Adjust any installment before assigning.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <p className="text-xs text-gray-400 mb-2">Amounts are split evenly. Due dates default to monthly from the start date — adjust either before assigning.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {preview.map((amt, i) => (
-                <div key={i}>
+                <div key={i} className="rounded-lg border border-gray-100 dark:border-gray-700 p-2">
                   <label className="text-xs text-gray-500 dark:text-gray-400">#{i + 1}</label>
-                  <input type="number" min="0" step="0.01" value={amt}
-                    onChange={e => handleSplitChange(i, e.target.value)} className="input-field py-1.5 text-sm"/>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <input type="number" min="0" step="0.01" value={amt}
+                      onChange={e => handleSplitChange(i, e.target.value)} className="input-field py-1.5 text-sm"
+                      aria-label={`Installment ${i + 1} amount`}/>
+                    <input type="date" value={duePreview[i] || ''}
+                      onChange={e => handleDueChange(i, e.target.value)} className="input-field py-1.5 text-sm"
+                      aria-label={`Installment ${i + 1} due date`}/>
+                  </div>
                 </div>
               ))}
             </div>

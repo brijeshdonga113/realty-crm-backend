@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
-import { getPackageStatusMeta, INSTALLMENT_PAYMENT_METHODS, summarizePackage } from '@/models/Package'
+import { getPackageStatusMeta, INSTALLMENT_PAYMENT_METHODS, resolveInstallmentDueDate, summarizePackage } from '@/models/Package'
 import { usePreferences } from '@/hooks/usePreferences'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -69,6 +69,7 @@ export function PackageDetailModal({
   onRemovePayment,
   onCancel,
   onDelete,
+  onUpdate,
   viewOnly = false,
 }) {
   const { formatCurrency, formatDate } = usePreferences()
@@ -294,7 +295,20 @@ export function PackageDetailModal({
                         {inst.paidDate ? ` on ${formatDate(inst.paidDate)}` : ''}
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-400 mt-1">Pending</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Due {formatDate(resolveInstallmentDueDate(inst, pkg))}
+                      </p>
+                    )}
+                    {!locked && !inst.paid && onUpdate && (
+                      <input type="date" value={resolveInstallmentDueDate(inst, pkg)}
+                        onChange={e => {
+                          const dueDate = e.target.value
+                          const installments = (pkg.installments ?? []).map(item =>
+                            item.id === inst.id ? { ...item, dueDate } : item
+                          )
+                          onUpdate(pkg.id, { installments })
+                        }}
+                        className="input-field py-1 mt-2 text-xs w-40"/>
                     )}
                   </div>
                   {!locked && (
