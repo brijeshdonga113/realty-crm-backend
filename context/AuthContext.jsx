@@ -117,7 +117,7 @@ async function loadReceptionistSession(uid, userEmail) {
     ...ownPrefs,
     // Per-receptionist viewOnly overrides the clinic-level flag
     viewOnly: recViewOnly ?? doctorProfile.viewOnly ?? false,
-    // Per-module access toggles (Inventory/Billing/Expenses/Reports). Missing
+    // Per-module access toggles (Inventory/Billing/Packages/Expenses/Reports). Missing
     // key = no access — accounts created before this feature default closed.
     permissions: recPermissions ?? {},
     _role: 'receptionist',

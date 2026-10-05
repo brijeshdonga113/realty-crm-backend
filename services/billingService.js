@@ -1,5 +1,5 @@
 import { dataStore } from '@/lib/dataStore'
-import { createInvoice, calculateInvoiceTotals } from '@/models/Invoice'
+import { createInvoice, createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
 import { inventoryService } from './inventoryService'
 import { patientService } from './patientService'
 
@@ -65,6 +65,35 @@ export const billingService = {
     const saved = await dataStore.create(COLLECTION, invoice)
 
     return saved
+  },
+
+  async createFromPackagePayment(pkg, payment) {
+    const amount = Number(payment.amount) || 0
+    const method = payment.paymentMethod === 'cheque' ? 'bank_transfer' : (payment.paymentMethod || 'cash')
+    const description = payment.installmentId
+      ? `${pkg.name} — installment payment`
+      : `${pkg.name} — package payment`
+    let collectedBy = ''
+    try {
+      const session = JSON.parse(localStorage.getItem('clinic_crm_doctor') ?? 'null')
+      collectedBy = session?._role === 'receptionist' ? 'receptionist' : 'doctor'
+    } catch {}
+    return this.create({
+      patientId:         pkg.patientId,
+      patientName:       pkg.patientName,
+      patientPhone:      pkg.patientPhone,
+      issueDate:         payment.date || new Date().toISOString().slice(0, 10),
+      status:            'paid',
+      paymentMethod:     method,
+      paymentDate:       payment.date || new Date().toISOString().slice(0, 10),
+      collectedBy,
+      lineItems:         [createLineItem({ description, quantity: 1, unitPrice: amount, itemType: 'package' })],
+      source:            'package',
+      packageId:         pkg.id,
+      packageName:       pkg.name,
+      packagePaymentId:  payment.id,
+      notes:             payment.notes || '',
+    })
   },
 
   async update(id, patch) {

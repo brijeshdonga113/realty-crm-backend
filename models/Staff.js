@@ -26,6 +26,7 @@ export const STAFF_STATUSES = [
 export const STAFF_MODULES = [
   { value: 'inventory', label: 'Inventory' },
   { value: 'billing',   label: 'Billing' },
+  { value: 'packages',  label: 'Packages' },
   { value: 'expenses',  label: 'Expenses' },
   { value: 'reports',   label: 'Reports' },
 ]

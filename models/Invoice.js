@@ -93,7 +93,16 @@ export function createInvoice(data = {}) {
     createdBy: data.createdBy ?? null,
     createdAt: data.createdAt ?? now,
     updatedAt: now,
+
+    source:            data.source ?? 'invoice',
+    packageId:         data.packageId ?? null,
+    packageName:       data.packageName ?? null,
+    packagePaymentId:  data.packagePaymentId ?? null,
   }
+}
+
+export function isPackageInvoice(inv) {
+  return inv?.source === 'package' || !!inv?.packageId
 }
 
 export function getInvoiceStatusMeta(status) {

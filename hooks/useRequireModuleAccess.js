@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 
 // Redirects a receptionist/staff account away from a module page they
-// haven't been granted access to (Inventory/Billing/Expenses/Reports).
+// haven't been granted access to (Inventory/Billing/Packages/Expenses/Reports).
 // Doctors always pass. Call at the top of a page component:
 //   useRequireModuleAccess('inventory')
 export function useRequireModuleAccess(moduleKey) {
