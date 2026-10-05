@@ -7,6 +7,7 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useToast } from '@/components/ui/Toast'
 
 const GENERALS_CONFIG = [
@@ -54,6 +55,15 @@ function TagInput({ label, items, onChange, suggestions = [] }) {
     if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
     setInput('')
   }
+  const available = suggestions.filter(s =>
+    !items.includes(s) && (!input.trim() || s.toLowerCase().includes(input.trim().toLowerCase()))
+  )
+  const commit = () => {
+    const typed = input.trim()
+    if (!typed) return
+    const exact = available.find(s => s.toLowerCase() === typed.toLowerCase())
+    add(exact || typed)
+  }
   return (
     <div>
       <label className="form-label">{label}</label>
@@ -67,19 +77,33 @@ function TagInput({ label, items, onChange, suggestions = [] }) {
       </div>
       <div className="flex gap-2">
         <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
+          onKeyDown={e => {
+            if (e.key !== 'Enter') return
+            // Native datalist + Enter both inserts the suggestion and adds a
+            // chip, leaving the field still "open". Treat Enter as commit only.
+            e.preventDefault()
+            e.stopPropagation()
+            commit()
+          }}
           placeholder="Type and press Enter"
           className="input-field flex-1"
-          list={`tag-${label}`}
+          autoComplete="off"
         />
-        {suggestions.length > 0 && (
-          <datalist id={`tag-${label}`}>{suggestions.map(s => <option key={s} value={s}/>)}</datalist>
-        )}
-        <button type="button" onClick={() => add(input)}
+        <button type="button" onClick={commit}
           className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
           Add
         </button>
       </div>
+      {available.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {available.slice(0, 8).map(s => (
+            <button key={s} type="button" onClick={() => add(s)}
+              className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-primary-50 dark:hover:bg-primary-900/30 text-gray-600 dark:text-gray-300 hover:text-primary-700 dark:hover:text-primary-300 rounded-full transition-colors">
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -227,7 +251,7 @@ export default function EditPatientPage() {
 
   return (
     <AppLayout title="Edit Patient" action={<ActionBar/>}>
-      <div className="max-w-5xl mx-auto pb-12 space-y-5">
+      <div className="max-w-5xl mx-auto pb-12 space-y-5" style={{ overflowAnchor: 'none' }}>
 
         {/* ── Patient Profile ───────────────────────────────────────────── */}
         <SectionCard accentColor="teal" title="Patient Profile"
@@ -391,28 +415,29 @@ export default function EditPatientPage() {
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
-            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
-              placeholder="Doctor's initial observations…" className="input-field resize"/>
+            <RichTextEditor value={form.observation} onChange={v => set('observation', v)}
+              placeholder="Doctor's initial observations…"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
-            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
+            <RichTextEditor value={form.pastHistory} onChange={v => set('pastHistory', v)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
-            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
+            <RichTextEditor value={form.familyHistory} onChange={v => set('familyHistory', v)}
+              placeholder="Hereditary conditions, family medical background…"/>
           </div>
 
           {/* Notes */}
           <div>
             <label className="form-label">Notes</label>
-            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
+            <RichTextEditor value={form.notes} onChange={v => set('notes', v)}
+              placeholder="Additional notes…"/>
           </div>
         </SectionCard>
 
@@ -441,9 +466,14 @@ export default function EditPatientPage() {
                 {form.chiefComplaints.map((row, i) => (
                   <tr key={i}>
                     {['complaint','location','sensation','modality','concomitant'].map(field => (
-                      <td key={field} className="px-1.5 py-2 align-top">
-                        <AutoTextarea value={row[field]} onChange={e => setComplaint(i, field, e.target.value)}
-                          placeholder="—" className="input-field text-sm py-2 w-full resize-none"/>
+                      <td key={field} className="px-1.5 py-2">
+                        <input
+                          value={row[field]}
+                          onChange={e => setComplaint(i, field, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+                          placeholder="—"
+                          className="input-field text-sm py-2 w-full"
+                        />
                       </td>
                     ))}
                     <td className="px-1.5 py-2 text-center">
@@ -472,14 +502,17 @@ export default function EditPatientPage() {
               <div key={key} className="flex items-start gap-4 py-3">
                 <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">{label}</label>
                 <AutoTextarea value={form.generals[key]} onChange={e => setGeneral(key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder={`Enter ${label.toLowerCase()}…`} className="input-field flex-1 text-sm py-2 resize"/>
               </div>
             ))}
             {form.customGenerals.map(g => (
               <div key={g.id} className="flex items-start gap-3 py-3">
                 <input value={g.label} onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                   placeholder="Parameter…" className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"/>
                 <AutoTextarea value={g.value} onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder="Enter value…" className="input-field flex-1 text-sm py-2 resize"/>
                 <button type="button" onClick={() => removeCustomGeneral(g.id)}
                   className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">×</button>
@@ -496,25 +529,22 @@ export default function EditPatientPage() {
         {/* ── History of (H/o) ─────────────────────────────────────────── */}
         <SectionCard accentColor="purple" title={`${form.gender === 'female' ? 'Female' : 'Male'} — History of (H/o)`}
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>}>
-          <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
-            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.historyOf} onChange={v => set('historyOf', v)}
+            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"/>
         </SectionCard>
 
         {/* ── Life Span ─────────────────────────────────────────────────── */}
         <SectionCard accentColor="orange" title="Life Span"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>}>
-          <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
-            placeholder="Key life events, miasmatic background, constitutional timeline…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.lifeSpan} onChange={v => set('lifeSpan', v)}
+            placeholder="Key life events, miasmatic background, constitutional timeline…"/>
         </SectionCard>
 
         {/* ── Prescription Details ──────────────────────────────────────── */}
         <SectionCard accentColor="teal" title="Prescription Details"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>}>
-          <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
-            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.prescriptionDetails} onChange={v => set('prescriptionDetails', v)}
+            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"/>
         </SectionCard>
 
         {/* ── Emergency Contact ─────────────────────────────────────────── */}

@@ -1,17 +1,19 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
+import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS, isPackageInvoice } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
-import { buildWAUrl } from '@/lib/whatsapp'
+import { buildWAUrl, buildInvoiceWhatsAppMessage } from '@/lib/whatsapp'
+import { formatDate as fmtDateLib } from '@/lib/preferences'
 
 function InvoicePrint({ invoice, doctor }) {
   const { formatCurrency, formatDate } = usePreferences()
@@ -101,10 +103,20 @@ function InvoicePrint({ invoice, doctor }) {
   )
 }
 
-function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
-  const items = inv.lineItems?.map(i => `• ${i.description} x${i.quantity} — ${fmtCurrency(i.quantity * i.unitPrice)}`).join('\n') ?? ''
+function buildWhatsAppMessage(inv, doctor, fmtCurrency, fmtDate, statusLabel) {
+  const waFmt = doctor?.waTemplates?.dateFormat
   // buildWAUrl() encodes this text itself — don't pre-encode here or it gets double-encoded
-  return `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
+  return buildInvoiceWhatsAppMessage(inv, {
+    template: doctor?.waTemplates?.invoice?.template,
+    clinicName: doctor?.clinicName,
+    formatCurrency: fmtCurrency,
+    formatDate: d => waFmt ? fmtDateLib(d, waFmt) : fmtDate(d),
+    statusLabel,
+  })
+}
+
+function invoiceWhatsAppPhone(inv, patientsById) {
+  return inv.patientPhone || patientsById[inv.patientId]?.phone || ''
 }
 
 function BillingPageInner() {
@@ -114,6 +126,11 @@ function BillingPageInner() {
   const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, remove } = useBilling()
+  const { patients } = usePatients()
+  const patientsById = useMemo(
+    () => Object.fromEntries(patients.map(p => [p.id, p])),
+    [patients]
+  )
   const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
   const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
   const [pageTab,         setPageTab]         = useState(searchParams.get('tab') === 'bundles' ? 'bundles' : 'invoices')
@@ -125,6 +142,14 @@ function BillingPageInner() {
   const [payModal, setPayModal]           = useState(null)
   const [payMethod, setPayMethod]         = useState('cash')
   const [payCollectedBy, setPayCollectedBy] = useState(() => isReceptionist ? 'receptionist' : 'doctor')
+
+  const invoiceWaMessage = (inv) => buildWhatsAppMessage(
+    inv,
+    doctor,
+    formatCurrency,
+    formatDate,
+    billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status,
+  )
 
   useEffect(() => {
     if (searchParams.get('tab') === 'bundles') setPageTab('bundles')
@@ -357,19 +382,17 @@ function BillingPageInner() {
                         title="Download this invoice as a PDF via your browser's print dialog">
                         Download
                       </button>
-                      {inv.patientPhone && (
-                        <a
-                          href={buildWAUrl(inv.patientPhone, buildWhatsAppMessage(inv, formatCurrency, formatDate))}
+                      <a
+                          href={buildWAUrl(invoiceWhatsAppPhone(inv, patientsById), invoiceWaMessage(inv))}
                           target="_blank" rel="noopener noreferrer"
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
-                          title="Send via WhatsApp"
+                          title={invoiceWhatsAppPhone(inv, patientsById) ? 'Send via WhatsApp' : 'Open WhatsApp with invoice message'}
                         >
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                           </svg>
                           WA
                         </a>
-                      )}
                       {!isReceptionist && (
                         <button onClick={() => remove(inv.id)}
                           className="text-gray-400 hover:text-red-500 transition-colors p-1">
@@ -427,19 +450,17 @@ function BillingPageInner() {
                 Close
               </button>
               <div className="flex items-center gap-2">
-                {printInvoice.patientPhone && (
-                  <a
-                    href={buildWAUrl(printInvoice.patientPhone, buildWhatsAppMessage(printInvoice, formatCurrency, formatDate))}
+                <a
+                    href={buildWAUrl(invoiceWhatsAppPhone(printInvoice, patientsById), invoiceWaMessage(printInvoice))}
                     target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
-                    title="Send invoice via WhatsApp"
+                    title={invoiceWhatsAppPhone(printInvoice, patientsById) ? 'Send invoice via WhatsApp' : 'Open WhatsApp with invoice message'}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                     </svg>
                     Send via WhatsApp
                   </a>
-                )}
                 <button onClick={() => window.print()}
                   className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

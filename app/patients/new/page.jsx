@@ -7,6 +7,7 @@ import { BLOOD_TYPES } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useAuth } from '@/context/AuthContext'
 
 const GENERALS_CONFIG = [
@@ -418,22 +419,22 @@ function NewCaseForm() {
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
-            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
-              placeholder="Doctor's initial observations…" className="input-field resize"/>
+            <RichTextEditor value={form.observation} onChange={v => set('observation', v)}
+              placeholder="Doctor's initial observations…"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
-            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
+            <RichTextEditor value={form.pastHistory} onChange={v => set('pastHistory', v)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
-            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
-              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
+            <RichTextEditor value={form.familyHistory} onChange={v => set('familyHistory', v)}
+              placeholder="Hereditary conditions, family medical background…"/>
           </div>
         </SectionCard>
 
@@ -473,6 +474,7 @@ function NewCaseForm() {
                         <input
                           value={row[field]}
                           onChange={e => setComplaint(i, field, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                           placeholder="—"
                           className="input-field text-sm py-2 w-full"
                         />
@@ -519,6 +521,7 @@ function NewCaseForm() {
                 <AutoTextarea
                   value={form.generals[key]}
                   onChange={e => setGeneral(key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder={`Enter ${label.toLowerCase()}…`}
                   className="input-field flex-1 text-sm py-2 resize"
                 />
@@ -530,12 +533,14 @@ function NewCaseForm() {
                 <input
                   value={g.label}
                   onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                   placeholder="Parameter…"
                   className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"
                 />
                 <AutoTextarea
                   value={g.value}
                   onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder="Enter value…"
                   className="input-field flex-1 text-sm py-2 resize"
                 />
@@ -565,9 +570,8 @@ function NewCaseForm() {
             </svg>
           }
         >
-          <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
-            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.historyOf} onChange={v => set('historyOf', v)}
+            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"/>
         </SectionCard>
 
         {/* ── Life Span ─────────────────────────────────────────────────────── */}
@@ -580,9 +584,8 @@ function NewCaseForm() {
             </svg>
           }
         >
-          <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
-            placeholder="Key life events, miasmatic background, constitutional timeline…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.lifeSpan} onChange={v => set('lifeSpan', v)}
+            placeholder="Key life events, miasmatic background, constitutional timeline…"/>
         </SectionCard>
 
         {/* ── Prescription Details ──────────────────────────────────────────── */}
@@ -595,9 +598,8 @@ function NewCaseForm() {
             </svg>
           }
         >
-          <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
-            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
-            className="input-field resize min-h-[96px]"/>
+          <RichTextEditor value={form.prescriptionDetails} onChange={v => set('prescriptionDetails', v)}
+            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"/>
         </SectionCard>
 
         {/* ── Footer Actions ────────────────────────────────────────────────── */}

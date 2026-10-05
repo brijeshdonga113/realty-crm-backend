@@ -1,6 +1,7 @@
 import { dataStore } from '@/lib/dataStore'
 import { createInvoice, createLineItem, calculateInvoiceTotals } from '@/models/Invoice'
 import { inventoryService } from './inventoryService'
+import { patientService } from './patientService'
 
 const COLLECTION = 'invoices'
 const COUNTER_KEY = 'invoiceCounter'
@@ -50,7 +51,17 @@ export const billingService = {
       } catch {}
     }
 
-    const invoice = createInvoice({ ...data, invoiceNumber, createdBy })
+    // Visit-created invoices used to omit patientPhone, which hid the WhatsApp
+    // action on the billing list. Fill it from the patient record when missing.
+    let patientPhone = data.patientPhone ?? ''
+    if (!patientPhone && data.patientId) {
+      try {
+        const p = await patientService.getById(data.patientId)
+        patientPhone = p?.phone ?? ''
+      } catch {}
+    }
+
+    const invoice = createInvoice({ ...data, invoiceNumber, createdBy, patientPhone })
     const saved = await dataStore.create(COLLECTION, invoice)
 
     return saved

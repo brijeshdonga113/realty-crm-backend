@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
 import AutoTextarea from '@/components/ui/AutoTextarea'
+import { DEFAULT_INVOICE_WA_TEMPLATE } from '@/lib/whatsapp'
 
 const DEFAULT_TEMPLATES = {
   countryCode: '+91',
@@ -37,14 +38,21 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent when a follow-up was overdue',
     template: 'Hello {name},\n\nWe noticed your follow-up scheduled on *{date}* was {days} day(s) ago. We care about your health.\n\nPlease visit us at {clinic} soon.\n\nThank you!',
   },
+  invoice: {
+    label: 'Invoice / Billing',
+    description: 'Sent when sharing an invoice with a patient via WhatsApp',
+    template: DEFAULT_INVOICE_WA_TEMPLATE,
+  },
 }
 
 const VARIABLES = ['{name}', '{clinic}', '{date}', '{time}', '{days}']
+const INVOICE_VARIABLES = ['{invoice}', '{items}', '{total}', '{status}']
 const EMOJIS = ['😊', '👋', '🏥', '📅', '⏰', '💊', '❤️', '✅', '🙏', '📞', '💉', '🩺']
 
-function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
+function TemplateCard({ id, config, value, onChange, onReset, dateFormat, extraVariables = [] }) {
   const [preview, setPreview] = useState(false)
   const { doctor } = useAuth()
+  const insertVars = extraVariables.length ? extraVariables : VARIABLES
 
   const sampleDate = fmtDate('2026-01-05', dateFormat || 'DD/MM/YYYY')
   const previewMsg = (value || '')
@@ -53,6 +61,10 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
     .replace(/\{date\}/g, sampleDate)
     .replace(/\{time\}/g, '10:30 AM')
     .replace(/\{days\}/g, '3')
+    .replace(/\{invoice\}/g, 'INV-2026-00001')
+    .replace(/\{items\}/g, '• Consultation x1 — ₹500')
+    .replace(/\{total\}/g, '₹500')
+    .replace(/\{status\}/g, 'Due')
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -91,7 +103,7 @@ function TemplateCard({ id, config, value, onChange, onReset, dateFormat }) {
         )}
         <div className="mt-2 space-y-1.5">
           <div className="flex flex-wrap gap-1.5">
-            {VARIABLES.map(v => (
+            {insertVars.map(v => (
               <button key={v} type="button"
                 onClick={() => onChange(id, (value || '') + v)}
                 className="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-300 rounded transition-colors">
@@ -221,11 +233,15 @@ export default function WhatsAppTemplatesPage() {
           <p className="text-sm font-semibold text-primary-800 dark:text-primary-300 mb-1">Template Variables</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
             {[
-              ['{name}',   'Patient full name'],
-              ['{clinic}', 'Clinic / hospital name'],
-              ['{date}',   'Appointment or follow-up date'],
-              ['{time}',   'Appointment time'],
-              ['{days}',   'Number of overdue days'],
+              ['{name}',    'Patient full name'],
+              ['{clinic}',  'Clinic / hospital name'],
+              ['{date}',    'Appointment, follow-up, or invoice date'],
+              ['{time}',    'Appointment time'],
+              ['{days}',    'Number of overdue days'],
+              ['{invoice}', 'Invoice number'],
+              ['{items}',   'Invoice line items'],
+              ['{total}',   'Invoice total amount'],
+              ['{status}',  'Payment status (Due / Paid)'],
             ].map(([v, desc]) => (
               <div key={v} className="text-xs">
                 <span className="font-mono font-semibold text-primary-700 dark:text-primary-300">{v}</span>
@@ -245,6 +261,7 @@ export default function WhatsAppTemplatesPage() {
             onChange={handleChange}
             onReset={handleReset}
             dateFormat={dateFormat}
+            extraVariables={id === 'invoice' ? ['{name}', '{clinic}', '{date}', ...INVOICE_VARIABLES] : undefined}
           />
         ))}
 
