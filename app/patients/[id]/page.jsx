@@ -21,7 +21,7 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
 import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
-import { buildWAUrl, formatWAPhone } from '@/lib/whatsapp'
+import { buildWAUrl, formatWAPhone, buildInvoiceWhatsAppMessage } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
@@ -109,15 +109,6 @@ function ClinicalField({ field, value, onChange, editing }) {
   )
 }
 
-
-function invoiceWhatsAppMessage(inv, patient, formatCurrency, formatDate) {
-  const name = inv.patientName || `${patient?.firstName ?? ''} ${patient?.lastName ?? ''}`.trim() || 'Patient'
-  const items = (inv.lineItems || []).map(i => {
-    const lineTotal = i.total ?? ((Number(i.quantity) || 0) * (Number(i.unitPrice) || 0))
-    return `• ${i.description} x${i.quantity} — ${formatCurrency(lineTotal)}`
-  }).join('\n')
-  return `Hello ${name},\n\nYour invoice *${inv.invoiceNumber}* dated ${formatDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${formatCurrency(inv.total)}*\n\nThank you!`
-}
 
 const WA_ICON = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -1890,10 +1881,26 @@ export default function PatientProfilePage() {
                   Last saved {formatDate(draft.updatedAt?.slice(0, 10) || draft.visitDate?.slice(0, 10))}
                 </p>
               </div>
-              <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
-                className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
-                Continue →
-              </button>
+              <div className="flex-shrink-0 flex items-center gap-2">
+                {!doctor?.viewOnly && (
+                  <button
+                    type="button"
+                    title="Delete draft"
+                    onClick={() => {
+                      if (window.confirm('Delete this draft visit? This cannot be undone.')) removeVisit(draft.id)
+                    }}
+                    className="p-2 text-amber-700 dark:text-amber-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                )}
+                <button onClick={() => router.push(`/visits/new?patientId=${id}&draftId=${draft.id}`)}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                  Continue →
+                </button>
+              </div>
             </div>
           ))}
 
@@ -2103,17 +2110,20 @@ export default function PatientProfilePage() {
                             className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors">
                             View
                           </button>
-                          {(inv.patientPhone || patient.phone) && (
-                            <a
-                              href={buildWAUrl(inv.patientPhone || patient.phone, invoiceWhatsAppMessage(inv, patient, formatCurrency, formatDate))}
-                              target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors"
-                              title="Send via WhatsApp"
-                            >
-                              {WA_ICON}
-                              WA
-                            </a>
-                          )}
+                          <a
+                            href={buildWAUrl(inv.patientPhone || patient?.phone, buildInvoiceWhatsAppMessage(inv, {
+                              template: doctor?.waTemplates?.invoice?.template,
+                              clinicName: doctor?.clinicName,
+                              formatCurrency,
+                              formatDate: d => fmtDateLib(d, doctor?.waTemplates?.dateFormat || doctor?.dateFormat || 'DD/MM/YYYY'),
+                              statusLabel: billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status,
+                            }))}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors"
+                            title="Send invoice via WhatsApp">
+                            {WA_ICON}
+                            WA
+                          </a>
                         </div>
                       </td>
                     </tr>
