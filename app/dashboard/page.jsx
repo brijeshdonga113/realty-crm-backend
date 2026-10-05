@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/context/AuthContext'
 import { useReports } from '@/hooks/useReports'
 import { useAppointments } from '@/hooks/useAppointments'
+import { useFollowUps } from '@/hooks/useFollowUps'
 import { usePreferences } from '@/hooks/usePreferences'
+import { useToast } from '@/components/ui/Toast'
+import { AddReminderModal } from '@/components/AddReminderModal'
 import { localDateStr } from '@/lib/preferences'
 import { dataStore } from '@/lib/dataStore'
 
@@ -69,12 +72,15 @@ export default function DashboardPage() {
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
   const { update: updateAppt } = useAppointments()
+  const { add: addFollowUp, followups: liveFollowups } = useFollowUps()
+  const { success: toastSuccess } = useToast()
   const [markingDone, setMarkingDone] = useState(null)
+  const [reminderOpen, setReminderOpen] = useState(false)
 
   useEffect(() => {
     if (doctor?.isAdmin) router.replace('/admin')
   }, [doctor?.isAdmin])
-  const { stats, rawAppointments: appointments, rawPatients: patients, rawFollowups: followups, loading: reportLoading } = useReports()
+  const { stats, rawAppointments: appointments, rawPatients: patients, loading: reportLoading } = useReports()
 
   async function handleMarkDone(appt) {
     setMarkingDone(appt.id)
@@ -110,13 +116,32 @@ export default function DashboardPage() {
   const twoDaysStr  = localDateStr(2)
 
   const todayAppts        = useMemo(() => appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5), [appointments, todayStr])
-  const todayFollowups    = useMemo(() => followups.filter(f => f.dueDate === todayStr    && f.status === 'pending'), [followups, todayStr])
-  const tomorrowFollowups = useMemo(() => followups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending'), [followups, tomorrowStr])
-  const twoDayFollowups   = useMemo(() => followups.filter(f => f.dueDate === twoDaysStr  && f.status === 'pending'), [followups, twoDaysStr])
+  const todayFollowups    = useMemo(() => liveFollowups.filter(f => f.dueDate === todayStr    && f.status === 'pending'), [liveFollowups, todayStr])
+  const tomorrowFollowups = useMemo(() => liveFollowups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending'), [liveFollowups, tomorrowStr])
+  const twoDayFollowups   = useMemo(() => liveFollowups.filter(f => f.dueDate === twoDaysStr  && f.status === 'pending'), [liveFollowups, twoDaysStr])
   const specLabel = SPECIALIZATION_LABELS[doctor?.specialization] ?? doctor?.specialization
+
+  const openReminder = () => {
+    if (doctor?.viewOnly) {
+      alert('Adding reminders is restricted on your current plan. Contact your administrator to upgrade.')
+      return
+    }
+    setReminderOpen(true)
+  }
+
+  const handleReminderSave = async (data) => {
+    await addFollowUp(data)
+    const when = data.dueDate === todayStr
+      ? 'today'
+      : data.dueDate === tomorrowStr
+        ? 'tomorrow'
+        : formatDate(data.dueDate)
+    toastSuccess(`Reminder set for ${when}. It will show on the dashboard that day.`)
+  }
 
   const quickActions = [
     { label: 'Add Patient',          href: '/patients/new',     icon: <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg> },
+    { label: 'Add Reminder',         onClick: openReminder,     icon: <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
     { label: 'New Visit',            href: '/patients',         icon: <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> },
     { label: 'Schedule Appointment', href: '/appointments/new', icon: <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> },
     { label: 'Create Invoice',       href: '/billing/new',      icon: <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> },
@@ -265,7 +290,7 @@ export default function DashboardPage() {
           </div>
           <div className="p-4 space-y-2">
             {quickActions.map(a => (
-              <button key={a.label} onClick={() => router.push(a.href)}
+              <button key={a.label} onClick={() => a.onClick ? a.onClick() : router.push(a.href)}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-200 text-left transition-colors">
                 {a.icon}
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{a.label}</span>
@@ -278,7 +303,6 @@ export default function DashboardPage() {
   }
 
   function renderFollowups() {
-    if (!todayFollowups.length && !tomorrowFollowups.length) return null
     return (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
@@ -291,10 +315,13 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
-            <button onClick={() => router.push('/follow-ups')} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+            <div className="flex items-center gap-3">
+              <button onClick={openReminder} className="text-sm text-orange-600 dark:text-orange-400 hover:underline font-medium">Add</button>
+              <button onClick={() => router.push('/follow-ups')} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+            </div>
           </div>
           {todayFollowups.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No follow-ups today.</div>
+            <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No reminders today.</div>
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
               {todayFollowups.map(f => (
@@ -600,6 +627,14 @@ export default function DashboardPage() {
             Customize
           </button>
           <button
+            onClick={openReminder}
+            className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${doctor?.viewOnly ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40'}`}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Add Reminder
+          </button>
+          <button
             onClick={() => doctor?.viewOnly ? alert('Adding patients is restricted on your current plan. Contact your administrator to upgrade.') : router.push('/patients/new')}
             className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${doctor?.viewOnly ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-primary-500 hover:bg-primary-600 text-white'}`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -667,6 +702,14 @@ export default function DashboardPage() {
         })}
 
       </div>
+
+      <AddReminderModal
+        open={reminderOpen}
+        onClose={() => setReminderOpen(false)}
+        patients={patients}
+        viewOnly={!!doctor?.viewOnly}
+        onSave={handleReminderSave}
+      />
     </AppLayout>
   )
 }
