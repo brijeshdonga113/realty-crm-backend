@@ -66,7 +66,12 @@ export function createInvoice(data = {}) {
     patientName:     data.patientName ?? '',
     patientPhone:    data.patientPhone ?? '',
     appointmentId:   data.appointmentId ?? null,
+    visitId:         data.visitId ?? null,
     invoiceNumber:   data.invoiceNumber ?? '',
+    clinicName:      data.clinicName ?? '',
+    doctorName:      data.doctorName ?? '',
+    doctorPhone:     data.doctorPhone ?? '',
+    doctorEmail:     data.doctorEmail ?? '',
 
     issueDate: data.issueDate ?? now.slice(0, 10),
     dueDate:   data.dueDate ?? '',

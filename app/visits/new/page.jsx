@@ -450,12 +450,20 @@ function VisitEntryForm() {
       // Skip invoice creation entirely when editing — the invoice for this visit
       // already exists from when it was first recorded.
       if (!editVisitId) {
+        const invoicePatient = {
+          patientId,
+          patientName:  patient ? `${patient.firstName} ${patient.lastName}` : '',
+          patientPhone: patient?.phone || '',
+          clinicName:   doctor?.clinicName ?? '',
+          doctorName:   doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}`.trim() : '',
+          doctorPhone:  doctor?.phone ?? '',
+          doctorEmail:  doctor?.email ?? '',
+        }
         if (useInvoice) {
           const billableLines = finalInvoiceLines.filter(l => Number(l.unitPrice) > 0)
           if (billableLines.length > 0) {
             await billingService.create({
-              patientId,
-              patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+              ...invoicePatient,
               issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
               lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
               status:        payment.status,
@@ -469,8 +477,7 @@ function VisitEntryForm() {
           }
         } else if (Number(payment.amount) > 0) {
           await billingService.create({
-            patientId,
-            patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+            ...invoicePatient,
             issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
             lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
             status:        payment.status,

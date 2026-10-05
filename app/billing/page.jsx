@@ -1,11 +1,12 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
+import { usePatients } from '@/hooks/usePatients'
 import { useAuth } from '@/context/AuthContext'
 import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
 import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
@@ -107,6 +108,10 @@ function buildWhatsAppMessage(inv, fmtCurrency, fmtDate) {
   return `Hello ${inv.patientName},\n\nYour invoice *${inv.invoiceNumber}* dated ${fmtDate(inv.issueDate)} is ready.\n\n${items}\n\n*Total: ${fmtCurrency(inv.total)}*\n\nThank you!`
 }
 
+function invoiceWhatsAppPhone(inv, patientsById) {
+  return inv.patientPhone || patientsById[inv.patientId]?.phone || ''
+}
+
 function BillingPageInner() {
   useRequireModuleAccess('billing')
   const router       = useRouter()
@@ -114,6 +119,11 @@ function BillingPageInner() {
   const { doctor, isReceptionist } = useAuth()
   const { formatCurrency, formatDate } = usePreferences()
   const { invoices, loading, markPaid, remove } = useBilling()
+  const { patients } = usePatients()
+  const patientsById = useMemo(
+    () => Object.fromEntries(patients.map(p => [p.id, p])),
+    [patients]
+  )
   const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
   const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
   const [filterStatus,    setFilterStatus]    = useState('all')
@@ -331,9 +341,9 @@ function BillingPageInner() {
                         title="Download this invoice as a PDF via your browser's print dialog">
                         Download
                       </button>
-                      {inv.patientPhone && (
+                      {invoiceWhatsAppPhone(inv, patientsById) && (
                         <a
-                          href={buildWAUrl(inv.patientPhone, buildWhatsAppMessage(inv, formatCurrency, formatDate))}
+                          href={buildWAUrl(invoiceWhatsAppPhone(inv, patientsById), buildWhatsAppMessage(inv, formatCurrency, formatDate))}
                           target="_blank" rel="noopener noreferrer"
                           className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
                           title="Send via WhatsApp"
@@ -401,9 +411,9 @@ function BillingPageInner() {
                 Close
               </button>
               <div className="flex items-center gap-2">
-                {printInvoice.patientPhone && (
+                {invoiceWhatsAppPhone(printInvoice, patientsById) && (
                   <a
-                    href={buildWAUrl(printInvoice.patientPhone, buildWhatsAppMessage(printInvoice, formatCurrency, formatDate))}
+                    href={buildWAUrl(invoiceWhatsAppPhone(printInvoice, patientsById), buildWhatsAppMessage(printInvoice, formatCurrency, formatDate))}
                     target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                     title="Send invoice via WhatsApp"
