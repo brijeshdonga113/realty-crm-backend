@@ -2119,9 +2119,10 @@ export default function PatientProfilePage() {
                               statusLabel: billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status,
                             }))}
                             target="_blank" rel="noopener noreferrer"
-                            className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline transition-colors"
                             title="Send invoice via WhatsApp">
-                            WhatsApp
+                            {WA_ICON}
+                            WA
                           </a>
                         </div>
                       </td>

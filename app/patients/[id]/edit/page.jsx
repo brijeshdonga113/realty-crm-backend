@@ -54,6 +54,15 @@ function TagInput({ label, items, onChange, suggestions = [] }) {
     if (trimmed && !items.includes(trimmed)) onChange([...items, trimmed])
     setInput('')
   }
+  const available = suggestions.filter(s =>
+    !items.includes(s) && (!input.trim() || s.toLowerCase().includes(input.trim().toLowerCase()))
+  )
+  const commit = () => {
+    const typed = input.trim()
+    if (!typed) return
+    const exact = available.find(s => s.toLowerCase() === typed.toLowerCase())
+    add(exact || typed)
+  }
   return (
     <div>
       <label className="form-label">{label}</label>
@@ -67,19 +76,33 @@ function TagInput({ label, items, onChange, suggestions = [] }) {
       </div>
       <div className="flex gap-2">
         <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(input) } }}
+          onKeyDown={e => {
+            if (e.key !== 'Enter') return
+            // Native datalist + Enter both inserts the suggestion and adds a
+            // chip, leaving the field still "open". Treat Enter as commit only.
+            e.preventDefault()
+            e.stopPropagation()
+            commit()
+          }}
           placeholder="Type and press Enter"
           className="input-field flex-1"
-          list={`tag-${label}`}
+          autoComplete="off"
         />
-        {suggestions.length > 0 && (
-          <datalist id={`tag-${label}`}>{suggestions.map(s => <option key={s} value={s}/>)}</datalist>
-        )}
-        <button type="button" onClick={() => add(input)}
+        <button type="button" onClick={commit}
           className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
           Add
         </button>
       </div>
+      {available.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {available.slice(0, 8).map(s => (
+            <button key={s} type="button" onClick={() => add(s)}
+              className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-primary-50 dark:hover:bg-primary-900/30 text-gray-600 dark:text-gray-300 hover:text-primary-700 dark:hover:text-primary-300 rounded-full transition-colors">
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -227,7 +250,7 @@ export default function EditPatientPage() {
 
   return (
     <AppLayout title="Edit Patient" action={<ActionBar/>}>
-      <div className="max-w-5xl mx-auto pb-12 space-y-5">
+      <div className="max-w-5xl mx-auto pb-12 space-y-5" style={{ overflowAnchor: 'none' }}>
 
         {/* ── Patient Profile ───────────────────────────────────────────── */}
         <SectionCard accentColor="teal" title="Patient Profile"
@@ -441,9 +464,14 @@ export default function EditPatientPage() {
                 {form.chiefComplaints.map((row, i) => (
                   <tr key={i}>
                     {['complaint','location','sensation','modality','concomitant'].map(field => (
-                      <td key={field} className="px-1.5 py-2 align-top">
-                        <AutoTextarea value={row[field]} onChange={e => setComplaint(i, field, e.target.value)}
-                          placeholder="—" className="input-field text-sm py-2 w-full resize-none"/>
+                      <td key={field} className="px-1.5 py-2">
+                        <input
+                          value={row[field]}
+                          onChange={e => setComplaint(i, field, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+                          placeholder="—"
+                          className="input-field text-sm py-2 w-full"
+                        />
                       </td>
                     ))}
                     <td className="px-1.5 py-2 text-center">
@@ -472,14 +500,17 @@ export default function EditPatientPage() {
               <div key={key} className="flex items-start gap-4 py-3">
                 <label className="w-28 text-sm font-medium text-gray-600 dark:text-gray-400 flex-shrink-0 pt-2.5">{label}</label>
                 <AutoTextarea value={form.generals[key]} onChange={e => setGeneral(key, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder={`Enter ${label.toLowerCase()}…`} className="input-field flex-1 text-sm py-2 resize"/>
               </div>
             ))}
             {form.customGenerals.map(g => (
               <div key={g.id} className="flex items-start gap-3 py-3">
                 <input value={g.label} onChange={e => setCustomGeneral(g.id, 'label', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                   placeholder="Parameter…" className="input-field w-28 flex-shrink-0 text-sm py-2 font-medium"/>
                 <AutoTextarea value={g.value} onChange={e => setCustomGeneral(g.id, 'value', e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() }}
                   placeholder="Enter value…" className="input-field flex-1 text-sm py-2 resize"/>
                 <button type="button" onClick={() => removeCustomGeneral(g.id)}
                   className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 text-xl leading-none mt-2.5 flex-shrink-0 transition-colors">×</button>
