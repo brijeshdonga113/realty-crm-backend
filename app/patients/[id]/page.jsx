@@ -11,6 +11,11 @@ import { useVisits } from '@/hooks/useVisits'
 import { useProgressNotes } from '@/hooks/useProgressNotes'
 import { usePatientAppointments } from '@/hooks/useAppointments'
 import { usePatientInvoices } from '@/hooks/useBilling'
+import { usePatientPackagesFor, usePackageTemplates } from '@/hooks/usePackages'
+import { packageService } from '@/services/packageService'
+import { AssignPackageModal } from '@/components/packages/AssignPackageModal'
+import { PackageDetailModal, PackageProgress } from '@/components/packages/PackageDetailModal'
+import { getPackageStatusMeta, summarizePackage } from '@/models/Package'
 import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
@@ -126,7 +131,7 @@ const STATUS_COLORS = { active: 'green', inactive: 'gray', deceased: 'red' }
 const APPT_COLORS   = { scheduled: 'blue', confirmed: 'green', completed: 'gray', cancelled: 'red', no_show: 'yellow' }
 // INV_COLORS built dynamically from doctor.billingStatuses — see PatientPage component
 
-const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing']
+const TABS = ['Overview', 'Follow-ups', 'Visits', 'Appointments', 'Billing', 'Packages']
 
 function InfoRow({ label, value }) {
   if (!value) return null
@@ -923,6 +928,8 @@ export default function PatientProfilePage() {
   const { notes: progressNotes, add: addProgressNote, remove: removeProgressNote } = useProgressNotes(id)
   const { appointments }     = usePatientAppointments(id)
   const { invoices }         = usePatientInvoices(id)
+  const { packages: patientPackages, loading: packagesLoading } = usePatientPackagesFor(id)
+  const { templates: packageTemplates } = usePackageTemplates()
   const { followups, markDone } = useFollowUps()
   const { blockedSlots }        = useBlockedSlots()
   // Receptionists skip to Appointments tab (index 3) — Overview/Follow-ups/Visits are hidden
@@ -951,7 +958,11 @@ export default function PatientProfilePage() {
     } catch {} finally { setDocsLoading(false) }
   }, [doctor?.uid, id])
 
-  useEffect(() => { if (tab === 5) loadDocuments() }, [tab, loadDocuments])
+  const [pkgAssignOpen, setPkgAssignOpen] = useState(false)
+  const [pkgDetail, setPkgDetail]         = useState(null)
+  const livePkgDetail = pkgDetail ? (patientPackages.find(p => p.id === pkgDetail.id) ?? pkgDetail) : null
+
+  useEffect(() => { if (tab === 6) loadDocuments() }, [tab, loadDocuments])
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -1646,6 +1657,7 @@ export default function PatientProfilePage() {
           <span>{visits.length} visit{visits.length !== 1 ? 's' : ''}</span>
           <span>{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</span>
           <span>{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</span>
+          <span>{patientPackages.length} package{patientPackages.length !== 1 ? 's' : ''}</span>
           {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
             <span className="text-red-300 font-semibold">
               {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
@@ -1672,6 +1684,11 @@ export default function PatientProfilePage() {
             {t === 'Billing' && invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
                 {invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled').length} due
+              </span>
+            )}
+            {t === 'Packages' && patientPackages.filter(p => (p.status || summarizePackage(p).status) === 'active' && summarizePackage(p).remaining > 0).length > 0 && (
+              <span className="bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {patientPackages.filter(p => (p.status || summarizePackage(p).status) === 'active').length}
               </span>
             )}
           </button>
@@ -2211,8 +2228,80 @@ export default function PatientProfilePage() {
         )}
       </Modal>
 
-      {/* Tab 5: Documents */}
+      {/* Tab 5: Packages */}
       {tab === 5 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Treatment packages</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Bundle deals and installment payments for this patient</p>
+            </div>
+            {!doctor?.viewOnly && (
+              <button onClick={() => setPkgAssignOpen(true)}
+                className="bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                </svg>
+                Assign Package
+              </button>
+            )}
+          </div>
+          {packagesLoading ? (
+            <div className="py-16 text-center text-sm text-gray-400">Loading packages…</div>
+          ) : patientPackages.length === 0 ? (
+            <EmptyState title="No packages" description="Assign a bundle deal to track installments for this patient."
+              action={!doctor?.viewOnly ? () => setPkgAssignOpen(true) : undefined} actionLabel="Assign Package"/>
+          ) : (
+            <div className="space-y-3">
+              {patientPackages.map(pkg => {
+                const summary = summarizePackage(pkg)
+                const status  = getPackageStatusMeta(pkg.status || summary.status)
+                return (
+                  <button key={pkg.id} onClick={() => setPkgDetail(pkg)}
+                    className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 hover:border-primary-200 dark:hover:border-primary-700 transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate">{pkg.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{summary.paidCount}/{summary.installmentCount} installments paid</p>
+                      </div>
+                      <Badge label={status.label} color={status.color}/>
+                    </div>
+                    <PackageProgress paidTotal={summary.paidTotal} totalAmount={pkg.totalAmount ?? 0} compact/>
+                    <div className="flex items-center justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
+                      <span>{formatCurrency(summary.paidTotal)} of {formatCurrency(pkg.totalAmount ?? 0)}</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">
+                        {summary.remaining > 0 ? `${formatCurrency(summary.remaining)} left` : 'Paid in full'}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <AssignPackageModal
+        open={pkgAssignOpen}
+        onClose={() => setPkgAssignOpen(false)}
+        patients={patient ? [patient] : []}
+        templates={packageTemplates}
+        defaultPatientId={id}
+        viewOnly={!!doctor?.viewOnly}
+        onSave={(data) => packageService.createEnrollment({ ...data, doctorId: doctor?.id })}
+      />
+      <PackageDetailModal
+        pkg={livePkgDetail}
+        onClose={() => setPkgDetail(null)}
+        onMark={packageService.markInstallment}
+        onUnmark={packageService.unmarkInstallment}
+        onCancel={packageService.cancelEnrollment}
+        onDelete={packageService.removeEnrollment}
+        viewOnly={!!doctor?.viewOnly}
+      />
+
+      {/* Tab 6: Documents */}
+      {tab === 6 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
