@@ -30,7 +30,7 @@ export default function PatientsPage() {
   const [sortKey, setSortKey]           = useState(null)
   const [sortDir, setSortDir]           = useState('asc')
   const [followUpPatient, setFollowUpPatient] = useState(null)
-  const [followUpForm, setFollowUpForm]       = useState({ dueDate: '', note: '' })
+  const [followUpForm, setFollowUpForm]       = useState({ dueDate: '', dueTime: '10:00', note: '' })
   const [followUpSaving, setFollowUpSaving]   = useState(false)
   const [filterOpen, setFilterOpen]     = useState(false)
   const [visibleCols, setVisibleCols]   = useState({
@@ -218,7 +218,7 @@ Now here is the patient data to convert:
   const openFollowUp = (e, patient) => {
     e.stopPropagation()
     setFollowUpPatient(patient)
-    setFollowUpForm({ dueDate: tomorrow, note: '' })
+    setFollowUpForm({ dueDate: tomorrow, dueTime: '10:00', note: '' })
   }
 
   const handleFollowUpSave = async () => {
@@ -229,6 +229,7 @@ Now here is the patient data to convert:
         patientId:   followUpPatient.id,
         patientName: `${followUpPatient.firstName} ${followUpPatient.lastName}`,
         dueDate:     followUpForm.dueDate,
+        dueTime:     followUpForm.dueTime || '',
         note:        followUpForm.note,
       })
       setFollowUpPatient(null)
@@ -669,13 +670,21 @@ Now here is the patient data to convert:
             </div>
             <div>
               <label className="form-label">Follow-up Due Date</label>
-              <input
-                type="date"
-                value={followUpForm.dueDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={e => setFollowUpForm(f => ({ ...f, dueDate: e.target.value }))}
-                className="input-field"
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={followUpForm.dueDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setFollowUpForm(f => ({ ...f, dueDate: e.target.value }))}
+                  className="input-field"
+                />
+                <input
+                  type="time"
+                  value={followUpForm.dueTime || ''}
+                  onChange={e => setFollowUpForm(f => ({ ...f, dueTime: e.target.value }))}
+                  className="input-field"
+                />
+              </div>
               {followUpForm.dueDate && blockedSlots.some(b => b.date === followUpForm.dueDate) && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
                   <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -696,7 +705,7 @@ Now here is the patient data to convert:
               />
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              A notification will be created and shown on the dashboard when this date arrives.
+              This reminder will appear on the dashboard with appointments on the date and time you set.
             </p>
           </div>
         )}

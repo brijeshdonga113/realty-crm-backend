@@ -11,6 +11,7 @@ export function createFollowUp(data = {}) {
     patientId:   data.patientId ?? '',
     patientName: data.patientName ?? '',
     dueDate:     data.dueDate ?? '',        // YYYY-MM-DD
+    dueTime:     data.dueTime ?? '',        // HH:MM, optional
     note:        data.note ?? '',
     status:      data.status ?? 'pending',  // 'pending' | 'done'
     visitId:     data.visitId ?? null,

@@ -161,7 +161,7 @@ export default function CalendarPage() {
 
     if (filter === 'all' || filter === 'follow_ups') {
       followups.filter(f => f.status === 'pending').forEach(f => {
-        addEv(f.dueDate, { id: f.id, patientId: f.patientId, patientName: f.patientName, time: '', note: f.note, status: f.status, _kind: 'followup' })
+        addEv(f.dueDate, { id: f.id, patientId: f.patientId, patientName: f.patientName, time: f.dueTime || '', note: f.note, status: f.status, _kind: 'followup' })
       })
       // Only show visit follow-ups that don't already have a followups collection record
       const followupVisitIds = new Set(followups.map(f => f.visitId).filter(Boolean))

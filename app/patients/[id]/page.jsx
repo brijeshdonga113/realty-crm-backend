@@ -28,6 +28,7 @@ import { billingService } from '@/services/billingService'
 import { patientService } from '@/services/patientService'
 import { buildWAUrl, formatWAPhone, buildInvoiceWhatsAppMessage } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib, localDateStr } from '@/lib/preferences'
+import { formatTime } from '@/lib/booking'
 import { isHomeopathy, getIntakeSections } from '@/lib/patientIntakePresets'
 import { dataStore } from '@/lib/dataStore'
 import AutoTextarea from '@/components/ui/AutoTextarea'
@@ -546,6 +547,7 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
       .replace(/\{name\}/g, entry.patientName || 'Patient')
       .replace(/\{clinic\}/g, clinicName)
       .replace(/\{date\}/g, formattedDate)
+      .replace(/\{time\}/g, entry.dueTime || '')
       .replace(/\{days\}/g, String(Math.abs(diff)))
     window.open(buildWAUrl(phone || entry.phone || '', msg), '_blank')
   }
@@ -555,7 +557,9 @@ function ProfileFollowUpRow({ entry, phone, router, doctor, onMarkDone }) {
       ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-orange-400' : ''}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatDate(entry.dueDate)}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {formatDate(entry.dueDate)}{entry.dueTime ? ` · ${formatTime(entry.dueTime)}` : ''}
+          </p>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
           {entry.source === 'standalone' && (
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Reminder</span>
@@ -1083,6 +1087,7 @@ export default function PatientProfilePage() {
       .map(f => ({
         id:          f.id,
         dueDate:     f.dueDate,
+        dueTime:     f.dueTime || '',
         note:        f.note,
         patientName: f.patientName || patientName,
         source:      f.visitId ? 'visit' : 'standalone',
