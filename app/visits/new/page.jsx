@@ -65,6 +65,8 @@ function VisitEntryForm() {
   const [draftSaved, setDraftSaved]   = useState(false)
   // true when a draft exists (either from URL or after first Save as Draft click)
   const [isDraft, setIsDraft]         = useState(() => !!searchParams.get('draftId'))
+  const [deletingDraft, setDeletingDraft] = useState(false)
+  const [discarded, setDiscarded]     = useState(false)
 
   const [form, setForm] = useState({
     visitDate: new Date().toISOString().slice(0, 10),
@@ -247,7 +249,7 @@ function VisitEntryForm() {
   const setVital = (k, v) => setForm(p => ({ ...p, vitalSigns: { ...p.vitalSigns, [k]: v } }))
 
   // Has the user entered anything worth not losing? Used to guard accidental exits.
-  const isDirty = !savedVisit && (
+  const isDirty = !savedVisit && !discarded && (
     form.chiefComplaint.trim() || form.history.trim() || form.findings.trim() ||
     form.diagnosis.length > 0 || form.treatment.trim() || form.prescriptions.length > 0 ||
     form.labOrders.length > 0 || form.followUpDate || form.notes.trim() ||
@@ -398,6 +400,22 @@ function VisitEntryForm() {
     }
   }
 
+  const handleDiscardDraft = async () => {
+    const id = draftIdRef.current
+    if (!id || !patientId) return
+    if (!window.confirm('Delete this draft visit? This cannot be undone.')) return
+    setDeletingDraft(true)
+    setSaveError('')
+    try {
+      await visitService.remove(id, patientId)
+      setDiscarded(true)
+      router.push(`/patients/${patientId}`)
+    } catch {
+      setSaveError('Failed to delete draft. Please try again.')
+      setDeletingDraft(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!patientId || !form.chiefComplaint.trim()) return
     if (!form.followUpDate) { setSaveError('A follow-up date is required before saving.'); return }
@@ -456,6 +474,7 @@ function VisitEntryForm() {
             await billingService.create({
               patientId,
               patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+              patientPhone:  patient?.phone || '',
               issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
               lineItems:     billableLines.map(l => createLineItem({ description: l.description, unitPrice: Number(l.unitPrice), quantity: l.quantity || 1, itemType: l.itemType, inventoryItemId: l.inventoryItemId, discountPct: l.discountPct ?? 0, taxable: l.taxable ?? true })),
               status:        payment.status,
@@ -471,6 +490,7 @@ function VisitEntryForm() {
           await billingService.create({
             patientId,
             patientName:   patient ? `${patient.firstName} ${patient.lastName}` : '',
+            patientPhone:  patient?.phone || '',
             issueDate:     form.visitDate || new Date().toISOString().slice(0, 10),
             lineItems:     [createLineItem({ description: payment.description, unitPrice: Number(payment.amount), quantity: 1 })],
             status:        payment.status,
@@ -612,6 +632,11 @@ function VisitEntryForm() {
             <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
               <span className="font-semibold">Continuing a draft visit.</span> Fill in the remaining details and click <span className="font-semibold">Complete Visit</span> to finalise.
             </p>
+            <button type="button" onClick={handleDiscardDraft}
+              disabled={deletingDraft || saving || savingDraft}
+              className="flex-shrink-0 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60">
+              {deletingDraft ? 'Deleting…' : 'Delete Draft'}
+            </button>
           </div>
         )}
 
@@ -1273,6 +1298,13 @@ function VisitEntryForm() {
             className="px-5 py-2.5 border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             Cancel
           </button>
+          {isDraft && (
+            <button type="button" onClick={handleDiscardDraft}
+              disabled={deletingDraft || saving || savingDraft}
+              className="px-5 py-2.5 border border-red-200 dark:border-red-800 text-sm font-medium text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              {deletingDraft ? 'Deleting…' : 'Delete Draft'}
+            </button>
+          )}
           <button type="button" onClick={handleSaveDraft}
             disabled={savingDraft || saving || !patientId}
             className="px-5 py-2.5 border border-amber-300 dark:border-amber-600 text-sm font-medium text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
