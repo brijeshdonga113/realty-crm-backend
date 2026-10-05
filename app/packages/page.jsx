@@ -24,7 +24,7 @@ function PackagesPageInner() {
   const { templates, loading: templatesLoading, add: addTemplate, update: updateTemplate, remove: removeTemplate } = usePackageTemplates()
   const {
     packages, loading,
-    add, markInstallment, unmarkInstallment, cancel, remove,
+    add, markInstallment, unmarkInstallment, addPayment, removePayment, cancel, remove,
   } = usePatientPackages()
 
   const [pageTab, setPageTab]         = useState(searchParams.get('tab') === 'bundles' ? 'bundles' : 'patients')
@@ -201,9 +201,9 @@ function PackagesPageInner() {
                       </div>
                       <PackageProgress paidTotal={summary.paidTotal} totalAmount={pkg.totalAmount ?? 0} compact/>
                       <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>{summary.paidCount}/{summary.installmentCount} paid · {formatCurrency(summary.paidTotal)} of {formatCurrency(pkg.totalAmount ?? 0)}</span>
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">
-                          {summary.remaining > 0 ? `${formatCurrency(summary.remaining)} left` : 'Paid in full'}
+                        <span>{formatCurrency(summary.paidTotal)} collected of {formatCurrency(pkg.totalAmount ?? 0)}</span>
+                        <span className={`font-bold ${summary.remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {summary.remaining > 0 ? `${formatCurrency(summary.remaining)} remaining` : 'Paid in full'}
                         </span>
                       </div>
                     </button>
@@ -287,6 +287,8 @@ function PackagesPageInner() {
         onClose={() => setDetail(null)}
         onMark={markInstallment}
         onUnmark={unmarkInstallment}
+        onAddPayment={addPayment}
+        onRemovePayment={removePayment}
         onCancel={cancel}
         onDelete={remove}
         viewOnly={!!doctor?.viewOnly}

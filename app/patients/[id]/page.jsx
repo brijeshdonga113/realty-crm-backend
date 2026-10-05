@@ -2268,9 +2268,9 @@ export default function PatientProfilePage() {
                     </div>
                     <PackageProgress paidTotal={summary.paidTotal} totalAmount={pkg.totalAmount ?? 0} compact/>
                     <div className="flex items-center justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{formatCurrency(summary.paidTotal)} of {formatCurrency(pkg.totalAmount ?? 0)}</span>
-                      <span className="font-semibold text-amber-600 dark:text-amber-400">
-                        {summary.remaining > 0 ? `${formatCurrency(summary.remaining)} left` : 'Paid in full'}
+                      <span>{formatCurrency(summary.paidTotal)} collected of {formatCurrency(pkg.totalAmount ?? 0)}</span>
+                      <span className={`font-bold ${summary.remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                        {summary.remaining > 0 ? `${formatCurrency(summary.remaining)} remaining` : 'Paid in full'}
                       </span>
                     </div>
                   </button>
@@ -2295,6 +2295,8 @@ export default function PatientProfilePage() {
         onClose={() => setPkgDetail(null)}
         onMark={packageService.markInstallment}
         onUnmark={packageService.unmarkInstallment}
+        onAddPayment={packageService.addPayment}
+        onRemovePayment={packageService.removePayment}
         onCancel={packageService.cancelEnrollment}
         onDelete={packageService.removeEnrollment}
         viewOnly={!!doctor?.viewOnly}

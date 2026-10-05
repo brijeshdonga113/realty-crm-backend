@@ -2,6 +2,8 @@ import { dataStore } from '@/lib/dataStore'
 import {
   createPackageTemplate,
   createPatientPackage,
+  createPayment,
+  paymentsFromPackage,
   summarizePackage,
 } from '@/models/Package'
 
@@ -74,19 +76,18 @@ export const packageService = {
   async markInstallment(id, installmentId, payment) {
     const current = await dataStore.getById(ENROLLMENTS, id)
     if (!current) return null
+    const paidAmount = payment.paidAmount != null ? Number(payment.paidAmount) : 0
+    const paidDate = payment.paidDate || new Date().toISOString().slice(0, 10)
+    const paymentMethod = payment.paymentMethod || 'cash'
+    const notes = payment.notes ?? ''
     const installments = (current.installments ?? []).map(item => {
       if (item.id !== installmentId) return item
-      const paidAmount = payment.paidAmount != null ? Number(payment.paidAmount) : Number(item.amount) || 0
-      return {
-        ...item,
-        paid:          true,
-        paidAmount,
-        paidDate:      payment.paidDate || new Date().toISOString().slice(0, 10),
-        paymentMethod: payment.paymentMethod || item.paymentMethod || 'cash',
-        notes:         payment.notes ?? item.notes ?? '',
-      }
+      return { ...item, paid: true, paidAmount, paidDate, paymentMethod, notes }
     })
-    return dataStore.update(ENROLLMENTS, id, withSummary(current, { installments }))
+    const payments = paymentsFromPackage(current)
+      .filter(p => p.installmentId !== installmentId)
+      .concat(createPayment({ amount: paidAmount, date: paidDate, paymentMethod, notes, installmentId }))
+    return dataStore.update(ENROLLMENTS, id, withSummary(current, { installments, payments }))
   },
 
   async unmarkInstallment(id, installmentId) {
@@ -96,8 +97,42 @@ export const packageService = {
       if (item.id !== installmentId) return item
       return { ...item, paid: false, paidAmount: 0, paidDate: '', paymentMethod: '', notes: item.notes ?? '' }
     })
+    const payments = paymentsFromPackage(current).filter(p => p.installmentId !== installmentId)
     const nextStatus = current.status === 'cancelled' ? 'cancelled' : 'active'
-    return dataStore.update(ENROLLMENTS, id, withSummary({ ...current, status: nextStatus }, { installments, status: nextStatus }))
+    return dataStore.update(ENROLLMENTS, id, withSummary({ ...current, status: nextStatus }, { installments, payments, status: nextStatus }))
+  },
+
+  async addPayment(id, payment) {
+    const current = await dataStore.getById(ENROLLMENTS, id)
+    if (!current) return null
+    const amount = Number(payment.amount) || 0
+    if (amount <= 0) return current
+    const nextPayment = createPayment({
+      amount,
+      date:          payment.date || new Date().toISOString().slice(0, 10),
+      paymentMethod: payment.paymentMethod || 'cash',
+      notes:         payment.notes ?? '',
+      installmentId: payment.installmentId ?? null,
+    })
+    const payments = [...paymentsFromPackage(current), nextPayment]
+    return dataStore.update(ENROLLMENTS, id, withSummary(current, { payments }))
+  },
+
+  async removePayment(id, paymentId) {
+    const current = await dataStore.getById(ENROLLMENTS, id)
+    if (!current) return null
+    const existing = paymentsFromPackage(current)
+    const removed = existing.find(p => p.id === paymentId)
+    const payments = existing.filter(p => p.id !== paymentId)
+    let installments = current.installments ?? []
+    if (removed?.installmentId) {
+      installments = installments.map(item => {
+        if (item.id !== removed.installmentId) return item
+        return { ...item, paid: false, paidAmount: 0, paidDate: '', paymentMethod: '', notes: item.notes ?? '' }
+      })
+    }
+    const nextStatus = current.status === 'cancelled' ? 'cancelled' : 'active'
+    return dataStore.update(ENROLLMENTS, id, withSummary({ ...current, status: nextStatus }, { payments, installments, status: nextStatus }))
   },
 
   async cancelEnrollment(id) {

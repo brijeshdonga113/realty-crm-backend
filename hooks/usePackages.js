@@ -65,6 +65,14 @@ export function usePatientPackages() {
     return packageService.unmarkInstallment(id, installmentId)
   }, [])
 
+  const addPayment = useCallback(async (id, payment) => {
+    return packageService.addPayment(id, payment)
+  }, [])
+
+  const removePayment = useCallback(async (id, paymentId) => {
+    return packageService.removePayment(id, paymentId)
+  }, [])
+
   const cancel = useCallback(async (id) => {
     return packageService.cancelEnrollment(id)
   }, [])
@@ -73,7 +81,7 @@ export function usePatientPackages() {
     return packageService.removeEnrollment(id)
   }, [])
 
-  return { packages, loading, add, update, markInstallment, unmarkInstallment, cancel, remove }
+  return { packages, loading, add, update, markInstallment, unmarkInstallment, addPayment, removePayment, cancel, remove }
 }
 
 export function usePatientPackagesFor(patientId) {

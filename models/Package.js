@@ -43,23 +43,50 @@ export function createInstallments(total, count) {
   }))
 }
 
+export function createPayment(data = {}) {
+  return {
+    id:            data.id ?? uid(),
+    amount:        Number(data.amount) || 0,
+    date:          data.date || new Date().toISOString().slice(0, 10),
+    paymentMethod: data.paymentMethod || 'cash',
+    notes:         data.notes ?? '',
+    installmentId: data.installmentId ?? null,
+    createdAt:     data.createdAt ?? new Date().toISOString(),
+  }
+}
+
+/** Money collected: payments ledger, or paid installments for older records. */
+export function paymentsFromPackage(pkg) {
+  if (Array.isArray(pkg.payments) && pkg.payments.length > 0) return pkg.payments
+  return (pkg.installments ?? []).filter(i => i.paid).map(i => createPayment({
+    amount:        i.paidAmount ?? i.amount,
+    date:          i.paidDate,
+    paymentMethod: i.paymentMethod,
+    notes:         i.notes,
+    installmentId: i.id,
+  }))
+}
+
 export function summarizePackage(pkg) {
   const installments = pkg.installments ?? []
-  const paidTotal = Math.round(installments.reduce((s, i) => (
-    s + (i.paid ? (Number(i.paidAmount) || 0) : 0)
-  ), 0) * 100) / 100
+  const payments = paymentsFromPackage(pkg)
+  const paidTotal = Math.round(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
   const plannedTotal = Number(pkg.totalAmount) || 0
-  const remaining = Math.round((plannedTotal - paidTotal) * 100) / 100
+  const remainingRaw = Math.round((plannedTotal - paidTotal) * 100) / 100
+  const remaining = Math.max(0, remainingRaw)
   const paidCount = installments.filter(i => i.paid).length
   const derivedStatus = pkg.status === 'cancelled'
     ? 'cancelled'
     : (plannedTotal > 0 && remaining <= 0 ? 'completed' : 'active')
   return {
     paidTotal,
-    remaining: Math.max(0, remaining),
+    remaining,
+    remainingRaw,
+    paymentCount: payments.length,
     paidCount,
     installmentCount: installments.length,
     status: derivedStatus,
+    payments,
   }
 }
 
@@ -105,6 +132,7 @@ export function createPatientPackage(data = {}) {
     notes:            data.notes ?? '',
     status:           data.status ?? summary.status,
     installments,
+    payments:         Array.isArray(data.payments) ? data.payments : [],
     paidTotal:        summary.paidTotal,
     remaining:        summary.remaining,
     createdBy:        data.createdBy ?? null,

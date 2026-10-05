@@ -20,11 +20,40 @@ export function PackageProgress({ paidTotal, totalAmount, compact = false }) {
   )
 }
 
+function PaymentFields({ amount, setAmount, date, setDate, method, setMethod, notes, setNotes }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <label className="form-label">Amount</label>
+        <input type="number" min="0" step="0.01" value={amount}
+          onChange={e => setAmount(e.target.value)} className="input-field py-1.5 text-sm" placeholder="0"/>
+      </div>
+      <div>
+        <label className="form-label">Date</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input-field py-1.5 text-sm"/>
+      </div>
+      <div>
+        <label className="form-label">Method</label>
+        <select value={method} onChange={e => setMethod(e.target.value)} className="input-field py-1.5 text-sm">
+          {INSTALLMENT_PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="form-label">Note</label>
+        <input value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Optional" className="input-field py-1.5 text-sm"/>
+      </div>
+    </div>
+  )
+}
+
 export function PackageDetailModal({
   pkg,
   onClose,
   onMark,
   onUnmark,
+  onAddPayment,
+  onRemovePayment,
   onCancel,
   onDelete,
   viewOnly = false,
@@ -35,12 +64,18 @@ export function PackageDetailModal({
   const [payDate, setPayDate]     = useState(today())
   const [payMethod, setPayMethod] = useState('cash')
   const [payNotes, setPayNotes]   = useState('')
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customAmount, setCustomAmount] = useState('')
+  const [customDate, setCustomDate]     = useState(today())
+  const [customMethod, setCustomMethod] = useState('cash')
+  const [customNotes, setCustomNotes]   = useState('')
   const [saving, setSaving]       = useState(false)
   const [confirm, setConfirm]     = useState(null)
 
   useEffect(() => {
     setPayId(null)
     setConfirm(null)
+    setCustomOpen(false)
   }, [pkg?.id])
 
   if (!pkg) return null
@@ -48,9 +83,19 @@ export function PackageDetailModal({
   const summary = summarizePackage(pkg)
   const status  = getPackageStatusMeta(pkg.status || summary.status)
   const locked  = viewOnly || pkg.status === 'cancelled'
+  const customNum = Number(customAmount) || 0
+  const remainingAfter = Math.round((summary.remaining - customNum) * 100) / 100
+
+  const resetCustom = (remaining = summary.remaining) => {
+    setCustomAmount(remaining > 0 ? String(remaining) : '')
+    setCustomDate(today())
+    setCustomMethod('cash')
+    setCustomNotes('')
+  }
 
   const openPay = (inst) => {
     setPayId(inst.id)
+    setCustomOpen(false)
     setPayAmount(String(inst.amount ?? ''))
     setPayDate(today())
     setPayMethod('cash')
@@ -73,6 +118,23 @@ export function PackageDetailModal({
     }
   }
 
+  const handleCustomPay = async () => {
+    if (!onAddPayment || customNum <= 0) return
+    setSaving(true)
+    try {
+      await onAddPayment(pkg.id, {
+        amount:        customNum,
+        date:          customDate,
+        paymentMethod: customMethod,
+        notes:         customNotes,
+      })
+      resetCustom(Math.max(0, remainingAfter))
+      setCustomOpen(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Modal open={!!pkg} onClose={onClose} title={pkg.name || 'Package'} size="lg">
       <div className="space-y-5">
@@ -89,28 +151,106 @@ export function PackageDetailModal({
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Package total', value: formatCurrency(pkg.totalAmount ?? 0) },
-            { label: 'Collected',     value: formatCurrency(summary.paidTotal), cls: 'text-green-600 dark:text-green-400' },
-            { label: 'Remaining',     value: formatCurrency(summary.remaining), cls: 'text-amber-600 dark:text-amber-400' },
-          ].map(s => (
-            <div key={s.label} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3">
-              <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
-              <p className={`text-sm font-bold text-gray-900 dark:text-white mt-0.5 ${s.cls ?? ''}`}>{s.value}</p>
-            </div>
-          ))}
+          <div className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Package total</p>
+            <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{formatCurrency(pkg.totalAmount ?? 0)}</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3">
+            <p className="text-xs text-green-700 dark:text-green-400">Collected</p>
+            <p className="text-sm font-bold text-green-700 dark:text-green-400 mt-0.5">{formatCurrency(summary.paidTotal)}</p>
+          </div>
+          <div className={`rounded-xl p-3 ${summary.remaining > 0 ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+            <p className={`text-xs ${summary.remaining > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400'}`}>Remaining</p>
+            <p className={`text-lg font-bold mt-0.5 ${summary.remaining > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400'}`}>
+              {formatCurrency(summary.remaining)}
+            </p>
+          </div>
         </div>
 
         <PackageProgress paidTotal={summary.paidTotal} totalAmount={pkg.totalAmount ?? 0}/>
 
         <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-          <span>{summary.paidCount}/{summary.installmentCount} installments paid</span>
+          <span>{summary.paymentCount} payment{summary.paymentCount !== 1 ? 's' : ''}</span>
+          <span>· {summary.paidCount}/{summary.installmentCount} planned installments marked</span>
           {pkg.sessionCount ? <span>· {pkg.sessionCount} sessions</span> : null}
           {pkg.startDate ? <span>· started {formatDate(pkg.startDate)}</span> : null}
         </div>
 
+        {!locked && onAddPayment && (
+          <div className="rounded-xl border border-primary-200 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-900/10 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Add custom payment</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Record any amount. Remaining now: <span className="font-semibold text-amber-700 dark:text-amber-400">{formatCurrency(summary.remaining)}</span>
+                </p>
+              </div>
+              {!customOpen && (
+                <button type="button" onClick={() => { resetCustom(); setPayId(null); setCustomOpen(true) }}
+                  className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-600 px-3 py-1.5 rounded-lg">
+                  Add payment
+                </button>
+              )}
+            </div>
+            {customOpen && (
+              <div className="mt-3 space-y-3">
+                <PaymentFields
+                  amount={customAmount} setAmount={setCustomAmount}
+                  date={customDate} setDate={setCustomDate}
+                  method={customMethod} setMethod={setCustomMethod}
+                  notes={customNotes} setNotes={setCustomNotes}
+                />
+                <p className={`text-xs ${remainingAfter > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400'}`}>
+                  {customNum > 0
+                    ? (remainingAfter > 0
+                      ? `Remaining after this payment: ${formatCurrency(remainingAfter)}`
+                      : `This clears the package${remainingAfter < 0 ? ` · extra ${formatCurrency(Math.abs(remainingAfter))}` : ''}`)
+                    : `Remaining: ${formatCurrency(summary.remaining)}`}
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setCustomOpen(false)}
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleCustomPay} disabled={saving || customNum <= 0}
+                    className="flex-1 btn-primary py-1.5 text-sm disabled:opacity-60">
+                    {saving ? 'Saving…' : 'Save payment'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {summary.payments.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Payments</h3>
+            <div className="space-y-2">
+              {summary.payments.slice().reverse().map(p => (
+                <div key={p.id} className="flex items-start justify-between gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(p.amount)}</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                      {p.date ? formatDate(p.date) : '—'}
+                      {p.paymentMethod ? ` · ${INSTALLMENT_PAYMENT_METHODS.find(m => m.value === p.paymentMethod)?.label ?? p.paymentMethod}` : ''}
+                      {p.installmentId ? ' · installment' : ' · custom'}
+                    </p>
+                    {p.notes && <p className="text-xs text-gray-400 mt-0.5">{p.notes}</p>}
+                  </div>
+                  {!locked && onRemovePayment && (
+                    <button onClick={() => onRemovePayment(pkg.id, p.id)}
+                      className="text-xs font-medium text-gray-500 hover:text-red-600 dark:hover:text-red-400">
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Installments</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Installment plan</h3>
           <div className="space-y-2">
             {(pkg.installments ?? []).map(inst => (
               <div key={inst.id}
@@ -127,12 +267,10 @@ export function PackageDetailModal({
                       <p className="text-xs text-green-700 dark:text-green-400 mt-1">
                         Marked {formatCurrency(inst.paidAmount ?? 0)}
                         {inst.paidDate ? ` on ${formatDate(inst.paidDate)}` : ''}
-                        {inst.paymentMethod ? ` · ${INSTALLMENT_PAYMENT_METHODS.find(m => m.value === inst.paymentMethod)?.label ?? inst.paymentMethod}` : ''}
                       </p>
                     ) : (
                       <p className="text-xs text-gray-400 mt-1">Pending</p>
                     )}
-                    {inst.notes && <p className="text-xs text-gray-400 mt-0.5">{inst.notes}</p>}
                   </div>
                   {!locked && (
                     inst.paid ? (
@@ -150,28 +288,14 @@ export function PackageDetailModal({
                 </div>
 
                 {payId === inst.id && (
-                  <div className="mt-3 grid grid-cols-2 gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <div>
-                      <label className="form-label">Amount</label>
-                      <input type="number" min="0" step="0.01" value={payAmount}
-                        onChange={e => setPayAmount(e.target.value)} className="input-field py-1.5 text-sm"/>
-                    </div>
-                    <div>
-                      <label className="form-label">Date</label>
-                      <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="input-field py-1.5 text-sm"/>
-                    </div>
-                    <div>
-                      <label className="form-label">Method</label>
-                      <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="input-field py-1.5 text-sm">
-                        {INSTALLMENT_PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="form-label">Note</label>
-                      <input value={payNotes} onChange={e => setPayNotes(e.target.value)}
-                        placeholder="Optional" className="input-field py-1.5 text-sm"/>
-                    </div>
-                    <div className="col-span-2 flex gap-2 pt-1">
+                  <div className="mt-3 space-y-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <PaymentFields
+                      amount={payAmount} setAmount={setPayAmount}
+                      date={payDate} setDate={setPayDate}
+                      method={payMethod} setMethod={setPayMethod}
+                      notes={payNotes} setNotes={setPayNotes}
+                    />
+                    <div className="flex gap-2">
                       <button type="button" onClick={() => setPayId(null)}
                         className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300">
                         Cancel
