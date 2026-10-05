@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
 import { formatDate as fmtDateLib } from '@/lib/preferences'
+import { formatTime } from '@/lib/booking'
 import { AddReminderModal } from '@/components/AddReminderModal'
 
 
@@ -41,6 +42,7 @@ function sendWhatsApp(entry, doctor, templateKey) {
     .replace(/\{name\}/g, entry.patientName || 'Patient')
     .replace(/\{clinic\}/g, clinicName)
     .replace(/\{date\}/g,  fmtDateLib(entry.dueDate || entry.followUpDate || '', waFmt))
+    .replace(/\{time\}/g,  entry.dueTime || '')
     .replace(/\{days\}/g,  String(Math.abs(diff)))
 
   window.open(buildWAUrl(entry.phone || '', msg), '_blank')
@@ -79,7 +81,9 @@ function FollowUpRow({ entry, router, doctor, onMarkDone }) {
           onClick={() => entry.patientId && router.push(`/patients/${entry.patientId}`)}>
           <p className="text-sm font-semibold text-gray-900 dark:text-white">{entry.patientName}</p>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(date)}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {formatDate(date)}{entry.dueTime ? ` · ${formatTime(entry.dueTime)}` : ''}
+            </span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badge}</span>
           </div>
         </div>
@@ -220,12 +224,17 @@ export default function FollowUpsPage() {
         patientId:   f.patientId,
         patientName: f.patientName,
         dueDate:     f.dueDate,
+        dueTime:     f.dueTime || '',
         note:        f.note,
         phone:       patientPhoneMap[f.patientId] || f.phone || '',
         status:      f.status,
         source:      f.visitId ? 'visit' : 'standalone',
       }))
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .sort((a, b) => {
+        const byDate = (a.dueDate || '').localeCompare(b.dueDate || '')
+        if (byDate !== 0) return byDate
+        return (a.dueTime || '99:99').localeCompare(b.dueTime || '99:99')
+      })
   }, [followups, patientPhoneMap])
 
   const today    = new Date().toISOString().slice(0, 10)

@@ -11,6 +11,20 @@ const PRESETS = [
   { label: 'In 1 week', days: 7 },
 ]
 
+function defaultDueTime() {
+  const d = new Date()
+  const mins = d.getMinutes()
+  if (mins === 0) {
+    // keep current hour
+  } else if (mins <= 30) {
+    d.setMinutes(30, 0, 0)
+  } else {
+    d.setHours(d.getHours() + 1)
+    d.setMinutes(0, 0, 0)
+  }
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 export function AddReminderModal({
   open,
   onClose,
@@ -22,6 +36,7 @@ export function AddReminderModal({
   const [patientQuery, setPatientQuery] = useState('')
   const [patientId, setPatientId]       = useState('')
   const [dueDate, setDueDate]           = useState(localDateStr(1))
+  const [dueTime, setDueTime]           = useState(defaultDueTime())
   const [note, setNote]                 = useState('')
   const [error, setError]               = useState('')
   const [saving, setSaving]             = useState(false)
@@ -31,6 +46,7 @@ export function AddReminderModal({
     setPatientQuery('')
     setPatientId('')
     setDueDate(localDateStr(1))
+    setDueTime(defaultDueTime())
     setNote('')
     setError('')
     setSaving(false)
@@ -56,6 +72,7 @@ export function AddReminderModal({
     if (viewOnly) return
     if (!patientId) { setError('Select a patient.'); return }
     if (!dueDate) { setError('Pick the day this reminder should appear.'); return }
+    if (!dueTime) { setError('Pick a time for this reminder.'); return }
     setSaving(true)
     setError('')
     try {
@@ -64,6 +81,7 @@ export function AddReminderModal({
         patientName: selected ? `${selected.firstName} ${selected.lastName}`.trim() : '',
         phone:       selected?.phone ?? '',
         dueDate,
+        dueTime,
         note:        note.trim(),
       })
       onClose()
@@ -129,13 +147,17 @@ export function AddReminderModal({
               )
             })}
           </div>
-          <input type="date" value={dueDate} min={today}
-            onChange={e => setDueDate(e.target.value)} className="input-field"/>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" value={dueDate} min={today}
+              onChange={e => setDueDate(e.target.value)} className="input-field"/>
+            <input type="time" value={dueTime}
+              onChange={e => setDueTime(e.target.value)} className="input-field"/>
+          </div>
           {dueDate && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
               {dueDate === today
-                ? 'This reminder will appear on the dashboard today.'
-                : `This reminder will appear on the dashboard and Follow-ups list on ${formatDate(dueDate)}.`}
+                ? 'This reminder will appear on today\'s dashboard list with appointments.'
+                : `This reminder will appear on the dashboard with appointments on ${formatDate(dueDate)}.`}
             </p>
           )}
         </div>

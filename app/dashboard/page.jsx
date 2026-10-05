@@ -12,7 +12,14 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { useToast } from '@/components/ui/Toast'
 import { AddReminderModal } from '@/components/AddReminderModal'
 import { localDateStr } from '@/lib/preferences'
+import { formatTime } from '@/lib/booking'
 import { dataStore } from '@/lib/dataStore'
+
+function sortTime(t) {
+  if (!t) return '99:99'
+  const [h, m] = String(t).split(':')
+  return `${String(Number(h) || 0).padStart(2, '0')}:${String(Number(m) || 0).padStart(2, '0')}`
+}
 
 const SPECIALIZATION_LABELS = {
   general: 'General Practitioner', cardiology: 'Cardiology', dermatology: 'Dermatology',
@@ -72,7 +79,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { formatCurrency, formatDate } = usePreferences()
   const { update: updateAppt } = useAppointments()
-  const { add: addFollowUp, followups: liveFollowups } = useFollowUps()
+  const { add: addFollowUp, markDone: markReminderDone, followups: liveFollowups } = useFollowUps()
   const { success: toastSuccess } = useToast()
   const [markingDone, setMarkingDone] = useState(null)
   const [reminderOpen, setReminderOpen] = useState(false)
@@ -115,10 +122,15 @@ export default function DashboardPage() {
   const tomorrowStr = localDateStr(1)
   const twoDaysStr  = localDateStr(2)
 
-  const todayAppts        = useMemo(() => appointments.filter(a => a.date === todayStr && a.status !== 'cancelled').slice(0, 5), [appointments, todayStr])
+  const todayAppts        = useMemo(() => appointments.filter(a => a.date === todayStr && a.status !== 'cancelled'), [appointments, todayStr])
   const todayFollowups    = useMemo(() => liveFollowups.filter(f => f.dueDate === todayStr    && f.status === 'pending'), [liveFollowups, todayStr])
   const tomorrowFollowups = useMemo(() => liveFollowups.filter(f => f.dueDate === tomorrowStr && f.status === 'pending'), [liveFollowups, tomorrowStr])
   const twoDayFollowups   = useMemo(() => liveFollowups.filter(f => f.dueDate === twoDaysStr  && f.status === 'pending'), [liveFollowups, twoDaysStr])
+  const todaySchedule     = useMemo(() => {
+    const appts = todayAppts.map(a => ({ kind: 'appointment', id: a.id, time: a.time || '', data: a }))
+    const reminders = todayFollowups.map(f => ({ kind: 'reminder', id: f.id, time: f.dueTime || '', data: f }))
+    return [...appts, ...reminders].sort((a, b) => sortTime(a.time).localeCompare(sortTime(b.time)))
+  }, [todayAppts, todayFollowups])
   const specLabel = SPECIALIZATION_LABELS[doctor?.specialization] ?? doctor?.specialization
 
   const openReminder = () => {
@@ -227,59 +239,108 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Today's Patients</h3>
-            <button onClick={() => router.push('/appointments')} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Today's Patients</h3>
+              {todayFollowups.length > 0 && (
+                <span className="text-xs font-bold px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-full">
+                  {todayFollowups.length} reminder{todayFollowups.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={openReminder} className="text-sm text-orange-600 dark:text-orange-400 hover:underline font-medium">Add reminder</button>
+              <button onClick={() => router.push('/appointments')} className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">View all</button>
+            </div>
           </div>
-          {todayAppts.length === 0 ? (
+          {todaySchedule.length === 0 ? (
             <div className="px-6 py-10 text-center">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No appointments today</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Schedule one to get started.</p>
-              <button onClick={() => router.push('/appointments/new')}
-                className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
-                Schedule Appointment
-              </button>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No appointments or reminders today</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Schedule an appointment or add a reminder.</p>
+              <div className="flex items-center justify-center gap-3 mt-3">
+                <button onClick={() => router.push('/appointments/new')}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                  Schedule Appointment
+                </button>
+                <button onClick={openReminder}
+                  className="text-sm text-orange-600 dark:text-orange-400 hover:underline font-medium">
+                  Add Reminder
+                </button>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700">
-              {todayAppts.map(appt => (
-                <div key={appt.id} className="px-6 py-4 flex items-center gap-4">
-                  <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
-                      {appt.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <button
-                      onClick={() => appt.patientId && router.push(`/patients/${appt.patientId}`)}
-                      className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left">
-                      {appt.patientName}
-                    </button>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time}</p>
-                    <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
-                    {['scheduled','confirmed'].includes(appt.status) && (
-                      <div className="flex items-center gap-1">
-                        {appt.patientId && (
-                          <button
-                            onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
-                            className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                            Attend →
-                          </button>
-                        )}
+              {todaySchedule.map(item => {
+                if (item.kind === 'reminder') {
+                  const f = item.data
+                  return (
+                    <div key={`reminder-${f.id}`} className="px-6 py-4 flex items-center gap-4">
+                      <div className="w-9 h-9 bg-orange-100 dark:bg-orange-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-orange-700 dark:text-orange-300 font-semibold text-xs">
+                          {(f.patientName || '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
                         <button
-                          onClick={() => handleMarkDone(appt)}
-                          disabled={markingDone === appt.id}
+                          onClick={() => f.patientId && router.push(`/patients/${f.patientId}`)}
+                          className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left">
+                          {f.patientName}
+                        </button>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Reminder'}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{f.dueTime ? formatTime(f.dueTime) : '—'}</p>
+                        <Badge label="Reminder" color="orange"/>
+                        <button
+                          onClick={() => markReminderDone(f.id)}
                           title="Mark as done"
-                          className="text-xs font-semibold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                          {markingDone === appt.id ? '…' : '✓ Done'}
+                          className="text-xs font-semibold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                          ✓ Done
                         </button>
                       </div>
-                    )}
+                    </div>
+                  )
+                }
+                const appt = item.data
+                return (
+                  <div key={`appt-${appt.id}`} className="px-6 py-4 flex items-center gap-4">
+                    <div className="w-9 h-9 bg-primary-100 dark:bg-primary-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-primary-700 dark:text-primary-300 font-semibold text-xs">
+                        {appt.patientName?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <button
+                        onClick={() => appt.patientId && router.push(`/patients/${appt.patientId}`)}
+                        className="text-sm font-semibold text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400 text-left">
+                        {appt.patientName}
+                      </button>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{appt.type?.replace('_',' ')} · {appt.reason || 'General'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{appt.time ? formatTime(appt.time) : appt.time}</p>
+                      <Badge label={appt.status} color={APPT_STATUS_COLOR[appt.status] ?? 'gray'}/>
+                      {['scheduled','confirmed'].includes(appt.status) && (
+                        <div className="flex items-center gap-1">
+                          {appt.patientId && (
+                            <button
+                              onClick={() => router.push(`/visits/new?patientId=${appt.patientId}&appointmentId=${appt.id}&reason=${encodeURIComponent(appt.reason||'')}`)}
+                              className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                              Attend →
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleMarkDone(appt)}
+                            disabled={markingDone === appt.id}
+                            title="Mark as done"
+                            className="text-xs font-semibold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                            {markingDone === appt.id ? '…' : '✓ Done'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -336,7 +397,10 @@ export default function DashboardPage() {
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Follow-up visit'}</p>
                   </div>
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full flex-shrink-0">Today</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {f.dueTime && <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{formatTime(f.dueTime)}</span>}
+                    <span className="text-xs font-semibold px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full">Today</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -371,7 +435,10 @@ export default function DashboardPage() {
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Follow-up visit'}</p>
                   </div>
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-full flex-shrink-0">Tomorrow</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {f.dueTime && <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{formatTime(f.dueTime)}</span>}
+                    <span className="text-xs font-semibold px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-full">Tomorrow</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -411,7 +478,9 @@ export default function DashboardPage() {
                   <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{f.patientName}</p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{f.note || 'Scheduled follow-up'}</p>
                 </div>
-                <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex-shrink-0">{formatDate(f.dueDate)}</p>
+                  <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex-shrink-0">
+                    {formatDate(f.dueDate)}{f.dueTime ? ` · ${formatTime(f.dueTime)}` : ''}
+                  </p>
               </div>
             ))}
           </div>
