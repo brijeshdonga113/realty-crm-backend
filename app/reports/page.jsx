@@ -5,7 +5,7 @@ import { useReports } from '@/hooks/useReports'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useAuth } from '@/context/AuthContext'
 import { getReferralSources, buildLabelMap } from '@/lib/referralSources'
-import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS, isPackageInvoice } from '@/models/Invoice'
 import { useInventory } from '@/hooks/useInventory'
 import { useBilling } from '@/hooks/useBilling'
 import { useExpenses } from '@/hooks/useExpenses'
@@ -209,6 +209,7 @@ function StatCard({ label, value, sub, color = 'blue' }) {
     orange: 'text-orange-600 dark:text-orange-400',
     red:    'text-red-600 dark:text-red-400',
     teal:   'text-teal-600 dark:text-teal-400',
+    amber:  'text-amber-600 dark:text-amber-400',
   }
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
@@ -286,6 +287,8 @@ export default function ReportsPage() {
     const visits       = rawVisits.filter(v => inRange((v.visitDate ?? '').slice(0, 10)))
     const appointments = rawAppointments.filter(a => inRange(a.date ?? ''))
     const paidInvoices    = rawInvoices.filter(i => i.status === 'paid'  && inRange(i.issueDate ?? ''))
+    const paidBundles     = paidInvoices.filter(isPackageInvoice)
+    const paidClinic      = paidInvoices.filter(i => !isPackageInvoice(i))
     const dueInvoices     = rawInvoices.filter(i => ['draft','sent'].includes(i.status) && inRange(i.issueDate ?? ''))
     const overdueInvoices = rawInvoices.filter(i => i.status === 'overdue' && inRange(i.issueDate ?? ''))
     return {
@@ -293,7 +296,11 @@ export default function ReportsPage() {
       activePatients: patients.filter(p => p.status === 'active').length,
       visits:        visits.length,
       revenue:       paidInvoices.reduce((s, i) => s + i.total, 0),
+      clinicRevenue: paidClinic.reduce((s, i) => s + i.total, 0),
+      bundleRevenue: paidBundles.reduce((s, i) => s + i.total, 0),
       paidCount:     paidInvoices.length,
+      clinicCount:   paidClinic.length,
+      bundleCount:   paidBundles.length,
       pending:       dueInvoices.length,
       pendingAmount: dueInvoices.reduce((s, i) => s + i.total, 0),
       overdueCount:  overdueInvoices.length,
@@ -394,11 +401,13 @@ export default function ReportsPage() {
   }, [itemStats])
 
   const revenueData = useMemo(() => {
-    let invRevenue = 0, svcRevenue = 0, invDiscount = 0, svcDiscount = 0, invUnits = 0, svcCount = 0
-    const monthlyMap = {}, svcMap = {}
+    let invRevenue = 0, svcRevenue = 0, pkgRevenue = 0
+    let invDiscount = 0, svcDiscount = 0, pkgDiscount = 0
+    let invUnits = 0, svcCount = 0, pkgCount = 0
+    const monthlyMap = {}, svcMap = {}, pkgMap = {}
     revInvoices.forEach(inv => {
       const monthKey = getMonthKey(inv.issueDate || inv.createdAt)
-      if (monthKey && !monthlyMap[monthKey]) monthlyMap[monthKey] = { inv: 0, svc: 0, invDisc: 0, svcDisc: 0 }
+      if (monthKey && !monthlyMap[monthKey]) monthlyMap[monthKey] = { inv: 0, svc: 0, pkg: 0, invDisc: 0, svcDisc: 0, pkgDisc: 0 }
       const lineItems = inv.lineItems || []
       // subtotal = sum of line totals (after per-line discountPct), matching invoice.subtotal
       const subtotal = lineItems.reduce((s, li) => s + (li.total != null ? li.total : (li.unitPrice || 0) * (li.quantity || 0)), 0)
@@ -406,6 +415,18 @@ export default function ReportsPage() {
       // revenue total AND the discount total reconcile with invoice.total (Billing page)
       const invoiceDiscount = inv.discount ?? 0
       const invoiceTax      = inv.taxAmount ?? 0
+      const bundleInvoice   = isPackageInvoice(inv)
+      if (bundleInvoice && lineItems.length === 0) {
+        const net = inv.total ?? 0
+        pkgRevenue += net
+        pkgCount += 1
+        if (monthKey) monthlyMap[monthKey].pkg += net
+        const name = inv.packageName || 'Package'
+        if (!pkgMap[name]) pkgMap[name] = { revenue: 0, discount: 0, count: 0 }
+        pkgMap[name].revenue += net
+        pkgMap[name].count += 1
+        return
+      }
       lineItems.forEach(li => {
         const gross      = (li.unitPrice || 0) * (li.quantity || 0)
         const netBase    = li.total != null ? li.total : gross
@@ -414,8 +435,15 @@ export default function ReportsPage() {
         const taxShare   = invoiceTax * share
         const net        = netBase - discShare + taxShare
         const disc       = (gross - netBase) + discShare
-        const isMedicine = li.inventoryItemId || li.itemType === 'medicine'
-        if (isMedicine) {
+        const isBundle   = bundleInvoice || li.itemType === 'package'
+        const isMedicine = !isBundle && (li.inventoryItemId || li.itemType === 'medicine')
+        if (isBundle) {
+          pkgRevenue += net; pkgDiscount += disc; pkgCount += 1
+          if (monthKey) { monthlyMap[monthKey].pkg += net; monthlyMap[monthKey].pkgDisc += disc }
+          const name = inv.packageName || li.description || 'Package'
+          if (!pkgMap[name]) pkgMap[name] = { revenue: 0, discount: 0, count: 0 }
+          pkgMap[name].revenue += net; pkgMap[name].discount += disc; pkgMap[name].count += 1
+        } else if (isMedicine) {
           invRevenue += net; invDiscount += disc; invUnits += li.quantity || 0
           if (monthKey) { monthlyMap[monthKey].inv += net; monthlyMap[monthKey].invDisc += disc }
         } else {
@@ -427,10 +455,11 @@ export default function ReportsPage() {
         }
       })
     })
-    const total       = invRevenue + svcRevenue
+    const total       = invRevenue + svcRevenue + pkgRevenue
     const months      = Object.keys(monthlyMap).sort()
     const topServices = Object.entries(svcMap).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
-    return { invRevenue, svcRevenue, total, invDiscount, svcDiscount, invUnits, svcCount, months, monthlyMap, topServices }
+    const topBundles  = Object.entries(pkgMap).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
+    return { invRevenue, svcRevenue, pkgRevenue, total, invDiscount, svcDiscount, pkgDiscount, invUnits, svcCount, pkgCount, months, monthlyMap, topServices, topBundles }
   }, [revInvoices])
 
   const expenseData = useMemo(() => {
@@ -500,7 +529,7 @@ export default function ReportsPage() {
   const maxMonthly = useMemo(() =>
     allMonthlyKeys.reduce((m, k) => {
       const d   = revenueData.monthlyMap[k]
-      const rev = (d?.inv || 0) + (d?.svc || 0)
+      const rev = (d?.inv || 0) + (d?.svc || 0) + (d?.pkg || 0)
       const exp = expenseData.monthly[k] || 0
       return Math.max(m, rev, exp)
     }, 0),
@@ -568,7 +597,14 @@ export default function ReportsPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="New Patients"  value={filteredStats.patients}              sub="registered in period"               color="blue"/>
               <StatCard label="Visits"        value={filteredStats.visits}                sub="recorded in period"                 color="teal"/>
-              <StatCard label="Revenue"       value={formatCurrency(filteredStats.revenue)} sub="from paid invoices"               color="green"/>
+              <StatCard
+                label="Revenue"
+                value={formatCurrency(filteredStats.revenue)}
+                sub={filteredStats.bundleCount > 0
+                  ? `${formatCurrency(filteredStats.clinicRevenue)} clinic · ${formatCurrency(filteredStats.bundleRevenue)} bundles`
+                  : 'from paid invoices'}
+                color="green"
+              />
               <StatCard label="Due / Pending" value={formatCurrency(filteredStats.pendingAmount)} sub={`${filteredStats.pending} invoices`} color="orange"/>
             </div>
           )}
@@ -670,9 +706,11 @@ export default function ReportsPage() {
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Billing Summary</h3>
                 <div className="space-y-3">
                   {[
-                    { label: 'Paid Invoices', value: filteredStats.paidCount,   amount: filteredStats.revenue,       color: 'bg-green-500' },
-                    { label: 'Due / Pending', value: filteredStats.pending,      amount: filteredStats.pendingAmount, color: 'bg-orange-400' },
-                    { label: 'Overdue',       value: filteredStats.overdueCount, amount: 0,                           color: 'bg-red-500' },
+                    { label: 'Paid Invoices',    value: filteredStats.paidCount,    amount: filteredStats.revenue,       color: 'bg-green-500' },
+                    { label: 'Clinic Invoices',  value: filteredStats.clinicCount,  amount: filteredStats.clinicRevenue, color: 'bg-primary-500' },
+                    { label: 'Bundle Invoices',  value: filteredStats.bundleCount,  amount: filteredStats.bundleRevenue, color: 'bg-amber-500' },
+                    { label: 'Due / Pending',    value: filteredStats.pending,      amount: filteredStats.pendingAmount, color: 'bg-orange-400' },
+                    { label: 'Overdue',          value: filteredStats.overdueCount, amount: 0,                           color: 'bg-red-500' },
                   ].map(item => (
                     <div key={item.label} className="flex items-center gap-3">
                       <span className={`w-3 h-3 rounded-full ${item.color} flex-shrink-0`}/>
@@ -929,8 +967,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Summary split cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 lg:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{fmt(revenueData.total)}</p>
               <p className="text-xs text-gray-400 mt-1">{revInvoices.length} invoice{revInvoices.length !== 1 ? 's' : ''}</p>
@@ -939,10 +977,12 @@ export default function ReportsPage() {
                   <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
                     <div className="h-full bg-teal-500 transition-all" style={{ width: `${pct(revenueData.invRevenue, revenueData.total)}%` }}/>
                     <div className="h-full bg-primary-500 transition-all" style={{ width: `${pct(revenueData.svcRevenue, revenueData.total)}%` }}/>
+                    <div className="h-full bg-amber-500 transition-all" style={{ width: `${pct(revenueData.pkgRevenue, revenueData.total)}%` }}/>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span className="text-teal-600 dark:text-teal-400">Med {pct(revenueData.invRevenue, revenueData.total)}%</span>
                     <span className="text-primary-600 dark:text-primary-400">Svc {pct(revenueData.svcRevenue, revenueData.total)}%</span>
+                    <span className="text-amber-600 dark:text-amber-400">Bdl {pct(revenueData.pkgRevenue, revenueData.total)}%</span>
                   </div>
                 </div>
               )}
@@ -965,6 +1005,16 @@ export default function ReportsPage() {
               <div className="mt-2 space-y-0.5 text-xs text-primary-700 dark:text-primary-300">
                 <div className="flex justify-between"><span>Line items</span><span className="font-semibold">{revenueData.svcCount}</span></div>
                 <div className="flex justify-between"><span>Discount</span><span className="font-semibold">{revenueData.svcDiscount > 0 ? `−${fmt(revenueData.svcDiscount)}` : '—'}</span></div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800 p-5">
+              <p className="text-xs font-semibold text-amber-500 dark:text-amber-400 uppercase tracking-wider mb-1">Bundles</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{fmt(revenueData.pkgRevenue)}</p>
+              <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">{pct(revenueData.pkgRevenue, revenueData.total)}% of revenue</p>
+              <div className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300">
+                <div className="flex justify-between"><span>Payments</span><span className="font-semibold">{revenueData.pkgCount}</span></div>
+                <div className="flex justify-between"><span>Discount</span><span className="font-semibold">{revenueData.pkgDiscount > 0 ? `−${fmt(revenueData.pkgDiscount)}` : '—'}</span></div>
               </div>
             </div>
 
@@ -1018,7 +1068,8 @@ export default function ReportsPage() {
                   const d   = revenueData.monthlyMap[monthKey] || {}
                   const inv = d.inv || 0
                   const svc = d.svc || 0
-                  const rev = inv + svc
+                  const pkg = d.pkg || 0
+                  const rev = inv + svc + pkg
                   const exp = expenseData.monthly[monthKey] || 0
                   const net = rev - exp
                   return (
@@ -1033,10 +1084,10 @@ export default function ReportsPage() {
                       </div>
                       <div className="space-y-1">
                         {rev > 0 && (
-                          <div className="flex gap-0.5 h-3">
-                            <div className="bg-teal-400 dark:bg-teal-500 rounded-l h-full transition-all" style={{ width: `${pct(inv, maxMonthly)}%`, minWidth: inv > 0 ? '3px' : '0' }} title={`Medicine: ${fmt(inv)}`}/>
-                            <div className="bg-primary-400 dark:bg-primary-500 rounded-r h-full transition-all" style={{ width: `${pct(svc, maxMonthly)}%`, minWidth: svc > 0 ? '3px' : '0' }} title={`Service: ${fmt(svc)}`}/>
-                            {inv === 0 && svc === 0 && <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded"/>}
+                          <div className="flex gap-0.5 h-3 overflow-hidden rounded">
+                            {inv > 0 && <div className="bg-teal-400 dark:bg-teal-500 h-full transition-all" style={{ width: `${pct(inv, maxMonthly)}%`, minWidth: '3px' }} title={`Medicine: ${fmt(inv)}`}/>}
+                            {svc > 0 && <div className="bg-primary-400 dark:bg-primary-500 h-full transition-all" style={{ width: `${pct(svc, maxMonthly)}%`, minWidth: '3px' }} title={`Service: ${fmt(svc)}`}/>}
+                            {pkg > 0 && <div className="bg-amber-400 dark:bg-amber-500 h-full transition-all" style={{ width: `${pct(pkg, maxMonthly)}%`, minWidth: '3px' }} title={`Bundles: ${fmt(pkg)}`}/>}
                           </div>
                         )}
                         {exp > 0 && (
@@ -1052,8 +1103,46 @@ export default function ReportsPage() {
               <div className="flex flex-wrap gap-4 mt-5 pt-3 border-t border-gray-100 dark:border-gray-700">
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-teal-400 dark:bg-teal-500"/>Medicine</div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-primary-400 dark:bg-primary-500"/>Services</div>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-amber-400 dark:bg-amber-500"/>Bundles</div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><div className="w-3 h-3 rounded-sm bg-red-400 dark:bg-red-500"/>Expenses</div>
               </div>
+            </div>
+          )}
+
+          {/* Top bundles */}
+          {revenueData.topBundles.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Top Bundles by Revenue</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-700/40">
+                    {['Bundle','Payments','Discount','Net Revenue','Revenue Bar'].map((h, i) => (
+                      <th key={h} className={`px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {revenueData.topBundles.map((pkg, i) => {
+                    const maxPkg = revenueData.topBundles[0]?.revenue || 1
+                    return (
+                      <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{pkg.name}</td>
+                        <td className="px-4 py-3 text-right text-xs text-gray-500 dark:text-gray-400">{pkg.count}×</td>
+                        <td className="px-4 py-3 text-right text-xs text-orange-600 dark:text-orange-400">{pkg.discount > 0 ? `−${fmt(pkg.discount)}` : '—'}</td>
+                        <td className="px-4 py-3 text-right text-xs font-semibold text-amber-700 dark:text-amber-300">{fmt(pkg.revenue)}</td>
+                        <td className="px-4 py-3 pl-2">
+                          <div className="flex items-center gap-2">
+                            <Bar value={pkg.revenue} max={maxPkg} color="bg-amber-400 dark:bg-amber-500"/>
+                            <span className="text-xs text-gray-400 w-10 text-right">{pct(pkg.revenue, revenueData.pkgRevenue)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 
