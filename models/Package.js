@@ -30,17 +30,101 @@ export function splitInstallmentAmounts(total, count) {
   return Array.from({ length: n }, (_, i) => (base + (i === n - 1 ? remainder : 0)) / 100)
 }
 
-export function createInstallments(total, count) {
+/** Add calendar months to a YYYY-MM-DD date, clamping the day to the target month. */
+export function addMonths(dateStr, months) {
+  const clean = String(dateStr || '').slice(0, 10)
+  const [y, m, d] = clean.split('-').map(Number)
+  if (!y || !m) return clean
+  const day = d || 1
+  const totalMonths = (m - 1) + Number(months || 0)
+  const year = y + Math.floor(totalMonths / 12)
+  let month = totalMonths % 12
+  if (month < 0) month += 12
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const dayClamped = Math.min(day, lastDay)
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(dayClamped).padStart(2, '0')}`
+}
+
+export function installmentDueDate(startDate, index) {
+  const start = String(startDate || '').slice(0, 10)
+    || new Date().toISOString().slice(0, 10)
+  return addMonths(start, Number(index) || 0)
+}
+
+/** Stored dueDate, or monthly from the package start date for older records. */
+export function resolveInstallmentDueDate(inst, pkg, index) {
+  if (inst?.dueDate) return String(inst.dueDate).slice(0, 10)
+  const idx = index != null ? index : Math.max(0, (Number(inst?.number) || 1) - 1)
+  return installmentDueDate(pkg?.startDate, idx)
+}
+
+export function createInstallments(total, count, startDate) {
+  const start = startDate || new Date().toISOString().slice(0, 10)
   return splitInstallmentAmounts(total, count).map((amount, i) => ({
     id:            uid(),
     number:        i + 1,
     amount,
+    dueDate:       installmentDueDate(start, i),
     paidAmount:    0,
     paid:          false,
     paidDate:      '',
     paymentMethod: '',
     notes:         '',
   }))
+}
+
+/**
+ * Outstanding unpaid installments for the Reminders tab.
+ * Custom payments cover planned installments in order, so leftover remaining
+ * is assigned to the next unpaid slots.
+ */
+export function buildPackageReminders(packages = [], patientsById = {}) {
+  const items = []
+  for (const pkg of packages) {
+    const summary = summarizePackage(pkg)
+    if (pkg.status === 'cancelled' || summary.remaining <= 0) continue
+    let paidPool = summary.paidTotal
+    let leftover = summary.remaining
+    const installments = pkg.installments ?? []
+    for (let idx = 0; idx < installments.length; idx++) {
+      if (leftover <= 0.009) break
+      const inst = installments[idx]
+      const planned = Number(inst.amount) || 0
+      if (inst.paid) {
+        paidPool = Math.max(0, Math.round((paidPool - (Number(inst.paidAmount) || planned)) * 100) / 100)
+        continue
+      }
+      if (paidPool >= planned - 0.009) {
+        paidPool = Math.max(0, Math.round((paidPool - planned) * 100) / 100)
+        continue
+      }
+      const uncovered = Math.round((planned - paidPool) * 100) / 100
+      paidPool = 0
+      const dueAmount = Math.min(uncovered, leftover)
+      leftover = Math.round((leftover - dueAmount) * 100) / 100
+      if (dueAmount <= 0.009) continue
+      items.push({
+        id:                 `${pkg.id}:${inst.id}`,
+        packageId:          pkg.id,
+        installmentId:      inst.id,
+        installmentNumber:  inst.number || idx + 1,
+        patientId:          pkg.patientId,
+        patientName:        pkg.patientName || 'Patient',
+        phone:              patientsById[pkg.patientId]?.phone || pkg.patientPhone || '',
+        packageName:        pkg.name || 'Package',
+        dueDate:            resolveInstallmentDueDate(inst, pkg, idx),
+        amount:             planned,
+        dueAmount,
+        remaining:          summary.remaining,
+        totalAmount:        Number(pkg.totalAmount) || 0,
+      })
+    }
+  }
+  return items.sort((a, b) => {
+    const byDate = (a.dueDate || '').localeCompare(b.dueDate || '')
+    if (byDate !== 0) return byDate
+    return (a.installmentNumber || 0) - (b.installmentNumber || 0)
+  })
 }
 
 export function createPayment(data = {}) {
@@ -113,9 +197,10 @@ export function createPatientPackage(data = {}) {
   const now = new Date().toISOString()
   const installmentCount = Math.max(1, Number(data.installmentCount) || 4)
   const totalAmount = Number(data.totalAmount) || 0
+  const startDate = data.startDate ?? now.slice(0, 10)
   const installments = Array.isArray(data.installments) && data.installments.length
     ? data.installments
-    : createInstallments(totalAmount, installmentCount)
+    : createInstallments(totalAmount, installmentCount, startDate)
   const summary = summarizePackage({ ...data, installments, totalAmount })
 
   return {
@@ -130,7 +215,7 @@ export function createPatientPackage(data = {}) {
     totalAmount,
     installmentCount: installments.length,
     sessionCount:     data.sessionCount != null && data.sessionCount !== '' ? Number(data.sessionCount) : null,
-    startDate:        data.startDate ?? now.slice(0, 10),
+    startDate,
     notes:            data.notes ?? '',
     status:           data.status ?? summary.status,
     installments,

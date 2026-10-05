@@ -2332,6 +2332,7 @@ export default function PatientProfilePage() {
         onRemovePayment={packageService.removePayment}
         onCancel={packageService.cancelEnrollment}
         onDelete={packageService.removeEnrollment}
+        onUpdate={packageService.updateEnrollment}
         viewOnly={!!doctor?.viewOnly}
       />
 

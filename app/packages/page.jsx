@@ -12,7 +12,14 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { getPackageStatusMeta, summarizePackage } from '@/models/Package'
 import { AssignPackageModal } from '@/components/packages/AssignPackageModal'
 import { PackageDetailModal, PackageProgress } from '@/components/packages/PackageDetailModal'
+import { PackageReminders, packageReminderDueCount } from '@/components/packages/PackageReminders'
 import { TemplateFormModal } from '@/components/packages/TemplateFormModal'
+
+function tabFromSearch(searchParams) {
+  const t = searchParams.get('tab')
+  if (t === 'bundles' || t === 'reminders') return t
+  return 'patients'
+}
 
 function PackagesPageInner() {
   useRequireModuleAccess('packages')
@@ -24,10 +31,10 @@ function PackagesPageInner() {
   const { templates, loading: templatesLoading, add: addTemplate, update: updateTemplate, remove: removeTemplate } = usePackageTemplates()
   const {
     packages, loading,
-    add, markInstallment, unmarkInstallment, addPayment, removePayment, cancel, remove,
+    add, update, markInstallment, unmarkInstallment, addPayment, removePayment, cancel, remove,
   } = usePatientPackages()
 
-  const [pageTab, setPageTab]         = useState(searchParams.get('tab') === 'bundles' ? 'bundles' : 'patients')
+  const [pageTab, setPageTab]         = useState(() => tabFromSearch(searchParams))
   const [search, setSearch]           = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [assignOpen, setAssignOpen]   = useState(false)
@@ -42,10 +49,16 @@ function PackagesPageInner() {
       setAssignOpen(true)
       setAssignPatientId(searchParams.get('patientId') ?? '')
     }
-    if (searchParams.get('tab') === 'bundles') setPageTab('bundles')
+    setPageTab(tabFromSearch(searchParams))
   }, [searchParams])
 
   const liveDetail = detail ? (packages.find(p => p.id === detail.id) ?? detail) : null
+  const reminderDueCount = useMemo(() => packageReminderDueCount(packages), [packages])
+
+  const goTab = (id) => {
+    setPageTab(id)
+    router.replace(id === 'patients' ? '/packages' : `/packages?tab=${id}`)
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -109,18 +122,24 @@ function PackagesPageInner() {
       }
     >
       <div className="max-w-5xl mx-auto space-y-5">
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit">
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit flex-wrap">
           {[
-            { id: 'patients', label: 'Patient Packages' },
-            { id: 'bundles',  label: 'Bundle Deals' },
+            { id: 'patients',  label: 'Patient Packages' },
+            { id: 'reminders', label: 'Reminders' },
+            { id: 'bundles',   label: 'Bundle Deals' },
           ].map(t => (
-            <button key={t.id} onClick={() => { setPageTab(t.id); router.replace(t.id === 'bundles' ? '/packages?tab=bundles' : '/packages') }}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            <button key={t.id} onClick={() => goTab(t.id)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
                 pageTab === t.id
                   ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}>
               {t.label}
+              {t.id === 'reminders' && reminderDueCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                  {reminderDueCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -214,6 +233,21 @@ function PackagesPageInner() {
           </>
         )}
 
+        {pageTab === 'reminders' && (
+          <PackageReminders
+            packages={packages}
+            patients={patients}
+            doctor={doctor}
+            loading={loading}
+            viewOnly={!!doctor?.viewOnly}
+            onAssign={() => openAssign()}
+            onOpenPackage={(id) => {
+              const pkg = packages.find(p => p.id === id)
+              if (pkg) setDetail(pkg)
+            }}
+          />
+        )}
+
         {pageTab === 'bundles' && (
           <>
             {templatesLoading ? (
@@ -291,6 +325,7 @@ function PackagesPageInner() {
         onRemovePayment={removePayment}
         onCancel={cancel}
         onDelete={remove}
+        onUpdate={update}
         viewOnly={!!doctor?.viewOnly}
       />
 
