@@ -20,6 +20,19 @@ export function PackageProgress({ paidTotal, totalAmount, compact = false }) {
   )
 }
 
+function AddToBillingCheck({ checked, onChange }) {
+  return (
+    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+        className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"/>
+      <span>
+        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Add to billing</span>
+        <span className="block text-xs text-gray-500 dark:text-gray-400">Creates a paid invoice under Billing → Bundles</span>
+      </span>
+    </label>
+  )
+}
+
 function PaymentFields({ amount, setAmount, date, setDate, method, setMethod, notes, setNotes }) {
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -69,6 +82,7 @@ export function PackageDetailModal({
   const [customDate, setCustomDate]     = useState(today())
   const [customMethod, setCustomMethod] = useState('cash')
   const [customNotes, setCustomNotes]   = useState('')
+  const [addToBilling, setAddToBilling] = useState(true)
   const [saving, setSaving]       = useState(false)
   const [confirm, setConfirm]     = useState(null)
 
@@ -91,6 +105,7 @@ export function PackageDetailModal({
     setCustomDate(today())
     setCustomMethod('cash')
     setCustomNotes('')
+    setAddToBilling(true)
   }
 
   const openPay = (inst) => {
@@ -100,6 +115,7 @@ export function PackageDetailModal({
     setPayDate(today())
     setPayMethod('cash')
     setPayNotes('')
+    setAddToBilling(true)
   }
 
   const handleMark = async () => {
@@ -111,6 +127,7 @@ export function PackageDetailModal({
         paidDate:      payDate,
         paymentMethod: payMethod,
         notes:         payNotes,
+        addToBilling,
       })
       setPayId(null)
     } finally {
@@ -127,6 +144,7 @@ export function PackageDetailModal({
         date:          customDate,
         paymentMethod: customMethod,
         notes:         customNotes,
+        addToBilling,
       })
       resetCustom(Math.max(0, remainingAfter))
       setCustomOpen(false)
@@ -207,6 +225,7 @@ export function PackageDetailModal({
                       : `This clears the package${remainingAfter < 0 ? ` · extra ${formatCurrency(Math.abs(remainingAfter))}` : ''}`)
                     : `Remaining: ${formatCurrency(summary.remaining)}`}
                 </p>
+                <AddToBillingCheck checked={addToBilling} onChange={setAddToBilling}/>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setCustomOpen(false)}
                     className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300">
@@ -235,6 +254,12 @@ export function PackageDetailModal({
                       {p.paymentMethod ? ` · ${INSTALLMENT_PAYMENT_METHODS.find(m => m.value === p.paymentMethod)?.label ?? p.paymentMethod}` : ''}
                       {p.installmentId ? ' · installment' : ' · custom'}
                     </p>
+                    {p.invoiceNumber && (
+                      <Link href={`/billing?tab=bundles&invoice=${p.invoiceId}`}
+                        className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline mt-0.5 inline-block">
+                        Invoice {p.invoiceNumber}
+                      </Link>
+                    )}
                     {p.notes && <p className="text-xs text-gray-400 mt-0.5">{p.notes}</p>}
                   </div>
                   {!locked && onRemovePayment && (
@@ -295,6 +320,7 @@ export function PackageDetailModal({
                       method={payMethod} setMethod={setPayMethod}
                       notes={payNotes} setNotes={setPayNotes}
                     />
+                    <AddToBillingCheck checked={addToBilling} onChange={setAddToBilling}/>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setPayId(null)}
                         className="flex-1 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300">

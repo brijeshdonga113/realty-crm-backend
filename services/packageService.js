@@ -23,6 +23,24 @@ function createdByFromSession() {
   return null
 }
 
+async function billPayment(pkg, payment) {
+  try {
+    const { billingService } = await import('./billingService')
+    const invoice = await billingService.createFromPackagePayment(pkg, payment)
+    return { ...payment, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber }
+  } catch {
+    return payment
+  }
+}
+
+async function removeLinkedInvoice(invoiceId) {
+  if (!invoiceId) return
+  try {
+    const { billingService } = await import('./billingService')
+    await billingService.remove(invoiceId)
+  } catch {}
+}
+
 function withSummary(pkg, extra = {}) {
   const next = { ...pkg, ...extra }
   const summary = summarizePackage(next)
@@ -84,9 +102,11 @@ export const packageService = {
       if (item.id !== installmentId) return item
       return { ...item, paid: true, paidAmount, paidDate, paymentMethod, notes }
     })
+    let nextPayment = createPayment({ amount: paidAmount, date: paidDate, paymentMethod, notes, installmentId })
+    if (payment.addToBilling) nextPayment = await billPayment(current, nextPayment)
     const payments = paymentsFromPackage(current)
       .filter(p => p.installmentId !== installmentId)
-      .concat(createPayment({ amount: paidAmount, date: paidDate, paymentMethod, notes, installmentId }))
+      .concat(nextPayment)
     return dataStore.update(ENROLLMENTS, id, withSummary(current, { installments, payments }))
   },
 
@@ -97,7 +117,10 @@ export const packageService = {
       if (item.id !== installmentId) return item
       return { ...item, paid: false, paidAmount: 0, paidDate: '', paymentMethod: '', notes: item.notes ?? '' }
     })
-    const payments = paymentsFromPackage(current).filter(p => p.installmentId !== installmentId)
+    const existing = paymentsFromPackage(current)
+    const removed = existing.filter(p => p.installmentId === installmentId)
+    await Promise.all(removed.map(p => removeLinkedInvoice(p.invoiceId)))
+    const payments = existing.filter(p => p.installmentId !== installmentId)
     const nextStatus = current.status === 'cancelled' ? 'cancelled' : 'active'
     return dataStore.update(ENROLLMENTS, id, withSummary({ ...current, status: nextStatus }, { installments, payments, status: nextStatus }))
   },
@@ -107,13 +130,14 @@ export const packageService = {
     if (!current) return null
     const amount = Number(payment.amount) || 0
     if (amount <= 0) return current
-    const nextPayment = createPayment({
+    let nextPayment = createPayment({
       amount,
       date:          payment.date || new Date().toISOString().slice(0, 10),
       paymentMethod: payment.paymentMethod || 'cash',
       notes:         payment.notes ?? '',
       installmentId: payment.installmentId ?? null,
     })
+    if (payment.addToBilling) nextPayment = await billPayment(current, nextPayment)
     const payments = [...paymentsFromPackage(current), nextPayment]
     return dataStore.update(ENROLLMENTS, id, withSummary(current, { payments }))
   },
@@ -123,6 +147,7 @@ export const packageService = {
     if (!current) return null
     const existing = paymentsFromPackage(current)
     const removed = existing.find(p => p.id === paymentId)
+    await removeLinkedInvoice(removed?.invoiceId)
     const payments = existing.filter(p => p.id !== paymentId)
     let installments = current.installments ?? []
     if (removed?.installmentId) {

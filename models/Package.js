@@ -50,8 +50,10 @@ export function createPayment(data = {}) {
     date:          data.date || new Date().toISOString().slice(0, 10),
     paymentMethod: data.paymentMethod || 'cash',
     notes:         data.notes ?? '',
-    installmentId: data.installmentId ?? null,
-    createdAt:     data.createdAt ?? new Date().toISOString(),
+    installmentId:  data.installmentId ?? null,
+    invoiceId:      data.invoiceId ?? null,
+    invoiceNumber:  data.invoiceNumber ?? null,
+    createdAt:      data.createdAt ?? new Date().toISOString(),
   }
 }
 

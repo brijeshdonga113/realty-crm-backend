@@ -20,7 +20,7 @@ import { useFollowUps } from '@/hooks/useFollowUps'
 import { useBlockedSlots } from '@/hooks/useBlockedSlots'
 import { useAuth } from '@/context/AuthContext'
 import { getPatientAge, getPatientInitials, BLOOD_TYPES, GENDERS } from '@/models/Patient'
-import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS, isPackageInvoice } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useReferralSources } from '@/hooks/useReferralSources'
@@ -2084,9 +2084,12 @@ export default function PatientProfilePage() {
                     <tr key={inv.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 pl-6 text-sm font-semibold text-primary-600 dark:text-primary-400">{inv.invoiceNumber || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDate(inv.issueDate)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px] truncate">
-                        {inv.lineItems?.[0]?.description || '—'}
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[180px]">
+                        <span className="truncate block">{inv.lineItems?.[0]?.description || '—'}</span>
                         {inv.lineItems?.length > 1 && <span className="text-gray-400 ml-1">+{inv.lineItems.length - 1}</span>}
+                        {isPackageInvoice(inv) && (
+                          <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">Bundle</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 capitalize">{inv.paymentMethod?.replace('_',' ') || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
@@ -2107,7 +2110,7 @@ export default function PatientProfilePage() {
                               Edit
                             </button>
                           )}
-                          <button onClick={() => router.push(`/billing?invoice=${inv.id}`)}
+                          <button onClick={() => router.push(isPackageInvoice(inv) ? `/billing?tab=bundles&invoice=${inv.id}` : `/billing?invoice=${inv.id}`)}
                             className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline transition-colors">
                             View
                           </button>

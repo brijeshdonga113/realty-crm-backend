@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useBilling } from '@/hooks/useBilling'
 import { useAuth } from '@/context/AuthContext'
 import { useRequireModuleAccess } from '@/hooks/useRequireModuleAccess'
-import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS } from '@/models/Invoice'
+import { PAYMENT_METHODS, COLLECTED_BY_OPTIONS, isPackageInvoice } from '@/models/Invoice'
 import { getBillingStatuses, buildStatusColorMap } from '@/lib/billingStatuses'
 import { usePreferences } from '@/hooks/usePreferences'
 import { buildWAUrl } from '@/lib/whatsapp'
@@ -116,6 +116,7 @@ function BillingPageInner() {
   const { invoices, loading, markPaid, remove } = useBilling()
   const billingStatuses = getBillingStatuses(doctor?.billingStatuses)
   const STATUS_COLOR    = buildStatusColorMap(billingStatuses)
+  const [pageTab,         setPageTab]         = useState(searchParams.get('tab') === 'bundles' ? 'bundles' : 'invoices')
   const [filterStatus,    setFilterStatus]    = useState('all')
   const [filterDateFrom,  setFilterDateFrom]  = useState('')
   const [filterDateTo,    setFilterDateTo]    = useState('')
@@ -125,22 +126,25 @@ function BillingPageInner() {
   const [payMethod, setPayMethod]         = useState('cash')
   const [payCollectedBy, setPayCollectedBy] = useState(() => isReceptionist ? 'receptionist' : 'doctor')
 
-  // Auto-open invoice modal when navigated from patient profile (?invoice=<id>)
   useEffect(() => {
+    if (searchParams.get('tab') === 'bundles') setPageTab('bundles')
     const invoiceId = searchParams.get('invoice')
     if (!invoiceId || !invoices.length) return
     const found = invoices.find(inv => inv.id === invoiceId)
-    if (found) setPrintInvoice(found)
+    if (found) {
+      if (isPackageInvoice(found)) setPageTab('bundles')
+      setPrintInvoice(found)
+    }
   }, [searchParams, invoices])
 
-  // Receptionists only see invoices they created
-  const visibleInvoices = isReceptionist
+  const scopedInvoices = (isReceptionist
     ? invoices.filter(i => i.createdBy?.uid === doctor?._receptionistUid)
     : invoices
+  ).filter(inv => pageTab === 'bundles' ? isPackageInvoice(inv) : !isPackageInvoice(inv))
 
   const hasActiveFilters = filterStatus !== 'all' || filterDateFrom || filterDateTo || filterCreatedBy !== 'all'
 
-  const filtered = visibleInvoices.filter(inv => {
+  const filtered = scopedInvoices.filter(inv => {
     if (filterStatus !== 'all' && inv.status !== filterStatus) return false
     if (filterDateFrom && inv.issueDate < filterDateFrom) return false
     if (filterDateTo   && inv.issueDate > filterDateTo)   return false
@@ -155,7 +159,7 @@ function BillingPageInner() {
     setFilterCreatedBy('all')
   }
 
-  const stats = visibleInvoices.reduce((acc, inv) => {
+  const stats = scopedInvoices.reduce((acc, inv) => {
     if (inv.status === 'paid')    acc.revenue += inv.total
     if (inv.status === 'overdue') acc.overdue += inv.total
     if (['draft','sent'].includes(inv.status)) acc.pending += inv.total
@@ -182,10 +186,26 @@ function BillingPageInner() {
         )
       }
     >
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-fit mb-5">
+        {[
+          { id: 'invoices', label: 'Invoices' },
+          { id: 'bundles',  label: 'Bundles' },
+        ].map(t => (
+          <button key={t.id} onClick={() => { setPageTab(t.id); router.replace(t.id === 'bundles' ? '/billing?tab=bundles' : '/billing') }}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              pageTab === t.id
+                ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Stats — hidden for receptionists */}
       {!isReceptionist && <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Total Revenue', value: formatCurrency(stats.revenue), color: 'green', sub: 'from paid invoices' },
+          { label: 'Total Revenue', value: formatCurrency(stats.revenue), color: 'green', sub: pageTab === 'bundles' ? 'from bundle payments' : 'from paid invoices' },
           { label: 'Pending',       value: formatCurrency(stats.pending), color: 'teal',  sub: 'awaiting payment' },
           { label: 'Overdue',       value: formatCurrency(stats.overdue), color: 'red',   sub: 'past due date' },
         ].map(s => (
@@ -249,17 +269,19 @@ function BillingPageInner() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No invoices"
-          description="Create your first invoice to start tracking payments."
-          action={() => router.push('/billing/new')}
-          actionLabel="Create Invoice"
+          title={pageTab === 'bundles' ? 'No bundle invoices' : 'No invoices'}
+          description={pageTab === 'bundles'
+            ? 'When you record a package payment, check “Add to billing” to list it here.'
+            : 'Create your first invoice to start tracking payments.'}
+          action={() => router.push(pageTab === 'bundles' ? '/packages' : '/billing/new')}
+          actionLabel={pageTab === 'bundles' ? 'Open Packages' : 'Create Invoice'}
         />
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                {['Invoice #', 'Patient', 'Date', 'Items', 'Total', 'Status', ...(isReceptionist ? [] : ['Created By']), 'Actions'].map(h => (
+                {['Invoice #', 'Patient', 'Date', pageTab === 'bundles' ? 'Package' : 'Items', 'Total', 'Status', ...(isReceptionist ? [] : ['Created By']), 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
                 ))}
               </tr>
@@ -272,7 +294,11 @@ function BillingPageInner() {
                   </td>
                   <td className="px-4 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{inv.patientName}</td>
                   <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{formatDate(inv.issueDate)}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{inv.lineItems?.length ?? 0} item{inv.lineItems?.length !== 1 ? 's' : ''}</td>
+                  <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">
+                    {pageTab === 'bundles'
+                      ? (inv.packageName || inv.lineItems?.[0]?.description || 'Package')
+                      : `${inv.lineItems?.length ?? 0} item${inv.lineItems?.length !== 1 ? 's' : ''}`}
+                  </td>
                   <td className="px-4 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3.5">
                     <Badge label={billingStatuses.find(s => s.value === inv.status)?.label ?? inv.status} color={STATUS_COLOR[inv.status] ?? 'gray'}/>
