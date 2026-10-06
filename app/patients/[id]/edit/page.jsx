@@ -7,7 +7,6 @@ import { useReferralSources } from '@/hooks/useReferralSources'
 import { BLOOD_TYPES, GENDERS } from '@/models/Patient'
 import { patientService } from '@/services/patientService'
 import AutoTextarea from '@/components/ui/AutoTextarea'
-import RichTextEditor from '@/components/ui/RichTextEditor'
 import { useToast } from '@/components/ui/Toast'
 
 const GENERALS_CONFIG = [
@@ -415,29 +414,28 @@ export default function EditPatientPage() {
           {/* Observation */}
           <div>
             <label className="form-label">Observation</label>
-            <RichTextEditor value={form.observation} onChange={v => set('observation', v)}
-              placeholder="Doctor's initial observations…"/>
+            <AutoTextarea value={form.observation} onChange={e => set('observation', e.target.value)}
+              placeholder="Doctor's initial observations…" className="input-field resize"/>
           </div>
 
           {/* Past History */}
           <div>
             <label className="form-label">Past History</label>
-            <RichTextEditor value={form.pastHistory} onChange={v => set('pastHistory', v)}
-              placeholder="Significant past medical history, surgeries, hospitalisations…"/>
+            <AutoTextarea value={form.pastHistory} onChange={e => set('pastHistory', e.target.value)}
+              placeholder="Significant past medical history, surgeries, hospitalisations…" className="input-field resize"/>
           </div>
 
           {/* Family History */}
           <div>
             <label className="form-label">Family History</label>
-            <RichTextEditor value={form.familyHistory} onChange={v => set('familyHistory', v)}
-              placeholder="Hereditary conditions, family medical background…"/>
+            <AutoTextarea value={form.familyHistory} onChange={e => set('familyHistory', e.target.value)}
+              placeholder="Hereditary conditions, family medical background…" className="input-field resize"/>
           </div>
 
           {/* Notes */}
           <div>
             <label className="form-label">Notes</label>
-            <RichTextEditor value={form.notes} onChange={v => set('notes', v)}
-              placeholder="Additional notes…"/>
+            <AutoTextarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input-field resize"/>
           </div>
         </SectionCard>
 
@@ -529,22 +527,25 @@ export default function EditPatientPage() {
         {/* ── History of (H/o) ─────────────────────────────────────────── */}
         <SectionCard accentColor="purple" title={`${form.gender === 'female' ? 'Female' : 'Male'} — History of (H/o)`}
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>}>
-          <RichTextEditor value={form.historyOf} onChange={v => set('historyOf', v)}
-            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"/>
+          <AutoTextarea value={form.historyOf} onChange={e => set('historyOf', e.target.value)}
+            placeholder="Gynaecological / obstetric / hormonal / systemic history relevant to the case…"
+            className="input-field resize min-h-[96px]"/>
         </SectionCard>
 
         {/* ── Life Span ─────────────────────────────────────────────────── */}
         <SectionCard accentColor="orange" title="Life Span"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>}>
-          <RichTextEditor value={form.lifeSpan} onChange={v => set('lifeSpan', v)}
-            placeholder="Key life events, miasmatic background, constitutional timeline…"/>
+          <AutoTextarea value={form.lifeSpan} onChange={e => set('lifeSpan', e.target.value)}
+            placeholder="Key life events, miasmatic background, constitutional timeline…"
+            className="input-field resize min-h-[96px]"/>
         </SectionCard>
 
         {/* ── Prescription Details ──────────────────────────────────────── */}
         <SectionCard accentColor="teal" title="Prescription Details"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>}>
-          <RichTextEditor value={form.prescriptionDetails} onChange={v => set('prescriptionDetails', v)}
-            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"/>
+          <AutoTextarea value={form.prescriptionDetails} onChange={e => set('prescriptionDetails', e.target.value)}
+            placeholder="Remedy, potency, dosage, repetition, anamnesis, diet restrictions…"
+            className="input-field resize min-h-[96px]"/>
         </SectionCard>
 
         {/* ── Emergency Contact ─────────────────────────────────────────── */}
