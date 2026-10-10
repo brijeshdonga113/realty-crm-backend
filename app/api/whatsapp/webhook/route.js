@@ -65,8 +65,8 @@ export async function POST(request) {
   if (!events.length) return Response.json({ ok: true, saved: 0 })
 
   try {
-    const { saved } = await persistWhatsAppEvents(events)
-    return Response.json({ ok: true, saved })
+    const { saved, persist } = await persistWhatsAppEvents(events)
+    return Response.json({ ok: true, saved, persist: persist || 'firestore' })
   } catch (err) {
     console.error('whatsapp webhook persist failed', err)
     return Response.json({ ok: true, saved: 0, persist: 'failed' })
