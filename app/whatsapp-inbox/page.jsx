@@ -25,7 +25,7 @@ function ConfigPill({ ok, label }) {
 }
 
 export default function WhatsAppInboxPage() {
-  const { doctor } = useAuth()
+  const { doctor, updateProfile } = useAuth()
   const [config, setConfig] = useState(null)
   const [messages, setMessages] = useState([])
   const [listError, setListError] = useState(null)
@@ -36,6 +36,9 @@ export default function WhatsAppInboxPage() {
   const [sendError, setSendError] = useState('')
   const [sendOk, setSendOk] = useState('')
   const [copied, setCopied] = useState(false)
+  const [phoneNumberId, setPhoneNumberId] = useState(doctor?.waPhoneNumberId || '')
+  const [assigning, setAssigning] = useState(false)
+  const [assignMsg, setAssignMsg] = useState('')
 
   const webhookUrl = useMemo(() => {
     if (typeof window === 'undefined') return '/api/whatsapp/webhook'
@@ -75,6 +78,35 @@ export default function WhatsAppInboxPage() {
     const id = setInterval(load, 8000)
     return () => clearInterval(id)
   }, [load])
+
+  useEffect(() => {
+    if (doctor?.waPhoneNumberId) setPhoneNumberId(doctor.waPhoneNumberId)
+  }, [doctor?.waPhoneNumberId])
+
+  const handleAssign = async (e) => {
+    e.preventDefault()
+    setAssigning(true)
+    setAssignMsg('')
+    try {
+      if (updateProfile) await updateProfile({ waPhoneNumberId: phoneNumberId.trim() })
+      const token = await getToken()
+      const res = await fetch('/api/whatsapp/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phoneNumberId: phoneNumberId.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAssignMsg(data.error || 'Could not assign number.')
+        return
+      }
+      setAssignMsg('This clinic will receive inbound WhatsApp leads for that number.')
+    } catch {
+      setAssignMsg('Could not assign number.')
+    } finally {
+      setAssigning(false)
+    }
+  }
 
   const copyUrl = async () => {
     try {
@@ -123,11 +155,10 @@ export default function WhatsAppInboxPage() {
     >
       <div className="max-w-3xl mx-auto space-y-6 pb-8">
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-          <p className="text-sm font-semibold text-green-800 dark:text-green-300">Cloud API test inbox</p>
+          <p className="text-sm font-semibold text-green-800 dark:text-green-300">WhatsApp → CRM leads</p>
           <p className="text-xs text-green-800/80 dark:text-green-300/80 mt-1 leading-relaxed">
-            Existing clinic WhatsApp buttons still open WhatsApp Web. This page is a sandbox for Meta&apos;s
-            webhook: verify the callback URL, receive inbound messages, and send a test reply to a number
-            on the app&apos;s allowed list.
+            When someone messages your Cloud API number, the webhook stores the chat and upserts a
+            WhatsApp lead on this clinic. Manage those conversations on the <a href="/contacts" className="underline font-medium">Leads</a> page.
           </p>
         </div>
 
@@ -152,13 +183,15 @@ export default function WhatsAppInboxPage() {
             <ConfigPill ok={Boolean(config?.appSecretSet)} label="App secret" />
             <ConfigPill ok={Boolean(config?.accessTokenSet)} label="Access token" />
             <ConfigPill ok={Boolean(config?.phoneNumberIdSet)} label="Phone number ID" />
+            <ConfigPill ok={Boolean(config?.defaultDoctorSet || doctor?.waPhoneNumberId)} label="Clinic routing" />
           </div>
           <ol className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5 list-decimal pl-4">
             <li>In Meta, create or open an app with WhatsApp product access.</li>
             <li>Set <span className="font-mono">WHATSAPP_VERIFY_TOKEN</span>, <span className="font-mono">WHATSAPP_APP_SECRET</span>, <span className="font-mono">WHATSAPP_ACCESS_TOKEN</span>, and <span className="font-mono">WHATSAPP_PHONE_NUMBER_ID</span> in the host environment.</li>
             <li>Paste the callback URL above. Use the same verify token Meta asks for.</li>
             <li>Subscribe the webhook to the <span className="font-mono">messages</span> field.</li>
-            <li>Add your personal number as a test recipient, then message the test business number or send from the form below.</li>
+            <li>Add your personal number as a test recipient, then message the test business number.</li>
+            <li>Set <span className="font-mono">WHATSAPP_DEFAULT_DOCTOR_ID</span> to this clinic&apos;s Firebase uid, or save the Phone Number ID below, so inbound chats become Leads.</li>
           </ol>
           <div>
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Local smoke test (no Meta signature)</p>
@@ -173,6 +206,29 @@ export default function WhatsAppInboxPage() {
             </p>
           )}
         </div>
+
+        <form onSubmit={handleAssign} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 space-y-3">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Route inbound chats to this clinic</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              Paste the Cloud API Phone Number ID from Meta. Incoming messages on that number become Leads here.
+              You can also set <span className="font-mono">WHATSAPP_DEFAULT_DOCTOR_ID</span> in env.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={phoneNumberId}
+              onChange={e => setPhoneNumberId(e.target.value)}
+              placeholder="Phone Number ID"
+              className="input-field flex-1"
+            />
+            <button type="submit" disabled={assigning || !phoneNumberId.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-50">
+              {assigning ? 'Saving…' : 'Save routing'}
+            </button>
+          </div>
+          {assignMsg && <p className="text-xs text-gray-500 dark:text-gray-400">{assignMsg}</p>}
+        </form>
 
         <form onSubmit={handleSend} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 space-y-4">
           <div>

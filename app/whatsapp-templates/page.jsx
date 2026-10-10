@@ -204,9 +204,9 @@ export default function WhatsAppTemplatesPage() {
 
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-green-800 dark:text-green-300">Cloud API webhook (test)</p>
+            <p className="text-sm font-semibold text-green-800 dark:text-green-300">Incoming WhatsApp chats</p>
             <p className="text-xs text-green-800/80 dark:text-green-300/80 mt-1">
-              Templates still open WhatsApp Web. Use the inbox to verify Meta&apos;s webhook and send a Cloud API test message.
+              Templates still open WhatsApp Web. Cloud API inbound messages become Leads you can reply to and convert.
             </p>
           </div>
           <Link href="/whatsapp-inbox"

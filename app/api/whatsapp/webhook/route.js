@@ -4,6 +4,7 @@ import {
   parseWhatsAppWebhook,
   persistWhatsAppEvents,
 } from '@/lib/whatsappCloud'
+import { ingestWhatsAppLeads } from '@/lib/whatsappLeads'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,9 +67,15 @@ export async function POST(request) {
 
   try {
     const { saved, persist } = await persistWhatsAppEvents(events)
-    return Response.json({ ok: true, saved, persist: persist || 'firestore' })
+    let leads = []
+    try {
+      leads = await ingestWhatsAppLeads(events)
+    } catch (err) {
+      console.error('whatsapp lead ingest failed', err)
+    }
+    return Response.json({ ok: true, saved, persist: persist || 'firestore', leads })
   } catch (err) {
     console.error('whatsapp webhook persist failed', err)
-    return Response.json({ ok: true, saved: 0, persist: 'failed' })
+    return Response.json({ ok: true, saved: 0, persist: 'failed', leads: [] })
   }
 }

@@ -1,12 +1,15 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { useAuth } from '@/context/AuthContext'
 import { useLeads } from '@/hooks/useLeads'
 import { useAppointments } from '@/hooks/useAppointments'
 import { usePatients } from '@/hooks/usePatients'
+import { useWhatsAppMessages } from '@/hooks/useWhatsAppThreads'
 import { buildWAUrl } from '@/lib/whatsapp'
-import { localDateStr } from '@/lib/preferences'
+import { dataStore } from '@/lib/dataStore'
+import { auth } from '@/lib/firebase'
 
 function normalizePhone(phone) {
   return (phone || '').replace(/\D/g, '')
@@ -68,9 +71,110 @@ function CollapsibleSection({ title, badge, badgeColor = 'blue', subtitle, child
   )
 }
 
+function WhatsAppLeadDrawer({ lead, onClose, onConvert, converting, canReply }) {
+  const threadId = lead.waThreadId || (lead.phone || '').replace(/\D/g, '').slice(-10)
+  const { messages } = useWhatsAppMessages(threadId)
+  const [reply, setReply] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
+
+  const handleSend = async (e) => {
+    e.preventDefault()
+    if (!reply.trim()) return
+    setSending(true)
+    setSendError('')
+    try {
+      const token = await auth.currentUser?.getIdToken()
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ to: lead.phone, text: reply }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSendError(data.error || 'Send failed.')
+        return
+      }
+      setReply('')
+    } catch {
+      setSendError('Send failed.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{lead.name}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{lead.phone || 'No phone'}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+          {messages.length === 0 && (lead.lastMessage || lead.note) && (
+            <div className="max-w-[85%] px-3 py-2 rounded-2xl text-sm bg-green-50 dark:bg-green-900/20 text-gray-800 dark:text-gray-100">
+              {lead.lastMessage || lead.note}
+            </div>
+          )}
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
+                msg.direction === 'out'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-green-50 dark:bg-green-900/20 text-gray-800 dark:text-gray-100'
+              }`}>
+                {msg.text || `[${msg.type || 'message'}]`}
+                <p className={`text-[10px] mt-1 ${msg.direction === 'out' ? 'text-white/70' : 'text-gray-400'}`}>
+                  {(msg.createdAt || msg.timestamp || '').replace('T', ' ').slice(0, 16)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
+          {sendError && <p className="text-xs text-red-600 dark:text-red-400">{sendError}</p>}
+          {canReply && (
+            <form onSubmit={handleSend} className="flex gap-2">
+              <input
+                value={reply}
+                onChange={e => setReply(e.target.value)}
+                placeholder="Reply on WhatsApp…"
+                className="input-field flex-1"
+              />
+              <button type="submit" disabled={sending || !reply.trim()}
+                className="px-3 py-2 rounded-lg text-sm font-semibold bg-green-500 hover:bg-green-600 text-white disabled:opacity-50">
+                {sending ? '…' : 'Send'}
+              </button>
+            </form>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            {lead.phone && (
+              <a href={buildWAUrl(lead.phone)} target="_blank" rel="noreferrer"
+                className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">
+                Open in WhatsApp
+              </a>
+            )}
+            <button
+              onClick={() => onConvert(lead)}
+              disabled={converting}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400">
+              {converting ? '…' : 'Convert to Patient'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LeadsPage() {
   const router = useRouter()
-  const { leads, loading: leadsLoading, add: addLead, convert, remove: removeLead } = useLeads()
+  const { doctor } = useAuth()
+  const { leads, loading: leadsLoading, add: addLead, update: updateLead, convert, remove: removeLead } = useLeads()
   const { appointments, loading: apptLoading } = useAppointments()
   const { patients, loading: patientsLoading }  = usePatients()
 
@@ -79,6 +183,7 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', email: '', source: 'walk-in', note: '' })
   const [converting, setConverting] = useState(null)
+  const [openLead, setOpenLead] = useState(null)
 
   const loading = leadsLoading || apptLoading || patientsLoading
 
@@ -110,8 +215,35 @@ export default function LeadsPage() {
     if (!q) return leads
     return leads.filter(l =>
       l.name.toLowerCase().includes(q) || (l.phone || '').includes(q) || (l.email || '').toLowerCase().includes(q)
+        || (l.lastMessage || '').toLowerCase().includes(q)
     )
   }, [leads, query])
+
+  const whatsappLeads = useMemo(
+    () => filteredLeads.filter(l => l.source === 'whatsapp'),
+    [filteredLeads]
+  )
+  const manualLeads = useMemo(
+    () => filteredLeads.filter(l => l.source !== 'whatsapp'),
+    [filteredLeads]
+  )
+
+  useEffect(() => {
+    if (!openLead) return
+    const latest = leads.find(l => l.id === openLead.id)
+    if (latest) setOpenLead(latest)
+  }, [leads, openLead?.id])
+
+  async function openWhatsAppLead(lead) {
+    setOpenLead(lead)
+    if ((lead.unreadCount || 0) > 0) {
+      try { await updateLead(lead.id, { unreadCount: 0 }) } catch {}
+    }
+    const threadId = lead.waThreadId || (lead.phone || '').replace(/\D/g, '').slice(-10)
+    if (threadId) {
+      try { await dataStore.update('whatsappThreads', threadId, { unreadCount: 0 }) } catch {}
+    }
+  }
 
   const filteredBooking = useMemo(() => {
     const q = query.toLowerCase().trim()
@@ -245,13 +377,83 @@ export default function LeadsPage() {
       ) : (
         <div className="space-y-8">
 
+          {whatsappLeads.length > 0 && (
+            <CollapsibleSection
+              title="WhatsApp Leads"
+              badge={whatsappLeads.length}
+              badgeColor="blue"
+              subtitle="Incoming Cloud API chats — open a row to read and reply">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-green-100 dark:border-green-800 shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-green-50 dark:border-green-900/40 bg-green-50/40 dark:bg-green-900/10">
+                      {['Name', 'Last message', 'Unread', 'Received', ''].map(h => (
+                        <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-left first:pl-6">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                    {whatsappLeads.map(lead => {
+                      const initials = lead.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      const isConverting = converting === lead.id
+                      return (
+                        <tr key={lead.id} className="hover:bg-green-50/30 dark:hover:bg-green-900/10 transition-colors cursor-pointer"
+                          onClick={() => openWhatsAppLead(lead)}>
+                          <td className="px-4 py-3.5 pl-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                                <span className="text-green-700 dark:text-green-300 font-semibold text-xs">{initials}</span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{lead.name}</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500">{lead.phone || '—'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300 max-w-[280px] truncate">
+                            {lead.lastMessage || lead.note || '—'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {(lead.unreadCount || 0) > 0 ? (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500 text-white">{lead.unreadCount}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-gray-500 dark:text-gray-400">
+                            {(lead.lastMessageAt || lead.createdAt || '').slice(0, 10) || '—'}
+                          </td>
+                          <td className="px-4 py-3.5 pr-5" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleConvert(lead)}
+                                disabled={isConverting}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 disabled:opacity-50 transition-colors whitespace-nowrap">
+                                {isConverting ? '…' : 'Convert'}
+                              </button>
+                              <button
+                                onClick={() => removeLead(lead.id)}
+                                className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Manual Leads */}
           <CollapsibleSection
             title="Manual Leads"
-            badge={filteredLeads.length}
+            badge={manualLeads.length}
             badgeColor="purple"
             subtitle="Walk-ins and referrals added manually">
-            {filteredLeads.length === 0 ? (
+            {manualLeads.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-10 text-center">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No manual leads yet</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Click "Add Lead" to add a walk-in or referral</p>
@@ -267,7 +469,7 @@ export default function LeadsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                    {filteredLeads.map(lead => {
+                    {manualLeads.map(lead => {
                       const initials = lead.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                       const isConverting = converting === lead.id
                       return (
@@ -402,12 +604,22 @@ export default function LeadsPage() {
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No leads yet</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {query ? 'No leads match your search.' : 'Add a walk-in or referral using "Add Lead" above.'}
+                {query ? 'No leads match your search.' : 'Add a walk-in, or wait for an inbound WhatsApp chat to appear here.'}
               </p>
             </div>
           )}
 
         </div>
+      )}
+
+      {openLead && (
+        <WhatsAppLeadDrawer
+          lead={openLead}
+          converting={converting === openLead.id}
+          canReply={!doctor?.viewOnly}
+          onClose={() => setOpenLead(null)}
+          onConvert={handleConvert}
+        />
       )}
     </AppLayout>
   )

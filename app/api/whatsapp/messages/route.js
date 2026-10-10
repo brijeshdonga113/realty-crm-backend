@@ -3,6 +3,7 @@ import {
   listWhatsAppMessages,
   verifyRequestUser,
 } from '@/lib/whatsappCloud'
+import { listMemoryLeads, resolveCallerClinicId } from '@/lib/whatsappLeads'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,8 +24,10 @@ export async function GET(request) {
     listError = 'Could not load messages. Check Firebase Admin credentials.'
   }
 
+  const clinicId = await resolveCallerClinicId(caller)
   return Response.json({
     messages,
+    leads: listMemoryLeads(clinicId),
     error: listError,
     config: {
       verifyTokenSet:   cfg.verifyTokenSet,
@@ -34,6 +37,7 @@ export async function GET(request) {
       graphVersion:     cfg.graphVersion,
       canVerify:        cfg.canVerify,
       canSend:          cfg.canSend,
+      defaultDoctorSet: Boolean(process.env.WHATSAPP_DEFAULT_DOCTOR_ID),
       webhookPath:      '/api/whatsapp/webhook',
     },
   })

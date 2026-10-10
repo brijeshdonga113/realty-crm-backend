@@ -22,6 +22,10 @@ export function useLeads() {
     return leadService.create(data)
   }, [])
 
+  const update = useCallback(async (id, patch) => {
+    return leadService.update(id, patch)
+  }, [])
+
   const convert = useCallback(async (id) => {
     return leadService.convert(id)
   }, [])
@@ -30,5 +34,5 @@ export function useLeads() {
     return leadService.remove(id)
   }, [])
 
-  return { leads, loading, add, convert, remove }
+  return { leads, loading, add, update, convert, remove }
 }

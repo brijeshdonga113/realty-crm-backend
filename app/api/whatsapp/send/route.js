@@ -1,4 +1,5 @@
 import { sendWhatsAppText, verifyRequestUser } from '@/lib/whatsappCloud'
+import { resolveCallerClinicId } from '@/lib/whatsappLeads'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,9 +14,11 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  const doctorId = await resolveCallerClinicId(caller)
   const result = await sendWhatsAppText({
     to: body?.to,
     text: body?.text,
+    doctorId,
   })
 
   if (!result.ok) {

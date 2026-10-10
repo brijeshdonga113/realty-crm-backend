@@ -42,6 +42,7 @@ function buildDoctorProfile(uid, data) {
     workingHours:  data.workingHours  ?? null,
     logoUrl:       data.logoUrl       ?? '',
     waTemplates:      data.waTemplates      ?? null,
+    waPhoneNumberId:  data.waPhoneNumberId  ?? '',
     serviceCharges:   data.serviceCharges   ?? [],
     billingStatuses:  data.billingStatuses  ?? null,
     inventoryCustomFields: data.inventoryCustomFields ?? [],

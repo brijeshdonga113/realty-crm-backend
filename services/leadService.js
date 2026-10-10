@@ -16,17 +16,27 @@ export const leadService = {
 
   async create(data) {
     const now = new Date().toISOString()
+    const phone = data.phone ?? ''
     const lead = {
-      id:        data.id ?? uid(),
-      name:      data.name ?? '',
-      phone:     data.phone ?? '',
-      email:     data.email ?? '',
-      source:    data.source ?? 'walk-in',  // 'walk-in' | 'referral' | 'booking' | 'other'
-      note:      data.note ?? '',
-      status:    'new',                       // 'new' | 'converted' | 'lost'
-      createdAt: now,
+      id:            data.id ?? uid(),
+      name:          data.name ?? '',
+      phone,
+      phoneKey:      data.phoneKey ?? phone.replace(/\D/g, '').slice(-10),
+      email:         data.email ?? '',
+      source:        data.source ?? 'walk-in',
+      note:          data.note ?? '',
+      status:        'new',
+      lastMessage:   data.lastMessage ?? '',
+      lastMessageAt: data.lastMessageAt ?? null,
+      unreadCount:   data.unreadCount ?? 0,
+      waThreadId:    data.waThreadId ?? null,
+      createdAt:     now,
     }
     return dataStore.create(COLLECTION, lead)
+  },
+
+  async update(id, patch) {
+    return dataStore.update(COLLECTION, id, patch)
   },
 
   async convert(id) {
