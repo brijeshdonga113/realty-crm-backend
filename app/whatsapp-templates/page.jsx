@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuth } from '@/context/AuthContext'
 import { DATE_FORMATS, formatDate as fmtDate } from '@/lib/preferences'
@@ -200,6 +201,19 @@ export default function WhatsAppTemplatesPage() {
       }
     >
       <div className="max-w-3xl mx-auto space-y-6">
+
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-green-800 dark:text-green-300">Cloud API webhook (test)</p>
+            <p className="text-xs text-green-800/80 dark:text-green-300/80 mt-1">
+              Templates still open WhatsApp Web. Use the inbox to verify Meta&apos;s webhook and send a Cloud API test message.
+            </p>
+          </div>
+          <Link href="/whatsapp-inbox"
+            className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white">
+            Open inbox
+          </Link>
+        </div>
 
         {/* WhatsApp Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">

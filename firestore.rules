@@ -68,6 +68,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── WhatsApp Cloud API test inbox ────────────────────────────────────────
+    // Written only by the Admin SDK from /api/whatsapp/webhook and /send.
+    match /whatsappMessages/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // ── Invite codes ─────────────────────────────────────────────────────────
     match /inviteCodes/{code} {
       allow read: if true;
